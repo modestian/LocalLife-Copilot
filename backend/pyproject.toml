@@ -10,11 +10,12 @@ requires-python = ">=3.11"
 dependencies = [
   "alembic==1.16.2",
   "asyncmy==0.2.10",
+  "celery[redis]==5.5.3",
   "fastapi==0.116.1",
   "opensearch-py==3.0.0",
   "pydantic-settings==2.10.1",
   "pymysql[rsa]==1.1.1",
-  "redis==6.2.0",
+  "redis==5.2.1",
   "sqlalchemy==2.0.41",
   "uvicorn[standard]==0.35.0",
 ]

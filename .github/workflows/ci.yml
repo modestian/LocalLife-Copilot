@@ -107,6 +107,8 @@ jobs:
             context: ./backend
           - image: frontend
             context: ./frontend
+          - image: nginx
+            context: ./deploy/nginx
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3

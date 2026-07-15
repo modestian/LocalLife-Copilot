@@ -30,13 +30,24 @@ def test_liveness_does_not_require_dependencies() -> None:
 
 
 def test_readiness_reports_all_dependencies_up() -> None:
-    with client_with({"mysql": healthy, "redis": healthy, "opensearch": healthy}) as client:
+    checks = {
+        "mysql": healthy,
+        "redis": healthy,
+        "opensearch": healthy,
+        "model_gateway": healthy,
+    }
+    with client_with(checks) as client:
         response = client.get("/health/ready")
 
     assert response.status_code == 200
     assert response.json() == {
         "status": "ready",
-        "checks": {"mysql": "up", "redis": "up", "opensearch": "up"},
+        "checks": {
+            "mysql": "up",
+            "redis": "up",
+            "opensearch": "up",
+            "model_gateway": "up",
+        },
     }
 
 

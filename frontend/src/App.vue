@@ -6,7 +6,7 @@ import StatusCard from './components/StatusCard.vue'
 type ApiState = 'checking' | 'ready' | 'unavailable'
 
 const apiState = ref<ApiState>('checking')
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 
 onMounted(async () => {
   try {

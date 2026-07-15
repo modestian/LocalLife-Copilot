@@ -28,7 +28,12 @@ def create_app(
         engine = create_async_engine(app_settings.database_url, pool_pre_ping=True)
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         opensearch_client = OpenSearch(app_settings.opensearch_url)
-        app.state.readiness_checks = build_readiness_checks(engine, redis_client, opensearch_client)
+        app.state.readiness_checks = build_readiness_checks(
+            engine,
+            redis_client,
+            opensearch_client,
+            app_settings.model_gateway_health_url,
+        )
         try:
             yield
         finally:

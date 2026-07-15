@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     mysql_port: int = 3306
     redis_url: str = "redis://redis:6379/0"
     opensearch_url: str = "http://opensearch:9200"
+    opensearch_index: str = "local-life-documents"
+    model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     dependency_timeout_seconds: float = 2.0
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
