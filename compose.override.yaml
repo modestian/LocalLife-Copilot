@@ -1,0 +1,15 @@
+# Automatically loaded by `docker compose` for local development only.
+services:
+  mysql:
+    networks: [backend, edge]
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-13306}:3306"
+  redis:
+    networks: [backend, edge]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+  opensearch:
+    networks: [backend, edge]
+    ports:
+      - "127.0.0.1:${OPENSEARCH_PORT:-19200}:9200"
+      - "127.0.0.1:${OPENSEARCH_PERFORMANCE_PORT:-19600}:9600"
