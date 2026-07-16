@@ -5,6 +5,9 @@ from urllib.parse import quote_plus
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.infrastructure.db import Base
+from app.infrastructure.db import models as db_models  # noqa: F401
+
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -19,7 +22,7 @@ if not database_url:
     )
 config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
