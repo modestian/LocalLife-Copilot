@@ -9,6 +9,7 @@ description = "LocalLife Copilot API"
 requires-python = ">=3.11"
 dependencies = [
   "alembic==1.16.2",
+  "argon2-cffi==25.1.0",
   "asyncmy==0.2.10",
   "celery[redis]==5.5.3",
   "fastapi==0.116.1",
@@ -16,7 +17,11 @@ dependencies = [
   "opensearch-py==3.0.0",
   "pandas==2.3.1",
   "pydantic-settings==2.10.1",
+<<<<<<< Updated upstream
   "pypdf==5.7.0",
+=======
+  "PyJWT==2.10.1",
+>>>>>>> Stashed changes
   "pymysql[rsa]==1.1.1",
   "python-docx==1.2.0",
   "redis==5.2.1",

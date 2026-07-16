@@ -104,6 +104,11 @@ services:
       OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-local-life-documents}
       MODEL_GATEWAY_HEALTH_URL: ${MODEL_GATEWAY_HEALTH_URL:-http://model-gateway:8001/health/live}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-development-only-change-this-jwt-secret-key}
+      JWT_ISSUER: ${JWT_ISSUER:-local-life-copilot}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-local-life-copilot-api}
+      ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-30}
+      REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
     networks: [backend]
     depends_on:
       mysql:
