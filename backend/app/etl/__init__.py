@@ -1,5 +1,14 @@
 """Knowledge ingestion records, ports, and file loader adapters."""
 
+from app.etl.cleaner import (
+    CleaningConfigError,
+    CleaningFunctionRegistry,
+    CleaningReport,
+    CleaningStepReport,
+    ConfigurableCleaner,
+    RowTemplateError,
+    render_row_template,
+)
 from app.etl.dataframe import CANONICAL_COLUMNS, records_to_dataframe
 from app.etl.loaders import (
     CsvLoader,
@@ -19,9 +28,14 @@ from app.etl.ports import Cleaner, Loader, Splitter
 __all__ = [
     "CANONICAL_COLUMNS",
     "ChunkRecord",
+    "CleaningConfigError",
+    "CleaningFunctionRegistry",
+    "CleaningReport",
+    "CleaningStepReport",
     "Cleaner",
     "CleanStatus",
     "CsvLoader",
+    "ConfigurableCleaner",
     "DocxLoader",
     "DocumentRecord",
     "FileLoadError",
@@ -31,10 +45,12 @@ __all__ = [
     "MarkdownLoader",
     "Metadata",
     "PdfLoader",
+    "RowTemplateError",
     "Splitter",
     "TextLoader",
     "XlsxLoader",
     "loader_for",
     "normalized_content_hash",
     "records_to_dataframe",
+    "render_row_template",
 ]
