@@ -11,17 +11,23 @@ LocalLife Copilot 使用 Docker Compose 编排以下容器：
 - `migrate`：只执行 Alembic 数据库迁移的一次性任务
 - `init`：幂等初始化 OpenSearch 索引的一次性任务
 
+项目设计、开发协作和数据标注文档见 [项目文档导航](./docs/README.md)。
+
 ## 1. 环境要求
 
+- Git
 - Docker Desktop 已启动，并支持 Docker Compose v2
 - 建议给 Docker 分配至少 4 GB 内存
 - 建议保留至少 8 GB 可用磁盘空间
 
-在 PowerShell 进入项目目录：
+首次获取项目：
 
 ```powershell
-cd D:\Dazhong\LocalLife-Copilot
+git clone https://github.com/modestian/LocalLife-Copilot.git
+Set-Location .\LocalLife-Copilot
 ```
+
+如果已经克隆项目，请在仓库的父目录执行 `Set-Location .\LocalLife-Copilot`；若克隆时修改过目录名，请使用实际目录名。后续命令均从仓库根目录执行。
 
 检查 Docker：
 
@@ -176,27 +182,31 @@ docker compose down --volumes --remove-orphans
 
 ## 9. 本地质量检查
 
+直接在宿主机运行全部质量检查还需要 Python 3.11+ 和 Node.js 22+。使用 `Push-Location` / `Pop-Location` 可确保每组命令结束后回到仓库根目录。
+
 后端：
 
 ```powershell
-cd backend
+Push-Location backend
 python -m pip install -e ".[dev]"
 ruff check .
 ruff format --check .
 pytest --cov=app --cov-report=term-missing --cov-fail-under=70
+Pop-Location
 ```
 
 前端：
 
 ```powershell
-cd frontend
+Push-Location frontend
 npm ci
 npm run lint
 npm test
 npm run build
+Pop-Location
 ```
 
-Compose 与代理策略：
+在仓库根目录检查 Compose 与代理策略：
 
 ```powershell
 docker compose config --quiet
