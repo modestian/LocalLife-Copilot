@@ -12,7 +12,7 @@
 
 1. 普通功能不要直接在 `main` 分支上开发。
 2. 每个相对独立的任务应创建单独分支。
-3. 分支名统一使用“小写类型前缀 + `/` + 英文描述”。
+3. 已拆分 Task 的工作，分支名统一使用“小写类型前缀 + `/` + 小写任务编号 + 英文描述”。
 4. 一个 Commit 尽量只对应一个明确的修改目标。
 5. Commit Message 必须包含标题、空行和具体修改内容。
 6. 新分支第一次推送使用 `git push -u origin <分支名>`。
@@ -34,25 +34,46 @@
 
 ### 3.2 分支命名格式
 
+本项目已经按 Epic → Story → Task 拆分任务。开发分支优先绑定最小可交付的 Task，推荐格式为：
+
+```text
+<类型>/<小写 Task ID>-<简短英文描述>
+```
+
+例如，`TK-201-01`“定义 DocumentRecord、ChunkRecord 与 Loader/Cleaner/Splitter 端口”的分支名为：
+
+```text
+feat/tk-201-01-etl-contracts
+```
+
+更多本项目示例：
+
+| 任务 | 推荐分支名 |
+|---|---|
+| `TK-201-02` 实现六类文件 Loader 和 DataFrame 标准化 | `feat/tk-201-02-file-loaders` |
+| `TK-201-06` 编写摄取链路测试 | `test/tk-201-06-ingestion-lifecycle` |
+| `TK-202-03` 实现权限安全的双路召回 | `feat/tk-202-03-secure-hybrid-retrieval` |
+| 修复 `TK-202-03` 的资源范围过滤缺陷 | `fix/tk-202-03-resource-scope-filter` |
+
+没有对应 Task ID 的临时文档、维护或紧急修复，才使用兼容格式：
+
 ```text
 <类型>/<简短英文描述>
 ```
 
-示例：
-
-```text
-feat/product-compare
-fix/login-timeout
-docs/deploy-guide
-refactor/recommend-service
-```
+例如：`docs/git-task-branch-naming`。
 
 命名要求：
 
 - 类型和描述统一使用小写英文；
+- Task ID 必须与任务分配文档一致，并转换为小写；
+- 保留 Task ID 中的短横线，例如使用 `tk-201-01`，不写成 `tk20101`；
 - 多个单词使用短横线 `-` 连接；
 - 不使用空格、中文、下划线或开发者姓名；
-- 分支名称应能直接体现任务内容。
+- 英文描述应概括交付物，通常使用 2～5 个单词；
+- 一个分支原则上只对应一个 Task，不使用 Epic ID 代替 Task ID；
+- 只有工作确实覆盖整个 Story 且无法继续拆分时，才可使用 `st-<编号>`；
+- 分支名称应能同时体现任务编号和任务内容。
 
 常用前缀：
 
@@ -70,12 +91,7 @@ refactor/recommend-service
 | `ci/` | 持续集成或部署配置调整 |
 | `revert/` | 撤销某项修改 |
 
-如项目使用 Issue 或 Jira，可在分支名中加入任务编号：
-
-```text
-feat/123-product-compare
-fix/SMART-156-login-timeout
-```
+任务编号以 [人员分工任务分配](./大众点评AI智能助手-06-人员分工任务分配.md) 为准。分支中的 `tk-201-01`、提交说明和 Pull Request 标题应指向同一个 Task，便于从代码变更反查任务与验收标准。
 
 ---
 
@@ -86,7 +102,7 @@ fix/SMART-156-login-timeout
 ```bash
 git switch main
 git pull --ff-only origin main
-git switch -c feat/product-compare
+git switch -c feat/tk-201-01-etl-contracts
 ```
 
 检查当前分支：
@@ -178,7 +194,7 @@ git push
 新分支第一次推送：
 
 ```bash
-git push -u origin feat/product-compare
+git push -u origin feat/tk-201-01-etl-contracts
 ```
 
 建立远程跟踪关系后，后续通常直接执行：
@@ -265,7 +281,7 @@ git commit
 让任务分支基于最新 `main`：
 
 ```bash
-git switch feat/product-compare
+git switch feat/tk-201-01-etl-contracts
 git fetch origin
 git rebase origin/main
 ```
@@ -316,7 +332,7 @@ Push 只负责把本地提交上传到远程，不会自动完成合并，也不
 Push 后应创建 Pull Request 或 Merge Request，例如：
 
 ```text
-feat/product-compare → main
+feat/tk-201-01-etl-contracts → main
 ```
 
 合并前确认：
@@ -332,13 +348,13 @@ feat/product-compare → main
 ```bash
 git switch main
 git pull --ff-only origin main
-git branch -d feat/product-compare
+git branch -d feat/tk-201-01-etl-contracts
 ```
 
 删除远程分支：
 
 ```bash
-git push origin --delete feat/product-compare
+git push origin --delete feat/tk-201-01-etl-contracts
 ```
 
 清理失效的远程引用：
@@ -366,15 +382,15 @@ git fetch --prune
 示例：
 
 ```bash
-git switch -c feat/langchain-opensearch-rag
+git switch -c feat/tk-202-03-secure-hybrid-retrieval
 git add <第一个任务的文件>
 git commit
-git push -u origin feat/langchain-opensearch-rag
+git push -u origin feat/tk-202-03-secure-hybrid-retrieval
 
 git stash push -u -m "待提交的项目文档"
 git switch main
 git pull --ff-only origin main
-git switch -c docs/update-project-documents
+git switch -c docs/git-task-branch-naming
 git stash pop
 ```
 
@@ -382,19 +398,18 @@ git stash pop
 
 ### 所有修改属于同一个任务的完整示例
 
-适用场景：后端、前端、测试、配置和说明文档共同服务于同一个功能，例如新增商品对比功能。
+适用场景：代码、测试和说明文档共同服务于同一个 Task，例如定义 `TK-201-01` 的 ETL 记录与处理端口。
 
 ```bash
 # 1. 从最新 `main` 创建任务分支
 git switch main
 git pull --ff-only origin main
-git switch -c feat/product-compare
+git switch -c feat/tk-201-01-etl-contracts
 
 # 2. 完成开发后检查并暂存
 git status
-git add backend/app backend/tests
-git add frontend/src
-git add README.md .env.example
+git add backend/app/etl
+git add backend/tests/test_etl_contracts.py
 git diff --cached --name-status
 git diff --cached
 
@@ -407,19 +422,18 @@ git status
 git fetch origin
 git rebase origin/main
 # 重新运行必要测试
-git push -u origin feat/product-compare
+git push -u origin feat/tk-201-01-etl-contracts
 git status
 ```
 
 Commit Message 示例：
 
 ```text
-feat：新增商品对比功能
+feat：定义知识摄取记录与处理端口
 
-1. 新增商品对比接口和业务处理逻辑。
-2. 完成商品参数差异展示页面。
-3. 增加商品选择数量限制和异常提示。
-4. 补充自动化测试、环境配置和使用说明。
+1. 定义 DocumentRecord、ChunkRecord 和清洗状态约束。
+2. 定义 Loader、Cleaner、Splitter 可替换处理端口。
+3. 补充记录校验与端口契约自动化测试。
 ```
 
 Push 后创建 Pull Request，将任务分支合并到 `main`。合并完成后清理分支：
@@ -427,8 +441,8 @@ Push 后创建 Pull Request，将任务分支合并到 `main`。合并完成后�
 ```bash
 git switch main
 git pull --ff-only origin main
-git branch -d feat/product-compare
-git push origin --delete feat/product-compare
+git branch -d feat/tk-201-01-etl-contracts
+git push origin --delete feat/tk-201-01-etl-contracts
 git fetch --prune
 ```
 
@@ -497,7 +511,7 @@ git push origin --delete <旧分支名>
 尚未 Commit 时，可直接创建新分支：
 
 ```bash
-git switch -c feat/product-compare
+git switch -c feat/tk-201-01-etl-contracts
 git status
 ```
 
@@ -536,14 +550,14 @@ Push 前确认：
 ```bash
 git switch main
 git pull --ff-only origin main
-git switch -c feat/product-compare
+git switch -c feat/tk-201-01-etl-contracts
 
 git status
 git add <文件或目录>
 git diff --cached
 git commit
 git log -1 --stat
-git push -u origin feat/product-compare
+git push -u origin feat/tk-201-01-etl-contracts
 git status
 ```
 
@@ -566,8 +580,8 @@ git status
 ```bash
 git switch main
 git pull --ff-only origin main
-git branch -d feat/product-compare
-git push origin --delete feat/product-compare
+git branch -d feat/tk-201-01-etl-contracts
+git push origin --delete feat/tk-201-01-etl-contracts
 git fetch --prune
 ```
 
@@ -576,14 +590,14 @@ git fetch --prune
 ## 14. 统一提交示例
 
 ```text
-分支：feat/product-qa
+分支：feat/tk-201-01-etl-contracts
 
 Commit：
-feat：新增商品知识问答功能
+feat：定义知识摄取记录与处理端口
 
-1. 新增商品参数查询接口。
-2. 接入商品知识检索服务。
-3. 增加知识不足时的兜底提示。
+1. 定义 DocumentRecord、ChunkRecord 和清洗状态约束。
+2. 定义 Loader、Cleaner、Splitter 可替换处理端口。
+3. 补充记录校验与端口契约自动化测试。
 ```
 
 通过统一分支命名、Commit Message、Rebase、Push 和分支清理流程，可以保持项目历史清晰、修改内容可追溯，并降低多人协作成本。
