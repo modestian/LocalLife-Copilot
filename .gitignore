@@ -24,3 +24,6 @@ dist/
 
 # 日志文件
 *.log
+
+# 模型文件
+backend/models/
