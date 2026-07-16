@@ -1,3 +1,4 @@
+import re
 from functools import lru_cache
 from typing import Annotated
 from urllib.parse import quote_plus
@@ -10,7 +11,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_name: str = "LocalLife Copilot API"
+    app_version: str = "0.1.0"
     app_environment: str = "development"
+    api_v1_prefix: str = "/api/v1"
+    request_id_header: str = "X-Request-ID"
+    request_id_max_length: int = 128
     mysql_database: str = "local_life"
     mysql_user: str = "local_life"
     mysql_password: str = "local_life_dev"
@@ -32,6 +37,29 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @field_validator("api_v1_prefix")
+    @classmethod
+    def validate_api_prefix(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized.startswith("/") or normalized == "/":
+            raise ValueError("api_v1_prefix must be an absolute non-root path")
+        return normalized.rstrip("/")
+
+    @field_validator("request_id_max_length")
+    @classmethod
+    def validate_request_id_max_length(cls, value: int) -> int:
+        if not 16 <= value <= 1024:
+            raise ValueError("request_id_max_length must be between 16 and 1024")
+        return value
+
+    @field_validator("request_id_header")
+    @classmethod
+    def validate_request_id_header(cls, value: str) -> str:
+        normalized = value.strip()
+        if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", normalized):
+            raise ValueError("request_id_header must be a valid HTTP header name")
+        return normalized
 
     @property
     def database_url(self) -> str:
