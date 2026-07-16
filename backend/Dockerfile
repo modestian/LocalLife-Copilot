@@ -10,6 +10,9 @@ WORKDIR /app
 RUN addgroup --system app && adduser --system --ingroup app app
 
 COPY pyproject.toml ./
+
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
 COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations
