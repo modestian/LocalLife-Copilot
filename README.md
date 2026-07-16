@@ -17,6 +17,7 @@ LocalLife Copilot 使用 Docker Compose 编排以下容器：
 
 - Git
 - Docker Desktop 已启动，并支持 Docker Compose v2
+- 本机执行后端质量检查时使用 Python 3.13.14（仓库根目录 `.python-version` 已锁定）
 - 建议给 Docker 分配至少 4 GB 内存
 - 建议保留至少 8 GB 可用磁盘空间
 
@@ -182,7 +183,7 @@ docker compose down --volumes --remove-orphans
 
 ## 9. 本地质量检查
 
-直接在宿主机运行全部质量检查还需要 Python 3.11+ 和 Node.js 22+。使用 `Push-Location` / `Pop-Location` 可确保每组命令结束后回到仓库根目录。
+直接在宿主机运行全部质量检查还需要 Python 3.13.14 和 Node.js 22+。使用 `Push-Location` / `Pop-Location` 可确保每组命令结束后回到仓库根目录。
 
 后端：
 

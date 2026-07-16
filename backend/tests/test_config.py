@@ -43,3 +43,16 @@ def test_settings_reject_invalid_api_prefix(value: str) -> None:
 def test_settings_reject_invalid_request_id_header(value: str) -> None:
     with pytest.raises(ValidationError):
         Settings(request_id_header=value)
+
+
+def test_settings_reject_short_jwt_secret() -> None:
+    with pytest.raises(ValidationError, match="at least 32 bytes"):
+        Settings(jwt_secret_key="too-short")
+
+
+def test_production_rejects_development_jwt_secret() -> None:
+    with pytest.raises(ValidationError, match="production must override"):
+        Settings(app_environment="production")
+
+    settings = Settings(app_environment="production", jwt_secret_key="p" * 32)
+    assert settings.jwt_secret_key.get_secret_value() == "p" * 32

@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Annotated
 from urllib.parse import quote_plus
 
-from pydantic import field_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     opensearch_index: str = "local-life-documents"
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     dependency_timeout_seconds: float = 2.0
+    jwt_secret_key: SecretStr = SecretStr("development-only-change-this-jwt-secret-key")
+    jwt_issuer: str = "local-life-copilot"
+    jwt_audience: str = "local-life-copilot-api"
+    access_token_ttl_minutes: int = 30
+    refresh_token_ttl_days: int = 7
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -60,6 +65,39 @@ class Settings(BaseSettings):
         if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", normalized):
             raise ValueError("request_id_header must be a valid HTTP header name")
         return normalized
+
+    @field_validator("access_token_ttl_minutes")
+    @classmethod
+    def validate_access_token_ttl(cls, value: int) -> int:
+        if not 1 <= value <= 1440:
+            raise ValueError("access_token_ttl_minutes must be between 1 and 1440")
+        return value
+
+    @field_validator("refresh_token_ttl_days")
+    @classmethod
+    def validate_refresh_token_ttl(cls, value: int) -> int:
+        if not 1 <= value <= 90:
+            raise ValueError("refresh_token_ttl_days must be between 1 and 90")
+        return value
+
+    @field_validator("jwt_issuer", "jwt_audience")
+    @classmethod
+    def validate_jwt_identity(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("JWT issuer and audience must not be empty")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_jwt_secret(self) -> "Settings":
+        secret = self.jwt_secret_key.get_secret_value()
+        if len(secret.encode("utf-8")) < 32:
+            raise ValueError("jwt_secret_key must contain at least 32 bytes")
+        if self.app_environment.lower() in {"production", "prod"} and secret.startswith(
+            "development-only-"
+        ):
+            raise ValueError("production must override the development JWT secret")
+        return self
 
     @property
     def database_url(self) -> str:

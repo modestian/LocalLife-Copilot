@@ -2,8 +2,13 @@
 venv/
 *.venv
 .env
+<<<<<<< HEAD
 
 # Python 编译缓存
+=======
+.venv/
+*.egg-info/
+>>>>>>> 6fe1cfea2635d96487303af9a178927c71a354cd
 __pycache__/
 *.py[cod]
 
@@ -24,6 +29,9 @@ dist/
 
 # 日志文件
 *.log
+<<<<<<< HEAD
 
 # 模型文件
 backend/models/
+=======
+>>>>>>> 6fe1cfea2635d96487303af9a178927c71a354cd
