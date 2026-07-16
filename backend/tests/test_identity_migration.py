@@ -118,7 +118,7 @@ def test_upgrade_uses_binary_uuid_and_explicit_constraints() -> None:
     }
 
 
-def test_downgrade_removes_tables_in_reverse_dependency_order() -> None:
+def test_downgrade_removes_tables_and_owned_indexes_in_reverse_dependency_order() -> None:
     migration = load_migration()
     recorder = RecordingOperations()
     migration.op = recorder
@@ -135,11 +135,4 @@ def test_downgrade_removes_tables_in_reverse_dependency_order() -> None:
         "users",
         "departments",
     ]
-    assert recorder.dropped_indexes == [
-        ("ix_refresh_tokens_user_revoked", "refresh_tokens"),
-        ("ix_resource_grants_resource", "resource_grants"),
-        ("ix_resource_grants_subject", "resource_grants"),
-        ("ix_users_department_status", "users"),
-        ("ix_departments_path", "departments"),
-        ("ix_departments_parent", "departments"),
-    ]
+    assert recorder.dropped_indexes == []
