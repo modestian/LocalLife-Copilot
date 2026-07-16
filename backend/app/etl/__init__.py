@@ -24,6 +24,16 @@ from app.etl.loaders import (
 )
 from app.etl.models import ChunkRecord, CleanStatus, DocumentRecord, JsonValue, Metadata
 from app.etl.ports import Cleaner, Loader, Splitter
+from app.etl.splitters import (
+    DEFAULT_SEPARATORS,
+    HashingSentenceEncoder,
+    RecursiveSplitter,
+    SemanticSplitter,
+    SplitQualityReport,
+    SplitterConfigError,
+    count_tokens,
+    stable_content_hash,
+)
 
 __all__ = [
     "CANONICAL_COLUMNS",
@@ -34,23 +44,31 @@ __all__ = [
     "CleaningStepReport",
     "Cleaner",
     "CleanStatus",
-    "CsvLoader",
     "ConfigurableCleaner",
+    "CsvLoader",
+    "DEFAULT_SEPARATORS",
     "DocxLoader",
     "DocumentRecord",
     "FileLoadError",
     "FileLoader",
+    "HashingSentenceEncoder",
     "JsonValue",
     "Loader",
     "MarkdownLoader",
     "Metadata",
     "PdfLoader",
+    "RecursiveSplitter",
     "RowTemplateError",
+    "SemanticSplitter",
+    "SplitQualityReport",
     "Splitter",
+    "SplitterConfigError",
     "TextLoader",
     "XlsxLoader",
+    "count_tokens",
     "loader_for",
     "normalized_content_hash",
     "records_to_dataframe",
     "render_row_template",
+    "stable_content_hash",
 ]
