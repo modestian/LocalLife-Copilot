@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from app.core.config import Settings
 
 
@@ -22,3 +25,21 @@ def test_settings_accept_comma_separated_cors_origins() -> None:
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ]
+
+
+def test_settings_normalize_api_prefix() -> None:
+    settings = Settings(api_v1_prefix=" /custom/v1/ ")
+
+    assert settings.api_v1_prefix == "/custom/v1"
+
+
+@pytest.mark.parametrize("value", ["relative", "/", ""])
+def test_settings_reject_invalid_api_prefix(value: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(api_v1_prefix=value)
+
+
+@pytest.mark.parametrize("value", ["", "X Request ID", "X-Request-ID:"])
+def test_settings_reject_invalid_request_id_header(value: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(request_id_header=value)
