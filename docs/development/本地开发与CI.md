@@ -49,6 +49,8 @@ Nginx 是浏览器统一入口：
 
 ## 本地检查
 
+本机后端开发与检查统一使用 Python 3.12.0；仓库根目录 `.python-version`、后端包约束、Docker 镜像和 CI 均锁定为同一版本。
+
 后端：
 
 ```powershell

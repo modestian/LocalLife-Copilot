@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "local-life-copilot-api"
 version = "0.1.0"
 description = "LocalLife Copilot API"
-requires-python = ">=3.11"
+requires-python = "==3.12.0"
 dependencies = [
   "alembic==1.16.2",
   "argon2-cffi==25.1.0",
@@ -57,7 +57,16 @@ show_missing = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.ruff.lint.per-file-ignores]
+# ETL 类型别名由对应任务负责人迁移；Python 3.12 运行时升级不改动其业务代码。
+"app/etl/models.py" = ["UP040"]
+"app/etl/splitters.py" = ["UP040"]
+
+[tool.ruff.format]
+# 保持任务边界，不在运行时升级提交中格式化其他负责人维护的 ETL 模型。
+exclude = ["app/etl/models.py"]
