@@ -256,17 +256,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_refresh_tokens_user_revoked", table_name="refresh_tokens")
+    # MySQL may use an explicit application index to enforce a foreign key. Dropping
+    # such an index before its table fails with error 1553. Dropping each table in
+    # reverse dependency order removes its indexes together with the table.
     op.drop_table("refresh_tokens")
-    op.drop_index("ix_resource_grants_resource", table_name="resource_grants")
-    op.drop_index("ix_resource_grants_subject", table_name="resource_grants")
     op.drop_table("resource_grants")
     op.drop_table("role_permissions")
     op.drop_table("user_roles")
     op.drop_table("permissions")
     op.drop_table("roles")
-    op.drop_index("ix_users_department_status", table_name="users")
     op.drop_table("users")
-    op.drop_index("ix_departments_path", table_name="departments")
-    op.drop_index("ix_departments_parent", table_name="departments")
     op.drop_table("departments")
