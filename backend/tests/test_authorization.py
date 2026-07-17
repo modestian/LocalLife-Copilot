@@ -172,6 +172,7 @@ def test_users_me_and_authorization_dependencies(
     scoped_principal: AuthorizationPrincipal,
 ) -> None:
     access_tokens = _access_tokens()
+    allowed_kb = scoped_principal.resource_grants[0].resource_id
     no_permission = AuthorizationPrincipal(
         user_id=uuid7(),
         username="ordinary_user",
@@ -182,8 +183,19 @@ def test_users_me_and_authorization_dependencies(
         permissions=(),
         resource_grants=(),
     )
+    no_scope = AuthorizationPrincipal(
+        user_id=uuid7(),
+        username="kb_reader_without_scope",
+        display_name="KB reader without scope",
+        email=None,
+        department_id=None,
+        roles=(RoleInfo("KB_READER", "KB reader"),),
+        permissions=(PermissionRule("kb.read", "KNOWLEDGE_BASE", "READ"),),
+        resource_grants=(),
+    )
     service = AuthorizationService(
-        InMemoryAuthorizationRepository([scoped_principal, no_permission]), access_tokens
+        InMemoryAuthorizationRepository([scoped_principal, no_permission, no_scope]),
+        access_tokens,
     )
     app = create_app(readiness_checks={}, settings=Settings())
     app.dependency_overrides[get_authorization_service] = lambda: service
@@ -210,8 +222,8 @@ def test_users_me_and_authorization_dependencies(
 
     scoped_token = access_tokens.issue(scoped_principal.user_id).value
     ordinary_token = access_tokens.issue(no_permission.user_id).value
+    no_scope_token = access_tokens.issue(no_scope.user_id).value
     unknown_token = access_tokens.issue(uuid7()).value
-    allowed_kb = scoped_principal.resource_grants[0].resource_id
 
     with TestClient(app) as client:
         missing = client.get("/api/v1/users/me")
@@ -226,6 +238,10 @@ def test_users_me_and_authorization_dependencies(
         resource_forbidden = client.get(
             f"/test/knowledge-bases/{allowed_kb}",
             headers={"Authorization": f"Bearer {ordinary_token}"},
+        )
+        scoped_out = client.get(
+            f"/test/knowledge-bases/{allowed_kb}",
+            headers={"Authorization": f"Bearer {no_scope_token}"},
         )
         allowed = client.get(
             f"/test/knowledge-bases/{allowed_kb}",
@@ -250,6 +266,9 @@ def test_users_me_and_authorization_dependencies(
     }
     assert forbidden.status_code == 403
     assert resource_forbidden.status_code == 403
+    assert resource_forbidden.json()["code"] == "FORBIDDEN"
+    assert scoped_out.status_code == 404
+    assert scoped_out.json()["code"] == "NOT_FOUND"
     assert allowed.status_code == 200
     assert hidden.status_code == 404
 
