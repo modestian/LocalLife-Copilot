@@ -11,8 +11,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.users import router as users_router
-from app.application.authorization import AuthorizationService
 from app.application.auth import AuthService
+from app.application.authorization import AuthorizationService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
 from app.core.readiness import ReadinessCheck, build_readiness_checks

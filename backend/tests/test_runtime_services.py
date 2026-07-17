@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 from app import init_runtime
-from app.application.authorization import AuthorizationService
 from app.application.auth import AuthService
+from app.application.authorization import AuthorizationService
 from app.core.config import Settings
 from app.main import create_app
 from app.model_gateway import app as model_gateway_app
