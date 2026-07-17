@@ -23,6 +23,7 @@ from app.etl.cleaner import (
     ConfigurableCleaner,
     RowTemplateError,
 )
+from app.etl.embeddings import EmbeddingError
 from app.etl.loaders import FileLoadError, loader_for
 from app.etl.models import ChunkRecord, JsonValue, Metadata
 from app.etl.splitters import (
@@ -260,6 +261,8 @@ class WorkerLifecycleService:
             return "CLEANING_FAILED"
         if isinstance(exc, SplitterConfigError):
             return "SPLITTING_FAILED"
+        if isinstance(exc, EmbeddingError):
+            return exc.code
         return "WORKER_PROCESSING_FAILED"
 
     def _checkpoint(self, job: LifecycleJob, stage: TaskStage, progress: int) -> None:

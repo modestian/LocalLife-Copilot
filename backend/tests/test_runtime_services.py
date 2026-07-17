@@ -19,6 +19,20 @@ def test_model_gateway_liveness() -> None:
     assert response.json() == {"status": "alive"}
 
 
+def test_model_gateway_returns_deterministic_dimensioned_embeddings() -> None:
+    with TestClient(model_gateway_app) as client:
+        response = client.post(
+            "/v1/embeddings",
+            json={"model": "local-deterministic-v1", "input": ["安静", "安静"]},
+        )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert [item["index"] for item in data] == [0, 1]
+    assert len(data[0]["embedding"]) == Settings().embedding_dimension
+    assert data[0]["embedding"] == data[1]["embedding"]
+
+
 def test_worker_ping_task_contract() -> None:
     assert ping() == "pong"
 

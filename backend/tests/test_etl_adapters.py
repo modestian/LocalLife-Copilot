@@ -4,6 +4,7 @@ from uuid import UUID
 import pytest
 
 from app.etl.adapters import LocalSourceStorage, OpenSearchProjection
+from app.etl.embeddings import BatchedEmbedder
 from app.etl.lifecycle import LifecycleError, projection_id
 from app.etl.models import ChunkRecord
 
@@ -43,6 +44,16 @@ def chunk(number: int = 0) -> ChunkRecord:
     )
 
 
+class FakeEmbeddingProvider:
+    def embed(self, texts):
+        return [[0.1, 0.2, 0.3] for _ in texts]
+
+
+def projection(client: FakeOpenSearch) -> OpenSearchProjection:
+    embedder = BatchedEmbedder(FakeEmbeddingProvider(), dimension=3, batch_size=2)
+    return OpenSearchProjection(client, "knowledge-index", embedder, bulk_batch_size=2)
+
+
 def test_local_source_storage_opens_files_inside_configured_root(tmp_path: Path) -> None:
     source = tmp_path / "nested" / "sample.txt"
     source.parent.mkdir()
@@ -66,15 +77,20 @@ def test_opensearch_projection_uses_stable_ids_for_idempotent_upsert(monkeypatch
 
     def fake_bulk(_client, actions, **kwargs):
         assert _client is client
-        assert kwargs == {"refresh": "wait_for", "raise_on_error": True}
+        assert kwargs == {
+            "chunk_size": 2,
+            "refresh": "wait_for",
+            "raise_on_error": True,
+            "raise_on_exception": True,
+        }
         captured.extend(actions)
         return len(actions), []
 
     monkeypatch.setattr("app.etl.adapters.bulk", fake_bulk)
-    projection = OpenSearchProjection(client, "knowledge-index")
+    search_projection = projection(client)
 
-    projection.upsert(VERSION_ID, [chunk()])
-    projection.upsert(VERSION_ID, [chunk()])
+    search_projection.upsert(VERSION_ID, [chunk()])
+    search_projection.upsert(VERSION_ID, [chunk()])
 
     assert [action["_id"] for action in captured] == [
         projection_id(VERSION_ID, 0),
@@ -85,16 +101,17 @@ def test_opensearch_projection_uses_stable_ids_for_idempotent_upsert(monkeypatch
     assert captured[0]["_source"]["knowledge_base_id"] == "kb-1"
     assert captured[0]["_source"]["business_status"] == "OPEN"
     assert captured[0]["_source"]["valid_to"] == "2026-12-31T23:59:59Z"
+    assert captured[0]["_source"]["content_vector"] == [0.1, 0.2, 0.3]
 
 
 def test_opensearch_projection_counts_and_deletes_one_document_version() -> None:
     client = FakeOpenSearch()
     client.count_value = 3
     client.deleted_value = 3
-    projection = OpenSearchProjection(client, "knowledge-index")
+    search_projection = projection(client)
 
-    assert projection.count(VERSION_ID) == 3
-    assert projection.delete(VERSION_ID) == 3
+    assert search_projection.count(VERSION_ID) == 3
+    assert search_projection.delete(VERSION_ID) == 3
 
     expected_query = {"query": {"term": {"document_version_id": str(VERSION_ID)}}}
     assert client.count_calls == [{"index": "knowledge-index", "body": expected_query}]

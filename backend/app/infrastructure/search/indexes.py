@@ -68,6 +68,23 @@ def ensure_chunk_index(
     if not client.indices.exists(index=index):
         client.indices.create(index=index, body=chunk_index_body(embedding_dimension))
 
+    switch_chunk_aliases(
+        client,
+        index=index,
+        read_alias=read_alias,
+        write_alias=write_alias,
+    )
+
+
+def switch_chunk_aliases(
+    client: OpenSearch,
+    *,
+    index: str,
+    read_alias: str,
+    write_alias: str,
+) -> None:
+    """Atomically move the read and write aliases to one populated index version."""
+
     actions: list[dict[str, dict[str, object]]] = []
     for alias in (read_alias, write_alias):
         for previous_index in _alias_indexes(client, alias):
