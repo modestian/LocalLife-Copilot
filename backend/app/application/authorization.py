@@ -139,7 +139,7 @@ class AuthorizationService:
 T = TypeVar("T")
 
 
-def filter_authorized_resources(
+def filter_authorized_resources[T](
     principal: AuthorizationPrincipal,
     resources: list[T],
     *,

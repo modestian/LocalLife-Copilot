@@ -1,21 +1,19 @@
 """Sentiment analysis result persistence models."""
 
-import json
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, Index, String, Text
+from sqlalchemy import CheckConstraint, Index, String, Text
 from sqlalchemy.dialects import mysql
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.ids import uuid7
-from app.infrastructure.db.base import Base, UUIDBinary, utc_now
+from app.infrastructure.db.base import Base, UUIDBinary
 from app.infrastructure.db.models.identity import (
     DATETIME_6,
     MYSQL_TABLE_OPTIONS,
     TimestampMixin,
     VersionMixin,
-    UNSIGNED_INTEGER,
 )
 
 

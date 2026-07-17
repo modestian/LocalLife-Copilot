@@ -1,11 +1,10 @@
-import json
 import logging
 import os
 from typing import Literal
 
 import torch
 from pydantic import BaseModel, field_validator
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+from transformers import pipeline
 
 logger = logging.getLogger(__name__)
 
