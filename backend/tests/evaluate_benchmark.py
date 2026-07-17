@@ -13,12 +13,26 @@ LABELS = ["NEGATIVE", "NEUTRAL", "POSITIVE"]
 
 
 def load_benchmark(filepath: str) -> List[Dict]:
+    """Load JSONL benchmark data, normalizing field names across formats.
+
+    Supported formats:
+      - benchmark_reviews.jsonl:  content / negative_reason
+      - training_data_1000.jsonl: text   / negative_reasons
+    After loading, every sample uses: content / aspect_labels / negative_reason / sentiment.
+    """
     data = []
     with open(filepath, 'r', encoding='utf-8') as f:
         for line in f:
             line = line.strip()
             if line:
-                data.append(json.loads(line))
+                sample = json.loads(line)
+                # Normalize text field
+                if 'text' in sample and 'content' not in sample:
+                    sample['content'] = sample.pop('text')
+                # Normalize negative reason field
+                if 'negative_reasons' in sample and 'negative_reason' not in sample:
+                    sample['negative_reason'] = sample.pop('negative_reasons')
+                data.append(sample)
     return data
 
 
@@ -225,7 +239,11 @@ def generate_error_report(sentiment_result: Dict | None) -> str:
 
 
 def main():
-    benchmark_path = 'tests/data/benchmark_reviews.jsonl'
+    # Support command-line argument: python evaluate_benchmark.py [path]
+    if len(sys.argv) > 1:
+        benchmark_path = sys.argv[1]
+    else:
+        benchmark_path = 'tests/data/training_data_1000.jsonl'
 
     print("=" * 60)
     print("大众点评AI智能助手 - 基准样本离线评测")
