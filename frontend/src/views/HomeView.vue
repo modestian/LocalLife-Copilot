@@ -3,6 +3,8 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { getReadiness } from '@/api/health'
+import type { SearchResult } from '@/api/search'
+import SearchDebugPanel from '@/components/SearchDebugPanel.vue'
 import StatusCard from '@/components/StatusCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -11,6 +13,19 @@ type ApiState = 'checking' | 'ready' | 'unavailable'
 const apiState = ref<ApiState>('checking')
 const authStore = useAuthStore()
 const router = useRouter()
+
+const sampleResults: SearchResult[] = [
+  {
+    chunk_id: 'chunk-demo-001',
+    document_id: 'review-demo-001',
+    merchant_id: 'merchant-demo-001',
+    content: '环境安静，靠窗位置适合四人讨论，工作日下午客流较少。',
+    source_location: '点评 / 星光咖啡 / 2026-07-12',
+    source_url: '/app/reviews/review-demo-001',
+    score: 0.824,
+    score_detail: { bm25: 0.612, vector: 0.887, fusion: 0.846 },
+  },
+]
 
 onMounted(async () => {
   try {
@@ -44,6 +59,10 @@ async function logout(): Promise<void> {
     <StatusCard
       label="API 与数据依赖"
       :state="apiState"
+    />
+    <SearchDebugPanel
+      knowledge-base-id="kb-demo-campus-merchants"
+      :initial-results="sampleResults"
     />
     <nav aria-label="开发入口">
       <a
