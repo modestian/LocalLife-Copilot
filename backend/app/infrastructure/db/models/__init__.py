@@ -11,6 +11,7 @@ from app.infrastructure.db.models.identity import (
     UserRole,
 )
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.infrastructure.db.models.sentiment import ReviewAnalysis
 
 __all__ = [
     "Chunk",
@@ -21,6 +22,7 @@ __all__ = [
     "Permission",
     "RefreshToken",
     "ResourceGrant",
+    "ReviewAnalysis",
     "Role",
     "RolePermission",
     "User",

@@ -33,6 +33,7 @@ def test_identity_metadata_contains_required_tables() -> None:
         "permissions",
         "refresh_tokens",
         "resource_grants",
+        "review_analyses",
         "role_permissions",
         "roles",
         "user_roles",

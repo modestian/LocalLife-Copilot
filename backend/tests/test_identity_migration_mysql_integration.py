@@ -52,7 +52,7 @@ def test_mysql_identity_migration_supports_downgrade_and_reupgrade() -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260717_0003"
+        assert revision == "20260717_0004"
     finally:
         # Leave the shared CI/local integration database at head even if an assertion fails.
         command.upgrade(config, "head")

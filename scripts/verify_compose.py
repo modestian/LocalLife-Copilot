@@ -5,12 +5,16 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_DEPENDENCIES = {"mysql", "redis", "opensearch", "model-gateway"}
 APPLICATION_SERVICES = {"api", "worker"}
-REQUIRED_SERVICES = RUNTIME_DEPENDENCIES | APPLICATION_SERVICES | {
-    "migrate",
-    "init",
-    "frontend",
-    "nginx",
-}
+REQUIRED_SERVICES = (
+    RUNTIME_DEPENDENCIES
+    | APPLICATION_SERVICES
+    | {
+        "migrate",
+        "init",
+        "frontend",
+        "nginx",
+    }
+)
 DEVELOPMENT_PORT_SERVICES = {"mysql", "redis", "opensearch", "api", "nginx"}
 
 
@@ -37,7 +41,9 @@ def main() -> None:
     development_services = development.get("services", {})
     for name in DEVELOPMENT_PORT_SERVICES:
         development_ports = development_services[name].get("ports", [])
-        assert development_ports, f"{name} must publish ports in the development override"
+        assert development_ports, (
+            f"{name} must publish ports in the development override"
+        )
         assert all(str(port).startswith("127.0.0.1:") for port in development_ports), (
             f"{name} development ports must bind only to loopback"
         )
@@ -52,7 +58,9 @@ def main() -> None:
 
     init = services["init"]
     assert init["command"] == ["python", "-m", "app.init_runtime"]
-    assert init["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
+    assert (
+        init["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
+    )
     assert init["depends_on"]["opensearch"]["condition"] == "service_healthy"
 
     for service_name in APPLICATION_SERVICES:
@@ -74,7 +82,9 @@ def main() -> None:
         "proxy_read_timeout 3600s;",
         "add_header X-Accel-Buffering no always;",
     ):
-        assert directive in nginx_config, f"Nginx streaming directive is missing: {directive}"
+        assert directive in nginx_config, (
+            f"Nginx streaming directive is missing: {directive}"
+        )
 
 
 if __name__ == "__main__":
