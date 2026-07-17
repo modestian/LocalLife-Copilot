@@ -1,4 +1,5 @@
 import type { PageResult } from './api'
+import type { AcceptedTask } from './task'
 
 export type DocumentStatus =
   | 'UPLOADED'
@@ -85,11 +86,6 @@ export interface UploadDocumentsPayload {
   force_new_version: boolean
 }
 
-export interface AcceptedTask {
-  task_id: string
-  status: 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
-  progress: number
-  status_url: string
-}
-
 export type DocumentPage = PageResult<DocumentSummary>
+
+export type { AcceptedTask }
