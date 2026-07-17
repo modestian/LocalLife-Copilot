@@ -42,6 +42,7 @@ def test_init_runtime_is_idempotent(monkeypatch) -> None:
     init_runtime.main()
 
     client.indices.create.assert_not_called()
+    client.indices.put_mapping.assert_called_once()
     client.close.assert_called_once()
 
 

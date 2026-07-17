@@ -33,6 +33,12 @@ def test_settings_normalize_api_prefix() -> None:
     assert settings.api_v1_prefix == "/custom/v1"
 
 
+@pytest.mark.parametrize("value", [0, 1024 * 1024 * 1024 + 1])
+def test_settings_reject_invalid_ingestion_size_limit(value: int) -> None:
+    with pytest.raises(ValidationError, match="max_ingestion_source_bytes"):
+        Settings(max_ingestion_source_bytes=value)
+
+
 @pytest.mark.parametrize("value", ["relative", "/", ""])
 def test_settings_reject_invalid_api_prefix(value: str) -> None:
     with pytest.raises(ValidationError):

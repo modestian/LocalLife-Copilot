@@ -102,6 +102,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       OPENSEARCH_URL: http://opensearch:9200
       OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-local-life-documents}
+      KNOWLEDGE_DATA_ROOT: ${KNOWLEDGE_DATA_ROOT:-/data/knowledge}
+      MAX_INGESTION_SOURCE_BYTES: ${MAX_INGESTION_SOURCE_BYTES:-20971520}
       MODEL_GATEWAY_HEALTH_URL: ${MODEL_GATEWAY_HEALTH_URL:-http://model-gateway:8001/health/live}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-development-only-change-this-jwt-secret-key}
@@ -139,6 +141,8 @@ services:
       context: ./backend
     environment: *api-environment
     networks: [edge, backend]
+    volumes:
+      - knowledge-data:/data/knowledge
     depends_on: &application-dependencies
       migrate:
         condition: service_completed_successfully
@@ -184,6 +188,8 @@ services:
       ]
     environment: *api-environment
     networks: [backend]
+    volumes:
+      - knowledge-data:/data/knowledge:ro
     depends_on: *application-dependencies
     healthcheck:
       test:
@@ -247,3 +253,4 @@ volumes:
   mysql-data:
   redis-data:
   opensearch-data:
+  knowledge-data:
