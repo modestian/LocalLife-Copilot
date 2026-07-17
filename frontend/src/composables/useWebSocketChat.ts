@@ -4,6 +4,11 @@ import {
   buildWebSocketChatUrl,
   getShortLivedWebSocketToken,
 } from '@/api/websocket-chat'
+import type {
+  MerchantRecommendation,
+  RecommendationFallback,
+  RecommendationSource,
+} from '@/types/recommendation'
 
 export type WebSocketChatState =
   | 'idle'
@@ -14,13 +19,7 @@ export type WebSocketChatState =
   | 'cancelled'
   | 'error'
 
-export interface ChatSource {
-  chunk_id: string
-  source_location: string
-  source_url: string
-  content: string
-  score: number
-}
+export type ChatSource = RecommendationSource
 
 interface ActiveRequest {
   type: 'chat.request'
@@ -40,7 +39,7 @@ interface ChatSocket {
   close(code?: number, reason?: string): void
 }
 
-interface UseWebSocketChatOptions {
+export interface UseWebSocketChatOptions {
   getToken?: () => Promise<string>
   buildUrl?: (token: string) => string
   createSocket?: (url: string) => ChatSocket
@@ -56,9 +55,12 @@ export function useWebSocketChat(options: UseWebSocketChatOptions = {}) {
   const state = ref<WebSocketChatState>('idle')
   const content = ref('')
   const sources = ref<ChatSource[]>([])
+  const recommendations = ref<MerchantRecommendation[]>([])
+  const fallback = ref<RecommendationFallback>({ triggered: false })
   const errorMessage = ref('')
   const reconnectAttempt = ref(0)
   const requestId = ref<string | null>(null)
+  const messageId = ref<string | null>(null)
 
   const getToken = options.getToken ?? getShortLivedWebSocketToken
   const buildUrl = options.buildUrl ?? buildWebSocketChatUrl
@@ -137,6 +139,21 @@ export function useWebSocketChat(options: UseWebSocketChatOptions = {}) {
     }
     if (type === 'chat.sources') {
       sources.value = Array.isArray(payload.sources) ? payload.sources as ChatSource[] : []
+      if (Array.isArray(payload.recommendations)) {
+        recommendations.value = payload.recommendations as MerchantRecommendation[]
+      }
+      if (payload.fallback && typeof payload.fallback === 'object') {
+        fallback.value = payload.fallback as RecommendationFallback
+      }
+      return
+    }
+    if (type === 'chat.recommendations') {
+      recommendations.value = Array.isArray(payload.recommendations)
+        ? payload.recommendations as MerchantRecommendation[]
+        : []
+      fallback.value = payload.fallback && typeof payload.fallback === 'object'
+        ? payload.fallback as RecommendationFallback
+        : { triggered: recommendations.value.length === 0 }
       return
     }
     if (type === 'chat.completed') {
@@ -145,6 +162,7 @@ export function useWebSocketChat(options: UseWebSocketChatOptions = {}) {
       state.value = 'completed'
       errorMessage.value = ''
       reconnectAttempt.value = 0
+      messageId.value = typeof payload.message_id === 'string' ? payload.message_id : null
       activeRequest = null
       return
     }
@@ -229,9 +247,12 @@ export function useWebSocketChat(options: UseWebSocketChatOptions = {}) {
   ): Promise<void> {
     content.value = ''
     sources.value = []
+    recommendations.value = []
+    fallback.value = { triggered: false }
     errorMessage.value = ''
     pendingDelta = ''
     reconnectAttempt.value = 0
+    messageId.value = null
     activeRequest = {
       type: 'chat.request',
       request_id: crypto.randomUUID(),
@@ -252,6 +273,8 @@ export function useWebSocketChat(options: UseWebSocketChatOptions = {}) {
 
   function cancel(): void {
     if (!activeRequest) return
+    clearTimer(reconnectTimer)
+    reconnectTimer = null
     if (socket?.readyState === SOCKET_OPEN) {
       socket.send(JSON.stringify({
         type: 'chat.cancel',
@@ -299,12 +322,17 @@ export function useWebSocketChat(options: UseWebSocketChatOptions = {}) {
     state,
     content,
     sources,
+    recommendations,
+    fallback,
     errorMessage,
     reconnectAttempt,
     requestId,
+    messageId,
     send,
     cancel,
     retry,
     disconnect,
   }
 }
+
+export type WebSocketChatController = ReturnType<typeof useWebSocketChat>

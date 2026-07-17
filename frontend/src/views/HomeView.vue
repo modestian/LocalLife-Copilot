@@ -3,8 +3,8 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { getReadiness } from '@/api/health'
+import ConversationWorkspace from '@/components/ConversationWorkspace.vue'
 import StatusCard from '@/components/StatusCard.vue'
-import WebSocketChatPanel from '@/components/WebSocketChatPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 
 type ApiState = 'checking' | 'ready' | 'unavailable'
@@ -38,7 +38,7 @@ async function logout(): Promise<void> {
         退出登录
       </el-button>
     </div>
-    <h1>用户工作台已就绪</h1>
+    <h1>一句话，找到此刻想去的地方</h1>
     <p
       v-if="authStore.currentUser"
       class="user-summary"
@@ -47,13 +47,13 @@ async function logout(): Promise<void> {
       {{ authStore.currentUser.roles.map((role) => role.name).join('、') || '普通用户' }}
     </p>
     <p class="intro">
-      Vue、路由、状态管理、组件库与类型化 API Client 已接通，可继续实现探店和流式对话。
+      选择场景并补充距离、预算、菜系和人数，继续追问时我们会保留当前会话上下文。
     </p>
     <StatusCard
       label="API 与数据依赖"
       :state="apiState"
     />
-    <WebSocketChatPanel />
+    <ConversationWorkspace />
     <nav aria-label="开发入口">
       <a
         href="/docs"
