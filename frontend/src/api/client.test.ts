@@ -1,10 +1,11 @@
-import axios, { type AxiosAdapter, AxiosHeaders } from 'axios'
+import axios, { type AxiosAdapter, AxiosError, AxiosHeaders } from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ApiResponse } from '@/types/api'
 import type { TokenPair } from '@/types/auth'
 
-import { apiClient } from './client'
+import { ApiClientError } from './errors'
+import { apiClient, setAuthExpiredHandler } from './client'
 import { tokenStorage } from './token-storage'
 
 const expiredTokens: TokenPair = {
@@ -28,6 +29,7 @@ describe('apiClient authentication', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+    setAuthExpiredHandler(() => undefined)
     tokenStorage.clear()
   })
 
@@ -67,5 +69,46 @@ describe('apiClient authentication', () => {
 
     expect(refreshSpy).toHaveBeenCalledOnce()
     expect(authorizationHeaders).toEqual(['Bearer fresh-access-token', 'Bearer fresh-access-token'])
+  })
+
+  it('clears authentication when proactive refresh fails', async () => {
+    tokenStorage.save(expiredTokens)
+    vi.spyOn(axios, 'post').mockRejectedValue(new Error('refresh failed'))
+    const expiredHandler = vi.fn()
+    setAuthExpiredHandler(expiredHandler)
+    const adapter: AxiosAdapter = async (config) => ({
+      data: {},
+      status: 200,
+      statusText: 'OK',
+      headers: new AxiosHeaders(),
+      config,
+    })
+
+    await expect(apiClient.get('/api/v1/protected', { adapter })).rejects.toBeInstanceOf(
+      ApiClientError,
+    )
+
+    expect(tokenStorage.get()).toBeNull()
+    expect(expiredHandler).toHaveBeenCalledOnce()
+  })
+
+  it('requests re-login when a protected request returns 401 without a refresh token', async () => {
+    const expiredHandler = vi.fn()
+    setAuthExpiredHandler(expiredHandler)
+    const adapter: AxiosAdapter = async (config) => {
+      throw new AxiosError('Unauthorized', 'ERR_BAD_REQUEST', config, undefined, {
+        data: { code: 'AUTH_REQUIRED', message: '需要登录', request_id: 'request-id' },
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: new AxiosHeaders(),
+        config,
+      })
+    }
+
+    await expect(apiClient.get('/api/v1/protected', { adapter })).rejects.toMatchObject({
+      code: 'AUTH_REQUIRED',
+      status: 401,
+    })
+    expect(expiredHandler).toHaveBeenCalledOnce()
   })
 })
