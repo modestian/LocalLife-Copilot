@@ -1,10 +1,9 @@
 import logging
 import os
+from pathlib import Path
 from typing import Literal
 
-import torch
-from pydantic import BaseModel, field_validator
-from transformers import pipeline
+from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -12,17 +11,15 @@ SENTIMENT_LABELS = ["NEGATIVE", "NEUTRAL", "POSITIVE"]
 DEFAULT_BATCH_SIZE = 32
 
 # 默认使用本地微调模型；若不存在则回退到 HuggingFace 远程模型
-_LOCAL_MODEL_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "training",
-    "output",
-    "final_model",
-)
+# Model artifacts are delivered separately from Git.
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+_LOCAL_MODEL_DIR = _BACKEND_DIR / "training" / "output" / "final_model"
 DEFAULT_MODEL_NAME = (
-    _LOCAL_MODEL_DIR
-    if os.path.isdir(_LOCAL_MODEL_DIR)
-    else "uer/roberta-base-finetuned-dianping-chinese"
+    os.getenv("SENTIMENT_MODEL")
+    or (str(_LOCAL_MODEL_DIR) if _LOCAL_MODEL_DIR.is_dir() else None)
+    or "uer/roberta-base-finetuned-dianping-chinese"
 )
+DEFAULT_MODEL_REVISION = os.getenv("SENTIMENT_MODEL_REVISION") or None
 
 
 def _normalize_label(label) -> str:
@@ -50,8 +47,8 @@ class SentimentResult(BaseModel):
     sentiment: Literal["POSITIVE", "NEUTRAL", "NEGATIVE"]
     confidence: float
     model_version: str
-    aspect_labels: list[str] = []
-    negative_reason: list[str] = []
+    aspect_labels: list[str] = Field(default_factory=list)
+    negative_reason: list[str] = Field(default_factory=list)
 
     @field_validator("confidence")
     @classmethod
@@ -62,30 +59,63 @@ class SentimentResult(BaseModel):
 
 
 class SentimentClassifier:
-    def __init__(self, model_name: str = DEFAULT_MODEL_NAME, batch_size: int = DEFAULT_BATCH_SIZE):
+    def __init__(
+        self,
+        model_name: str = DEFAULT_MODEL_NAME,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+        revision: str | None = DEFAULT_MODEL_REVISION,
+    ):
         self.model_name = model_name
         self.batch_size = batch_size
+        self.revision = revision
         self._pipeline = None
         self._model_version = None
-        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._device = None
 
     @property
     def version(self) -> str:
         return self._model_version or "unknown"
 
     def load_model(self) -> None:
-        model_path = os.path.abspath(self.model_name)
-        logger.info(f"Loading sentiment model: {model_path} on {self._device}")
+        import torch
+        from transformers import pipeline
+
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        model_ref = self._resolve_model_reference()
+        logger.info("Loading sentiment model: %s on %s", model_ref, self._device)
+        model_kwargs = {"revision": self.revision} if self.revision else {}
         self._pipeline = pipeline(
             "text-classification",
-            model=model_path,
-            tokenizer=model_path,
+            model=model_ref,
+            tokenizer=model_ref,
             device=0 if self._device == "cuda" else -1,
             batch_size=self.batch_size,
             return_all_scores=False,
+            **model_kwargs,
         )
-        self._model_version = f"{self.model_name}-{self._device}"
-        logger.info(f"Model loaded successfully: {self._model_version}")
+        configured_labels = {
+            _normalize_label(label) for label in self._pipeline.model.config.id2label.values()
+        }
+        if configured_labels != set(SENTIMENT_LABELS):
+            raise RuntimeError(
+                "Configured sentiment model is not a NEGATIVE/NEUTRAL/POSITIVE classifier: "
+                f"{sorted(configured_labels)}"
+            )
+        revision = self.revision or "unversioned"
+        self._model_version = f"{self.model_name}@{revision}"
+        logger.info("Model loaded successfully: %s", self._model_version)
+
+    def _resolve_model_reference(self) -> str:
+        """Keep Hub IDs intact while resolving an existing local artifact path."""
+        candidate = Path(self.model_name).expanduser()
+        if candidate.exists():
+            return str(candidate.resolve())
+        if candidate.is_absolute() or self.model_name.startswith((".", "~")):
+            raise FileNotFoundError(
+                f"Sentiment model directory does not exist: {candidate}. "
+                "See backend/training/README.md."
+            )
+        return self.model_name
 
     def predict_single(self, text: str) -> SentimentResult:
         if not isinstance(text, str) or not text.strip():
@@ -228,8 +258,13 @@ class AspectExtractor:
 
 
 class SentimentAnalyzer:
-    def __init__(self, model_name: str = DEFAULT_MODEL_NAME, batch_size: int = DEFAULT_BATCH_SIZE):
-        self.classifier = SentimentClassifier(model_name, batch_size)
+    def __init__(
+        self,
+        model_name: str = DEFAULT_MODEL_NAME,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+        revision: str | None = DEFAULT_MODEL_REVISION,
+    ):
+        self.classifier = SentimentClassifier(model_name, batch_size, revision)
         self.aspect_extractor = AspectExtractor()
 
     @property

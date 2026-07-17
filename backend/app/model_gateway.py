@@ -5,7 +5,7 @@ from typing import Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from app.analytics.sentiment_classifier import SentimentAnalyzer, SentimentResult
+from app.analytics import SentimentAnalyzer, SentimentResult
 from app.core.config import get_settings
 
 app = FastAPI(title="Model Gateway", version="0.1.0")
@@ -29,7 +29,7 @@ class BatchResponse(BaseModel):
 class ModelInfoResponse(BaseModel):
     model_name: str
     version: str
-    device: str
+    device: str | None
 
 
 class EmbeddingRequest(BaseModel):

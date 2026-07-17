@@ -1,6 +1,8 @@
 from unittest.mock import patch
 
-from app.analytics import AspectExtractor, SentimentAnalyzer, SentimentResult
+import pytest
+
+from app.analytics import AspectExtractor, SentimentAnalyzer, SentimentClassifier, SentimentResult
 
 
 class TestSentimentResult:
@@ -12,6 +14,17 @@ class TestSentimentResult:
     def test_confidence_rounding(self):
         result = SentimentResult(sentiment="NEUTRAL", confidence=0.1234567, model_version="test")
         assert result.confidence == 0.1235
+
+
+class TestModelReference:
+    def test_hugging_face_id_is_not_converted_to_local_path(self):
+        classifier = SentimentClassifier(model_name="organization/model")
+        assert classifier._resolve_model_reference() == "organization/model"
+
+    def test_missing_absolute_model_path_fails_clearly(self, tmp_path):
+        classifier = SentimentClassifier(model_name=str(tmp_path / "missing-model"))
+        with pytest.raises(FileNotFoundError, match="training/README.md"):
+            classifier._resolve_model_reference()
 
 
 class TestAspectExtractor:
