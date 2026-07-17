@@ -5,6 +5,7 @@ from uuid import UUID
 
 import pytest
 
+from app.etl.embeddings import EmbeddingError
 from app.etl.lifecycle import (
     LifecycleError,
     LifecycleJob,
@@ -228,6 +229,22 @@ def test_projection_count_mismatch_fails_task_and_document() -> None:
     assert repository.ready is None
 
 
+def test_embedding_failure_persists_specific_failure_code() -> None:
+    class FailingProjection(MemoryProjection):
+        def upsert(self, document_version_id: UUID, chunks: list[ChunkRecord]) -> None:
+            raise EmbeddingError("EMBEDDING_DIMENSION_MISMATCH", "wrong vector dimension")
+
+    repository = MemoryRepository(make_job())
+    service, _ = make_service(repository, FailingProjection())
+
+    with pytest.raises(EmbeddingError):
+        service.ingest(TASK_ID)
+
+    assert repository.failed == ("EMBEDDING_DIMENSION_MISMATCH", "wrong vector dimension")
+    assert repository.document_error == "EMBEDDING_DIMENSION_MISMATCH"
+    assert repository.ready is None
+
+
 def test_delete_removes_projection_before_marking_chunks_deleted() -> None:
     repository = MemoryRepository(make_job(TaskOperation.DELETE))
     projection = MemoryProjection()
@@ -399,11 +416,16 @@ def test_worker_builds_production_adapters_around_repository(monkeypatch) -> Non
     client = object()
     storage = object()
     projection = object()
+    embedder = object()
     service = object()
     captured: dict[str, object] = {}
     monkeypatch.setattr(worker, "OpenSearch", lambda url: client)
     monkeypatch.setattr(worker, "LocalSourceStorage", lambda root: storage)
-    monkeypatch.setattr(worker, "OpenSearchProjection", lambda value, index: projection)
+    monkeypatch.setattr(worker, "HttpEmbeddingProvider", lambda *args, **kwargs: object())
+    monkeypatch.setattr(worker, "BatchedEmbedder", lambda *args, **kwargs: embedder)
+    monkeypatch.setattr(
+        worker, "OpenSearchProjection", lambda value, index, value_embedder: projection
+    )
 
     def fake_service(repository, source, search_projection, dispatcher, **options):
         captured.update(

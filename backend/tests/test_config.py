@@ -62,3 +62,14 @@ def test_production_rejects_development_jwt_secret() -> None:
 
     settings = Settings(app_environment="production", jwt_secret_key="p" * 32)
     assert settings.jwt_secret_key.get_secret_value() == "p" * 32
+
+
+@pytest.mark.parametrize("value", [0, -1])
+def test_settings_reject_invalid_embedding_batch_size(value: int) -> None:
+    with pytest.raises(ValidationError, match="embedding settings"):
+        Settings(embedding_batch_size=value)
+
+
+def test_settings_reject_blank_embedding_model() -> None:
+    with pytest.raises(ValidationError, match="embedding_model"):
+        Settings(embedding_model=" ")

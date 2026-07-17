@@ -5,6 +5,7 @@ from opensearchpy import OpenSearch
 
 from app.core.config import get_settings
 from app.etl.adapters import LocalSourceStorage, OpenSearchProjection
+from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.etl.lifecycle import LifecycleRepository, TaskOperation, WorkerLifecycleService
 
 settings = get_settings()
@@ -41,10 +42,24 @@ def configure_lifecycle_repository(repository: LifecycleRepository) -> WorkerLif
     """Build production ETL adapters around the task/document repository."""
     global _lifecycle_projection_client
     _lifecycle_projection_client = OpenSearch(settings.opensearch_url)
+    embedding_provider = HttpEmbeddingProvider(
+        settings.model_gateway_embedding_url,
+        model=settings.embedding_model,
+        timeout_seconds=settings.dependency_timeout_seconds,
+    )
+    embedder = BatchedEmbedder(
+        embedding_provider,
+        dimension=settings.embedding_dimension,
+        batch_size=settings.embedding_batch_size,
+    )
     service = WorkerLifecycleService(
         repository,
         LocalSourceStorage(settings.knowledge_data_root),
-        OpenSearchProjection(_lifecycle_projection_client, settings.opensearch_write_alias),
+        OpenSearchProjection(
+            _lifecycle_projection_client,
+            settings.opensearch_write_alias,
+            embedder,
+        ),
         dispatch_lifecycle_task,
         max_source_bytes=settings.max_ingestion_source_bytes,
     )
