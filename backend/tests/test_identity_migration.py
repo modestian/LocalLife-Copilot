@@ -136,3 +136,21 @@ def test_downgrade_removes_tables_and_owned_indexes_in_reverse_dependency_order(
         "departments",
     ]
     assert recorder.dropped_indexes == []
+
+
+def test_downgrade_relies_on_table_drops_for_mysql_foreign_key_indexes() -> None:
+    migration = load_migration()
+    recorder = RecordingOperations()
+    migration.op = recorder
+
+    migration.upgrade()
+    created_indexes = {name for name, _, _, _ in recorder.created_indexes}
+    migration.downgrade()
+
+    assert {
+        "ix_departments_parent",
+        "ix_refresh_tokens_user_revoked",
+        "ix_resource_grants_subject",
+        "ix_users_department_status",
+    } <= created_indexes
+    assert recorder.dropped_indexes == []

@@ -1,6 +1,7 @@
 from opensearchpy import OpenSearch
 
 from app.core.config import get_settings
+from app.infrastructure.search.indexes import ensure_chunk_index
 
 
 def main() -> None:
@@ -8,20 +9,12 @@ def main() -> None:
     settings = get_settings()
     client = OpenSearch(settings.opensearch_url)
     try:
-        if client.indices.exists(index=settings.opensearch_index):
-            return
-        client.indices.create(
-            index=settings.opensearch_index,
-            body={
-                "settings": {"number_of_shards": 1, "number_of_replicas": 0},
-                "mappings": {
-                    "properties": {
-                        "content": {"type": "text"},
-                        "source_key": {"type": "keyword"},
-                        "updated_at": {"type": "date"},
-                    }
-                },
-            },
+        ensure_chunk_index(
+            client,
+            index=settings.opensearch_concrete_index,
+            read_alias=settings.opensearch_read_alias,
+            write_alias=settings.opensearch_write_alias,
+            embedding_dimension=settings.embedding_dimension,
         )
     finally:
         client.close()

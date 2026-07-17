@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     mysql_port: int = 3306
     redis_url: str = "redis://redis:6379/0"
     opensearch_url: str = "http://opensearch:9200"
-    opensearch_index: str = "local-life-documents"
+    opensearch_index: str = "local-life-chunks"
+    opensearch_index_version: int = 1
+    embedding_dimension: int = 512
+    knowledge_data_root: str = "/data/knowledge"
+    max_ingestion_source_bytes: int = 20 * 1024 * 1024
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     dependency_timeout_seconds: float = 2.0
     jwt_secret_key: SecretStr = SecretStr("development-only-change-this-jwt-secret-key")
@@ -80,6 +84,28 @@ class Settings(BaseSettings):
             raise ValueError("refresh_token_ttl_days must be between 1 and 90")
         return value
 
+    @field_validator("max_ingestion_source_bytes")
+    @classmethod
+    def validate_max_ingestion_source_bytes(cls, value: int) -> int:
+        if not 1 <= value <= 1024 * 1024 * 1024:
+            raise ValueError("max_ingestion_source_bytes must be between 1 byte and 1 GiB")
+        return value
+
+    @field_validator("opensearch_index")
+    @classmethod
+    def validate_opensearch_index(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9._-]*", normalized):
+            raise ValueError("opensearch_index must be a valid lowercase index prefix")
+        return normalized
+
+    @field_validator("opensearch_index_version", "embedding_dimension")
+    @classmethod
+    def validate_positive_search_integer(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("OpenSearch index version and embedding dimension must be positive")
+        return value
+
     @field_validator("jwt_issuer", "jwt_audience")
     @classmethod
     def validate_jwt_identity(cls, value: str) -> str:
@@ -105,6 +131,18 @@ class Settings(BaseSettings):
             f"mysql+asyncmy://{quote_plus(self.mysql_user)}:{quote_plus(self.mysql_password)}"
             f"@{self.mysql_host}:{self.mysql_port}/{quote_plus(self.mysql_database)}?charset=utf8mb4"
         )
+
+    @property
+    def opensearch_concrete_index(self) -> str:
+        return f"{self.opensearch_index}-v{self.opensearch_index_version}"
+
+    @property
+    def opensearch_read_alias(self) -> str:
+        return f"{self.opensearch_index}-read"
+
+    @property
+    def opensearch_write_alias(self) -> str:
+        return f"{self.opensearch_index}-write"
 
 
 @lru_cache

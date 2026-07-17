@@ -1,11 +1,15 @@
+import hashlib
+from dataclasses import replace
 from io import BytesIO
 from uuid import UUID
 
 import pytest
 
 from app.etl.lifecycle import (
+    LifecycleError,
     LifecycleJob,
     ProjectionCountMismatch,
+    SourceFileTooLarge,
     TaskOperation,
     TaskStage,
     WorkerLifecycleService,
@@ -25,6 +29,25 @@ class MemoryStorage:
     def open(self, uri: str) -> BytesIO:
         assert uri == "memory://document"
         return BytesIO(self.content)
+
+
+class TrackingStorage:
+    def __init__(self, content: bytes) -> None:
+        self.stream = TrackingStream(content)
+
+    def open(self, uri: str) -> BytesIO:
+        assert uri == "memory://document"
+        return self.stream
+
+
+class TrackingStream(BytesIO):
+    def __init__(self, content: bytes) -> None:
+        super().__init__(content)
+        self.read_sizes: list[int] = []
+
+    def read(self, size: int = -1) -> bytes:
+        self.read_sizes.append(size)
+        return super().read(size)
 
 
 class MemoryProjection:
@@ -161,10 +184,12 @@ def test_ingest_persists_projects_verifies_then_marks_document_ready() -> None:
     assert result.status == "SUCCEEDED"
     assert repository.ready == (DOCUMENT_ID, VERSION_ID, 1)
     assert repository.indexed_ids == [projection_id(VERSION_ID, 0)]
-    assert repository.completed == {
-        "document_version_id": str(VERSION_ID),
-        "chunk_count": 1,
-    }
+    assert repository.completed is not None
+    assert repository.completed["document_version_id"] == str(VERSION_ID)
+    assert repository.completed["chunk_count"] == 1
+    assert repository.completed["cleaning_report"]["input_count"] == 1
+    assert repository.completed["splitting_report"]["strategy"] == "recursive"
+    assert repository.completed["source_validation"]["size_bytes"] == len(MemoryStorage().content)
     assert [stage for stage, _ in repository.progress] == [
         TaskStage.LOADING,
         TaskStage.CLEANING,
@@ -263,6 +288,88 @@ def test_invalid_source_persists_explicit_failure_code() -> None:
     assert repository.failed[0] == "FILE_LOAD_FAILED"
 
 
+def test_oversize_source_persists_explicit_failure_code_and_reason() -> None:
+    repository = MemoryRepository(replace(make_job(), max_source_bytes=4))
+    service, _ = make_service(repository, MemoryProjection())
+
+    with pytest.raises(SourceFileTooLarge, match="4 bytes"):
+        service.ingest(TASK_ID)
+
+    assert repository.failed == (
+        "FILE_TOO_LARGE",
+        "source exceeds the maximum allowed size of 4 bytes",
+    )
+    assert repository.document_error == "FILE_TOO_LARGE"
+    assert repository.chunks == {}
+
+
+def test_source_hash_size_and_mime_are_verified_before_loading() -> None:
+    payload = "第一段。第二段。".encode()
+    job = replace(
+        make_job(),
+        source_sha256=hashlib.sha256(payload).hexdigest(),
+        source_size_bytes=len(payload),
+        mime_type="text/plain",
+    )
+    repository = MemoryRepository(job)
+    projection = MemoryProjection()
+    service = WorkerLifecycleService(
+        repository,
+        MemoryStorage(payload),
+        projection,
+        lambda operation, task_id: None,
+        worker_id="worker-test",
+    )
+
+    result = service.ingest(TASK_ID)
+
+    assert result.details["source_validation"] == {
+        "size_bytes": len(payload),
+        "sha256": hashlib.sha256(payload).hexdigest(),
+        "mime_type": "text/plain",
+    }
+
+
+def test_source_validation_reads_storage_in_bounded_blocks() -> None:
+    payload = b"a" * (64 * 1024 + 1)
+    storage = TrackingStorage(payload)
+    repository = MemoryRepository(make_job())
+    service = WorkerLifecycleService(
+        repository,
+        storage,
+        MemoryProjection(),
+        lambda operation, task_id: None,
+        worker_id="worker-test",
+    )
+
+    service.ingest(TASK_ID)
+
+    assert storage.stream.read_sizes
+    assert all(0 < size <= 64 * 1024 for size in storage.stream.read_sizes)
+
+
+@pytest.mark.parametrize(
+    ("changes", "error_code"),
+    [
+        ({"source_sha256": "0" * 64}, "FILE_HASH_MISMATCH"),
+        ({"source_size_bytes": 1}, "FILE_SIZE_MISMATCH"),
+        ({"mime_type": "application/pdf"}, "FILE_MIME_MISMATCH"),
+    ],
+)
+def test_source_metadata_mismatch_fails_before_chunk_persistence(
+    changes: dict[str, object], error_code: str
+) -> None:
+    repository = MemoryRepository(replace(make_job(), **changes))
+    service, _ = make_service(repository, MemoryProjection())
+
+    with pytest.raises(LifecycleError, match="source"):
+        service.ingest(TASK_ID)
+
+    assert repository.failed is not None
+    assert repository.failed[0] == error_code
+    assert repository.chunks == {}
+
+
 def test_worker_registers_handlers_and_dispatches_allowlisted_operation(monkeypatch) -> None:
     from app.worker import celery_app, dispatch_lifecycle_task
 
@@ -284,6 +391,41 @@ def test_worker_registers_handlers_and_dispatches_allowlisted_operation(monkeypa
 
     assert expected <= set(celery_app.tasks)
     assert sent == [("knowledge.rebuild", [str(TASK_ID)])]
+
+
+def test_worker_builds_production_adapters_around_repository(monkeypatch) -> None:
+    import app.worker as worker
+
+    client = object()
+    storage = object()
+    projection = object()
+    service = object()
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(worker, "OpenSearch", lambda url: client)
+    monkeypatch.setattr(worker, "LocalSourceStorage", lambda root: storage)
+    monkeypatch.setattr(worker, "OpenSearchProjection", lambda value, index: projection)
+
+    def fake_service(repository, source, search_projection, dispatcher, **options):
+        captured.update(
+            repository=repository,
+            source=source,
+            projection=search_projection,
+            dispatcher=dispatcher,
+            options=options,
+        )
+        return service
+
+    monkeypatch.setattr(worker, "WorkerLifecycleService", fake_service)
+    repository = object()
+
+    assert worker.configure_lifecycle_repository(repository) is service
+    assert captured == {
+        "repository": repository,
+        "source": storage,
+        "projection": projection,
+        "dispatcher": worker.dispatch_lifecycle_task,
+        "options": {"max_source_bytes": worker.settings.max_ingestion_source_bytes},
+    }
 
 
 def test_duplicate_delivery_is_skipped_after_claim() -> None:

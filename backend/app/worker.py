@@ -1,9 +1,11 @@
 from uuid import UUID
 
 from celery import Celery
+from opensearchpy import OpenSearch
 
 from app.core.config import get_settings
-from app.etl.lifecycle import TaskOperation, WorkerLifecycleService
+from app.etl.adapters import LocalSourceStorage, OpenSearchProjection
+from app.etl.lifecycle import LifecycleRepository, TaskOperation, WorkerLifecycleService
 
 settings = get_settings()
 
@@ -27,11 +29,27 @@ def ping() -> str:
 
 
 _lifecycle_service: WorkerLifecycleService | None = None
+_lifecycle_projection_client: OpenSearch | None = None
 
 
 def configure_lifecycle_service(service: WorkerLifecycleService) -> None:
     global _lifecycle_service
     _lifecycle_service = service
+
+
+def configure_lifecycle_repository(repository: LifecycleRepository) -> WorkerLifecycleService:
+    """Build production ETL adapters around the task/document repository."""
+    global _lifecycle_projection_client
+    _lifecycle_projection_client = OpenSearch(settings.opensearch_url)
+    service = WorkerLifecycleService(
+        repository,
+        LocalSourceStorage(settings.knowledge_data_root),
+        OpenSearchProjection(_lifecycle_projection_client, settings.opensearch_write_alias),
+        dispatch_lifecycle_task,
+        max_source_bytes=settings.max_ingestion_source_bytes,
+    )
+    configure_lifecycle_service(service)
+    return service
 
 
 def _lifecycle() -> WorkerLifecycleService:

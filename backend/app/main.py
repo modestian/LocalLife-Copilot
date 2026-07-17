@@ -10,12 +10,15 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.users import router as users_router
 from app.application.auth import AuthService
+from app.application.authorization import AuthorizationService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
 from app.core.readiness import ReadinessCheck, build_readiness_checks
 from app.core.security import AccessTokenService, PasswordService
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
+from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
 
 
@@ -35,16 +38,21 @@ def create_app(
         engine = create_async_engine(app_settings.database_url, pool_pre_ping=True)
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
         app.state.sentiment_repo = SQLAlchemySentimentRepository(session_factory)
+        access_tokens = AccessTokenService(
+            secret_key=app_settings.jwt_secret_key.get_secret_value(),
+            issuer=app_settings.jwt_issuer,
+            audience=app_settings.jwt_audience,
+            ttl=timedelta(minutes=app_settings.access_token_ttl_minutes),
+        )
         app.state.auth_service = AuthService(
             SQLAlchemyAuthRepository(session_factory),
             PasswordService(),
-            AccessTokenService(
-                secret_key=app_settings.jwt_secret_key.get_secret_value(),
-                issuer=app_settings.jwt_issuer,
-                audience=app_settings.jwt_audience,
-                ttl=timedelta(minutes=app_settings.access_token_ttl_minutes),
-            ),
+            access_tokens,
             refresh_ttl=timedelta(days=app_settings.refresh_token_ttl_days),
+        )
+        app.state.authorization_service = AuthorizationService(
+            SQLAlchemyAuthorizationRepository(session_factory),
+            access_tokens,
         )
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         opensearch_client = OpenSearch(app_settings.opensearch_url)
@@ -77,6 +85,7 @@ def create_app(
     )
     app.include_router(health_router)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     return app
 
 

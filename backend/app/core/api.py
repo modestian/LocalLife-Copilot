@@ -106,13 +106,15 @@ def install_api_contract(app: FastAPI, settings: Settings) -> None:
 
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
-        return error_response(
+        response = error_response(
             request,
             status_code=exc.status_code,
             code=exc.code,
             message=exc.message,
             details=exc.details,
         )
+        response.headers.update(exc.headers)
+        return response
 
     @app.exception_handler(RequestValidationError)
     async def handle_validation_error(
