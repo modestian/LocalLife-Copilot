@@ -19,6 +19,7 @@
 
 - [Git 协作规范](./development/Git协作规范.md)
 - [本地开发与 CI](./development/本地开发与CI.md)
+- [创建前端测试账号流程](./development/创建前端测试账号流程.md)
 
 ## 数据标注
 
