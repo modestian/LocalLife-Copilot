@@ -4,23 +4,36 @@ Persistence remains behind ports because the knowledge/document/task repositorie
 owned by ST-102. This module owns the ETL and search-projection workflow only.
 """
 
+import hashlib
+import mimetypes
+import re
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from enum import StrEnum
 from socket import gethostname
+from tempfile import SpooledTemporaryFile
 from typing import BinaryIO, Protocol
 from uuid import UUID
 
 from app.etl.cleaner import (
     CleaningConfigError,
     CleaningFunctionRegistry,
+    CleaningReport,
     ConfigurableCleaner,
     RowTemplateError,
 )
 from app.etl.loaders import FileLoadError, loader_for
 from app.etl.models import ChunkRecord, JsonValue, Metadata
-from app.etl.splitters import RecursiveSplitter, SemanticSplitter, SplitterConfigError
+from app.etl.splitters import (
+    RecursiveSplitter,
+    SemanticSplitter,
+    SplitQualityReport,
+    SplitterConfigError,
+)
+
+DEFAULT_MAX_SOURCE_BYTES = 20 * 1024 * 1024
+_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 class TaskOperation(StrEnum):
@@ -55,6 +68,14 @@ class ProjectionCountMismatch(LifecycleError):
         )
 
 
+class SourceFileTooLarge(LifecycleError):
+    def __init__(self, *, maximum: int) -> None:
+        super().__init__(
+            "FILE_TOO_LARGE",
+            f"source exceeds the maximum allowed size of {maximum} bytes",
+        )
+
+
 class _CancellationRequested(Exception):
     pass
 
@@ -69,9 +90,13 @@ class LifecycleJob:
     document_version_id: UUID
     source_uri: str | None = None
     source_key: str | None = None
+    source_sha256: str | None = None
+    source_size_bytes: int | None = None
+    mime_type: str | None = None
     metadata: Metadata = field(default_factory=dict)
     cleaning_steps: tuple[Mapping[str, object], ...] = ()
     text_template: str | None = None
+    max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES
     splitter_config: Mapping[str, JsonValue] = field(
         default_factory=lambda: {
             "strategy": "recursive",
@@ -170,13 +195,17 @@ class WorkerLifecycleService:
         *,
         cleaning_functions: CleaningFunctionRegistry | None = None,
         worker_id: str | None = None,
+        max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES,
     ) -> None:
+        if max_source_bytes <= 0:
+            raise ValueError("max_source_bytes must be greater than zero")
         self._repository = repository
         self._storage = storage
         self._projection = projection
         self._dispatcher = dispatcher
         self._cleaning_functions = cleaning_functions or CleaningFunctionRegistry()
         self._worker_id = worker_id or gethostname()
+        self._max_source_bytes = max_source_bytes
 
     def ingest(self, task_id: UUID) -> WorkerTaskResult:
         return self._execute(task_id, TaskOperation.INGEST, self._ingest)
@@ -245,14 +274,26 @@ class WorkerLifecycleService:
             )
 
         self._checkpoint(job, TaskStage.LOADING, 5)
+        source_metadata = dict(job.metadata)
+        source_metadata.setdefault("document_id", str(job.document_id))
+        source_metadata.setdefault("document_version_id", str(job.document_version_id))
         with self._storage.open(job.source_uri) as source:
-            records = list(
-                loader_for(job.source_key).load(
-                    source,
-                    source_key=job.source_key,
-                    metadata=job.metadata,
-                )
+            validated_source, source_report = self._validate_source(
+                source,
+                source_key=job.source_key,
+                expected_hash=job.source_sha256,
+                expected_size=job.source_size_bytes,
+                expected_mime=job.mime_type,
+                maximum=min(job.max_source_bytes, self._max_source_bytes),
             )
+            with validated_source:
+                records = list(
+                    loader_for(job.source_key).load(
+                        validated_source,
+                        source_key=job.source_key,
+                        metadata=source_metadata,
+                    )
+                )
 
         self._checkpoint(job, TaskStage.CLEANING, 25)
         cleaner = ConfigurableCleaner(
@@ -261,17 +302,23 @@ class WorkerLifecycleService:
             custom_functions=self._cleaning_functions,
         )
         cleaned = cleaner.clean(records)
+        cleaning_report = cleaner.last_report
 
         self._checkpoint(job, TaskStage.SPLITTING, 45)
         splitter = self._splitter(job.splitter_config)
         chunks = splitter.split(cleaned, document_version_id=job.document_version_id)
+        splitting_report = splitter.last_report
         if not chunks:
             raise LifecycleError("NO_INDEXABLE_CHUNKS", "ingestion produced no indexable chunks")
 
         # PERSISTING and later stages are deliberately treated as non-interruptible.
         self._checkpoint(job, TaskStage.PERSISTING, 65)
         self._repository.replace_chunks(job.document_version_id, chunks)
-        return self._index_and_finalize(job, chunks)
+        result = dict(self._index_and_finalize(job, chunks))
+        result["source_validation"] = source_report
+        result["cleaning_report"] = self._cleaning_report_json(cleaning_report)
+        result["splitting_report"] = self._splitting_report_json(splitting_report)
+        return result
 
     def _rebuild(self, job: LifecycleJob) -> Mapping[str, JsonValue]:
         self._checkpoint(job, TaskStage.PERSISTING, 35)
@@ -314,3 +361,102 @@ class WorkerLifecycleService:
         except (TypeError, SplitterConfigError) as exc:
             raise LifecycleError("INVALID_SPLITTER_CONFIG", str(exc)) from exc
         raise LifecycleError("INVALID_SPLITTER_CONFIG", f"unsupported strategy: {strategy}")
+
+    @staticmethod
+    def _validate_source(
+        source: BinaryIO,
+        *,
+        source_key: str,
+        expected_hash: str | None,
+        expected_size: int | None,
+        expected_mime: str | None,
+        maximum: int,
+    ) -> tuple[BinaryIO, dict[str, JsonValue]]:
+        if maximum <= 0:
+            raise LifecycleError("INVALID_INGEST_JOB", "max_source_bytes must be greater than zero")
+        if expected_hash is not None and _SHA256_PATTERN.fullmatch(expected_hash) is None:
+            raise LifecycleError(
+                "INVALID_INGEST_JOB", "source_sha256 must be a lowercase SHA-256 digest"
+            )
+        if expected_size is not None and expected_size < 0:
+            raise LifecycleError(
+                "INVALID_INGEST_JOB", "source_size_bytes must be greater than or equal to zero"
+            )
+        if expected_size is not None and expected_size > maximum:
+            raise SourceFileTooLarge(maximum=maximum)
+
+        stream = SpooledTemporaryFile(max_size=min(maximum, 8 * 1024 * 1024), mode="w+b")
+        digest = hashlib.sha256()
+        size = 0
+        try:
+            source.seek(0)
+            while payload := source.read(64 * 1024):
+                size += len(payload)
+                if size > maximum:
+                    raise SourceFileTooLarge(maximum=maximum)
+                digest.update(payload)
+                stream.write(payload)
+            actual_hash = digest.hexdigest()
+            if expected_size is not None and size != expected_size:
+                raise LifecycleError(
+                    "FILE_SIZE_MISMATCH",
+                    f"expected source size {expected_size} bytes but read {size} bytes",
+                )
+            if expected_hash is not None and actual_hash != expected_hash:
+                raise LifecycleError("FILE_HASH_MISMATCH", "source SHA-256 does not match metadata")
+            detected_mime = mimetypes.guess_type(source_key)[0]
+            if expected_mime is not None and detected_mime != expected_mime:
+                raise LifecycleError(
+                    "FILE_MIME_MISMATCH",
+                    f"source MIME {expected_mime!r} does not match {detected_mime!r}",
+                )
+            stream.seek(0)
+            return stream, {
+                "size_bytes": size,
+                "sha256": actual_hash,
+                "mime_type": detected_mime,
+            }
+        except LifecycleError:
+            stream.close()
+            raise
+        except (OSError, ValueError) as exc:
+            stream.close()
+            raise FileLoadError("source stream could not be read") from exc
+
+    @staticmethod
+    def _cleaning_report_json(report: CleaningReport | None) -> dict[str, JsonValue]:
+        if report is None:
+            return {}
+        return {
+            "input_count": report.input_count,
+            "output_count": report.output_count,
+            "steps": [
+                {
+                    "step_type": step.step_type,
+                    "input_count": step.input_count,
+                    "output_count": step.output_count,
+                    "duration_ms": step.duration_ms,
+                    "error_samples": list(step.error_samples),
+                }
+                for step in report.steps
+            ],
+        }
+
+    @staticmethod
+    def _splitting_report_json(report: SplitQualityReport | None) -> dict[str, JsonValue]:
+        if report is None:
+            return {}
+        return {
+            "strategy": report.strategy,
+            "input_records": report.input_records,
+            "skipped_records": report.skipped_records,
+            "chunk_count": report.chunk_count,
+            "duplicate_chunks": report.duplicate_chunks,
+            "total_characters": report.total_characters,
+            "total_tokens": report.total_tokens,
+            "min_chunk_characters": report.min_chunk_characters,
+            "max_chunk_characters": report.max_chunk_characters,
+            "average_chunk_characters": report.average_chunk_characters,
+            "duration_ms": report.duration_ms,
+            "parameters": report.parameters,
+        }

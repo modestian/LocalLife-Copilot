@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://redis:6379/0"
     opensearch_url: str = "http://opensearch:9200"
     opensearch_index: str = "local-life-documents"
+    knowledge_data_root: str = "/data/knowledge"
+    max_ingestion_source_bytes: int = 20 * 1024 * 1024
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     dependency_timeout_seconds: float = 2.0
     jwt_secret_key: SecretStr = SecretStr("development-only-change-this-jwt-secret-key")
@@ -78,6 +80,13 @@ class Settings(BaseSettings):
     def validate_refresh_token_ttl(cls, value: int) -> int:
         if not 1 <= value <= 90:
             raise ValueError("refresh_token_ttl_days must be between 1 and 90")
+        return value
+
+    @field_validator("max_ingestion_source_bytes")
+    @classmethod
+    def validate_max_ingestion_source_bytes(cls, value: int) -> int:
+        if not 1 <= value <= 1024 * 1024 * 1024:
+            raise ValueError("max_ingestion_source_bytes must be between 1 byte and 1 GiB")
         return value
 
     @field_validator("jwt_issuer", "jwt_audience")
