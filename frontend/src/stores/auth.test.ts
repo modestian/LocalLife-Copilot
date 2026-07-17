@@ -42,6 +42,15 @@ describe('auth store', () => {
     setActivePinia(createPinia())
   })
 
+  it('restores an existing token session when the store is created', () => {
+    tokenStorage.save(tokens)
+
+    const store = useAuthStore()
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.session?.access_token).toBe('access-token')
+  })
+
   it('loads the current user after login', async () => {
     vi.mocked(authApi.login).mockResolvedValue(tokens)
     vi.mocked(authApi.getCurrentUser).mockResolvedValue(currentUser)
@@ -51,6 +60,10 @@ describe('auth store', () => {
       currentUser,
     )
 
+    expect(authApi.login).toHaveBeenCalledWith({
+      username: 'ordinary_user',
+      password: 'secret',
+    })
     expect(store.isAuthenticated).toBe(true)
     expect(store.roleCodes).toEqual(['USER'])
     expect(tokenStorage.get()?.refresh_token).toBe('refresh-token')
@@ -117,5 +130,26 @@ describe('auth store', () => {
     await store.initialize()
     expect(store.currentUser).toEqual(currentUser)
     expect(authApi.getCurrentUser).toHaveBeenCalledTimes(2)
+  })
+
+  it('clears local state even when the logout request fails', async () => {
+    tokenStorage.save(tokens)
+    vi.mocked(authApi.logout).mockRejectedValue(new Error('network unavailable'))
+    const store = useAuthStore()
+
+    await expect(store.logout()).rejects.toThrow('network unavailable')
+
+    expect(authApi.logout).toHaveBeenCalledWith('refresh-token')
+    expect(store.isAuthenticated).toBe(false)
+    expect(tokenStorage.get()).toBeNull()
+  })
+
+  it('clears the session without calling logout when no refresh token exists', () => {
+    const store = useAuthStore()
+
+    store.clearSession()
+
+    expect(authApi.logout).not.toHaveBeenCalled()
+    expect(store.session).toBeNull()
   })
 })
