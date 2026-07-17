@@ -1,7 +1,8 @@
 import sys
-sys.path.insert(0, '.')
 
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+sys.path.insert(0, ".")
+
+from transformers import pipeline
 
 model_name = "uer/roberta-base-finetuned-dianping-chinese"
 

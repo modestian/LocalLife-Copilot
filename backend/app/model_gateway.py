@@ -1,10 +1,10 @@
+import traceback
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from app.analytics.sentiment_classifier import SentimentAnalyzer, SentimentResult
-import traceback 
 
 app = FastAPI(title="Model Gateway", version="0.1.0")
 
@@ -45,7 +45,7 @@ async def batch_sentiment(request: BatchRequest) -> BatchResponse:
         return BatchResponse(results=results, model_version=analyzer.version)
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Model inference failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Model inference failed: {e!s}") from e
 
 
 @app.get("/v1/models/sentiment", response_model=ModelInfoResponse)

@@ -70,6 +70,10 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 # ETL 类型别名由对应任务负责人迁移；Python 3.13 运行时升级不改动其业务代码。
 "app/etl/models.py" = ["UP040"]
 "app/etl/splitters.py" = ["UP040"]
+# 调试脚本：延迟导入、行长度不做强制约束。
+"debug_*.py" = ["E402", "E501"]
+# 训练脚本：依赖检查函数中的 import 仅用于可用性验证，非实际使用。
+"training/*.py" = ["F401", "E501"]
 
 [tool.ruff.format]
 # 保持任务边界，不在运行时升级提交中格式化其他负责人维护的 ETL 模型。

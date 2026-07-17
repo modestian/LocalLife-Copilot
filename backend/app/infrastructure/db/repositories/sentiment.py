@@ -1,9 +1,9 @@
 """Sentiment analysis result repository."""
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Sequence
 from uuid import UUID
 
 from sqlalchemy import select

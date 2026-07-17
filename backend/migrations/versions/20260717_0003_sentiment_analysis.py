@@ -71,9 +71,13 @@ def upgrade() -> None:
         ),
         **TABLE_OPTIONS,
     )
-    op.create_index("ix_review_analyses_merchant_sentiment", "review_analyses", ["merchant_id", "sentiment"])
+    op.create_index(
+        "ix_review_analyses_merchant_sentiment", "review_analyses", ["merchant_id", "sentiment"]
+    )
     op.create_index("ix_review_analyses_review_date", "review_analyses", ["review_date"])
-    op.create_index("ix_review_analyses_sentiment_date", "review_analyses", ["sentiment", "review_date"])
+    op.create_index(
+        "ix_review_analyses_sentiment_date", "review_analyses", ["sentiment", "review_date"]
+    )
 
 
 def downgrade() -> None:

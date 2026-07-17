@@ -1,18 +1,17 @@
 import json
-import sys
 import os
-from collections import Counter, defaultdict
-from typing import List, Dict, Tuple
+import sys
+from collections import Counter
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.analytics import AspectExtractor, SentimentResult
+from app.analytics import AspectExtractor
 from app.analytics.sentiment_classifier import SentimentClassifier
 
 LABELS = ["NEGATIVE", "NEUTRAL", "POSITIVE"]
 
 
-def load_benchmark(filepath: str) -> List[Dict]:
+def load_benchmark(filepath: str) -> list[dict]:
     """Load JSONL benchmark data, normalizing field names across formats.
 
     Supported formats:
@@ -21,23 +20,22 @@ def load_benchmark(filepath: str) -> List[Dict]:
     After loading, every sample uses: content / aspect_labels / negative_reason / sentiment.
     """
     data = []
-    with open(filepath, 'r', encoding='utf-8') as f:
+    with open(filepath, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
                 sample = json.loads(line)
                 # Normalize text field
-                if 'text' in sample and 'content' not in sample:
-                    sample['content'] = sample.pop('text')
+                if "text" in sample and "content" not in sample:
+                    sample["content"] = sample.pop("text")
                 # Normalize negative reason field
-                if 'negative_reasons' in sample and 'negative_reason' not in sample:
-                    sample['negative_reason'] = sample.pop('negative_reasons')
+                if "negative_reasons" in sample and "negative_reason" not in sample:
+                    sample["negative_reason"] = sample.pop("negative_reasons")
                 data.append(sample)
     return data
 
 
-def evaluate_aspect_extraction(benchmark_data: List[Dict]) -> Dict:
-    total_samples = len(benchmark_data)
+def evaluate_aspect_extraction(benchmark_data: list[dict]) -> dict:
     tp_aspect = 0
     fp_aspect = 0
     fn_aspect = 0
@@ -45,8 +43,8 @@ def evaluate_aspect_extraction(benchmark_data: List[Dict]) -> Dict:
     predicted_aspect_labels = 0
 
     for sample in benchmark_data:
-        text = sample['content']
-        expected_aspects = set(sample['aspect_labels'])
+        text = sample["content"]
+        expected_aspects = set(sample["aspect_labels"])
         predicted_aspects = set(AspectExtractor.extract_aspects(text))
 
         total_aspect_labels += len(expected_aspects)
@@ -67,19 +65,19 @@ def evaluate_aspect_extraction(benchmark_data: List[Dict]) -> Dict:
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
     return {
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'tp': tp_aspect,
-        'fp': fp_aspect,
-        'fn': fn_aspect,
-        'total_expected': total_aspect_labels,
-        'total_predicted': predicted_aspect_labels,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "tp": tp_aspect,
+        "fp": fp_aspect,
+        "fn": fn_aspect,
+        "total_expected": total_aspect_labels,
+        "total_predicted": predicted_aspect_labels,
     }
 
 
-def evaluate_negative_reasons(benchmark_data: List[Dict]) -> Dict:
-    negative_samples = [s for s in benchmark_data if s['sentiment'] == 'NEGATIVE']
+def evaluate_negative_reasons(benchmark_data: list[dict]) -> dict:
+    negative_samples = [s for s in benchmark_data if s["sentiment"] == "NEGATIVE"]
     total_samples = len(negative_samples)
     tp_reason = 0
     fp_reason = 0
@@ -88,8 +86,8 @@ def evaluate_negative_reasons(benchmark_data: List[Dict]) -> Dict:
     predicted_reason_labels = 0
 
     for sample in negative_samples:
-        text = sample['content']
-        expected_reasons = set(sample['negative_reason'])
+        text = sample["content"]
+        expected_reasons = set(sample["negative_reason"])
         predicted_reasons = set(AspectExtractor.extract_negative_reasons(text))
 
         total_reason_labels += len(expected_reasons)
@@ -110,27 +108,27 @@ def evaluate_negative_reasons(benchmark_data: List[Dict]) -> Dict:
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
     return {
-        'precision': precision,
-        'recall': recall,
-        'f1': f1,
-        'tp': tp_reason,
-        'fp': fp_reason,
-        'fn': fn_reason,
-        'total_expected': total_reason_labels,
-        'total_predicted': predicted_reason_labels,
-        'negative_samples': total_samples,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+        "tp": tp_reason,
+        "fp": fp_reason,
+        "fn": fn_reason,
+        "total_expected": total_reason_labels,
+        "total_predicted": predicted_reason_labels,
+        "negative_samples": total_samples,
     }
 
 
-def analyze_sentiment_distribution(benchmark_data: List[Dict]) -> Dict:
-    distribution = Counter(s['sentiment'] for s in benchmark_data)
+def analyze_sentiment_distribution(benchmark_data: list[dict]) -> dict:
+    distribution = Counter(s["sentiment"] for s in benchmark_data)
     return dict(distribution)
 
 
 def evaluate_sentiment_classification(
-    benchmark_data: List[Dict],
+    benchmark_data: list[dict],
     classifier: SentimentClassifier | None = None,
-) -> Dict | None:
+) -> dict | None:
     """Evaluate three-class sentiment classification.
 
     Returns per-class P/R/F1, Macro-F1, and a 3×3 confusion matrix.
@@ -148,7 +146,7 @@ def evaluate_sentiment_classification(
     # Collect predictions
     y_true: list[str] = []
     y_pred: list[str] = []
-    misclassified: list[Dict] = []
+    misclassified: list[dict] = []
 
     for sample in benchmark_data:
         true_label = sample["sentiment"]
@@ -157,19 +155,21 @@ def evaluate_sentiment_classification(
         y_true.append(true_label)
         y_pred.append(pred_label)
         if true_label != pred_label:
-            misclassified.append({
-                "content": sample["content"][:60],
-                "true": true_label,
-                "pred": pred_label,
-                "confidence": result.confidence,
-            })
+            misclassified.append(
+                {
+                    "content": sample["content"][:60],
+                    "true": true_label,
+                    "pred": pred_label,
+                    "confidence": result.confidence,
+                }
+            )
 
     # Per-class metrics
-    per_class: Dict[str, Dict[str, float]] = {}
+    per_class: dict[str, dict[str, float]] = {}
     for label in LABELS:
-        tp = sum(1 for t, p in zip(y_true, y_pred) if t == label and p == label)
-        fp = sum(1 for t, p in zip(y_true, y_pred) if t != label and p == label)
-        fn = sum(1 for t, p in zip(y_true, y_pred) if t == label and p != label)
+        tp = sum(1 for t, p in zip(y_true, y_pred, strict=False) if t == label and p == label)
+        fp = sum(1 for t, p in zip(y_true, y_pred, strict=False) if t != label and p == label)
+        fn = sum(1 for t, p in zip(y_true, y_pred, strict=False) if t == label and p != label)
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
@@ -185,7 +185,7 @@ def evaluate_sentiment_classification(
 
     # Confusion matrix (rows=true, cols=pred)
     confusion = {t: {p: 0 for p in LABELS} for t in LABELS}
-    for t, p in zip(y_true, y_pred):
+    for t, p in zip(y_true, y_pred, strict=False):
         confusion[t][p] += 1
 
     return {
@@ -194,11 +194,11 @@ def evaluate_sentiment_classification(
         "confusion_matrix": confusion,
         "misclassified": misclassified,
         "total": len(y_true),
-        "correct": sum(1 for t, p in zip(y_true, y_pred) if t == p),
+        "correct": sum(1 for t, p in zip(y_true, y_pred, strict=False) if t == p),
     }
 
 
-def generate_error_report(sentiment_result: Dict | None) -> str:
+def generate_error_report(sentiment_result: dict | None) -> str:
     """Generate a human-readable error analysis report."""
     if sentiment_result is None:
         return "   （情感分类评测未执行，无法生成误差报告）"
@@ -213,7 +213,7 @@ def generate_error_report(sentiment_result: Dict | None) -> str:
     lines.append(f"   错分样本数: {errors}")
 
     # Error pattern statistics
-    error_patterns: Dict[str, int] = Counter()
+    error_patterns: dict[str, int] = Counter()
     for item in sentiment_result["misclassified"]:
         key = f"{item['true']} → {item['pred']}"
         error_patterns[key] += 1
@@ -224,9 +224,7 @@ def generate_error_report(sentiment_result: Dict | None) -> str:
             lines.append(f"     {pattern}: {count} 条")
 
     # High-confidence misclassifications
-    high_conf_errors = [
-        m for m in sentiment_result["misclassified"] if m["confidence"] >= 0.8
-    ]
+    high_conf_errors = [m for m in sentiment_result["misclassified"] if m["confidence"] >= 0.8]
     if high_conf_errors:
         lines.append(f"   高置信度错分（≥0.8）: {len(high_conf_errors)} 条")
         for item in high_conf_errors[:5]:
@@ -243,7 +241,7 @@ def main():
     if len(sys.argv) > 1:
         benchmark_path = sys.argv[1]
     else:
-        benchmark_path = 'tests/data/training_data_1000.jsonl'
+        benchmark_path = "tests/data/training_data_1000.jsonl"
 
     print("=" * 60)
     print("大众点评AI智能助手 - 基准样本离线评测")
@@ -275,7 +273,7 @@ def main():
         # Confusion matrix
         cm = sentiment_result["confusion_matrix"]
         print("   混淆矩阵 (行=真实, 列=预测):")
-        header = "            " + "  ".join(f"{l:>10s}" for l in LABELS)
+        header = "            " + "  ".join(f"{label:>10s}" for label in LABELS)
         print(f"   {header}")
         for true_label in LABELS:
             row = "  ".join(f"{cm[true_label][pred]:>10d}" for pred in LABELS)
@@ -290,7 +288,10 @@ def main():
     print(f"   召回率(Recall):    {aspect_result['recall']:.4f}")
     print(f"   F1值(F1-Score):    {aspect_result['f1']:.4f}")
     print(f"   统计: TP={aspect_result['tp']}, FP={aspect_result['fp']}, FN={aspect_result['fn']}")
-    print(f"   标签: 期望{aspect_result['total_expected']}个, 预测{aspect_result['total_predicted']}个")
+    print(
+        f"   标签: 期望{aspect_result['total_expected']}个, "
+        f"预测{aspect_result['total_predicted']}个"
+    )
 
     # ── 5. 差评归因评测 ──
     print("\n5. 差评归因评测:")
@@ -299,7 +300,10 @@ def main():
     print(f"   召回率(Recall):    {reason_result['recall']:.4f}")
     print(f"   F1值(F1-Score):    {reason_result['f1']:.4f}")
     print(f"   统计: TP={reason_result['tp']}, FP={reason_result['fp']}, FN={reason_result['fn']}")
-    print(f"   标签: 期望{reason_result['total_expected']}个, 预测{reason_result['total_predicted']}个")
+    print(
+        f"   标签: 期望{reason_result['total_expected']}个, "
+        f"预测{reason_result['total_predicted']}个"
+    )
 
     # ── 6. 误差分析报告 ──
     print("\n6. 误差分析报告:")

@@ -1,5 +1,6 @@
 import sys
-sys.path.insert(0, '.')
+
+sys.path.insert(0, ".")
 
 from app.analytics import SentimentAnalyzer
 
@@ -10,7 +11,7 @@ texts = ["这家餐厅口味很好，服务态度也不错", "太难吃了，再
 print("=== Testing analyze_batch ===")
 results = analyzer.analyze_batch(texts)
 
-for i, (text, result) in enumerate(zip(texts, results)):
+for i, (text, result) in enumerate(zip(texts, results, strict=False)):
     print(f"\nText {i}: {text}")
     print(f"  sentiment: {result.sentiment}")
     print(f"  confidence: {result.confidence}")

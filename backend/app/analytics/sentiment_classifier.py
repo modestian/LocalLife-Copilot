@@ -1,11 +1,10 @@
-import json
 import logging
 import os
 from typing import Literal
 
 import torch
 from pydantic import BaseModel, field_validator
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, pipeline
+from transformers import pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +14,15 @@ DEFAULT_BATCH_SIZE = 32
 # 默认使用本地微调模型；若不存在则回退到 HuggingFace 远程模型
 _LOCAL_MODEL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "training", "output", "final_model",
+    "training",
+    "output",
+    "final_model",
 )
-DEFAULT_MODEL_NAME = _LOCAL_MODEL_DIR if os.path.isdir(_LOCAL_MODEL_DIR) else "uer/roberta-base-finetuned-dianping-chinese"
+DEFAULT_MODEL_NAME = (
+    _LOCAL_MODEL_DIR
+    if os.path.isdir(_LOCAL_MODEL_DIR)
+    else "uer/roberta-base-finetuned-dianping-chinese"
+)
 
 
 def _normalize_label(label) -> str:
@@ -115,7 +120,9 @@ class SentimentClassifier:
         if not texts:
             return []
 
-        valid_texts = [(i, t.strip()) for i, t in enumerate(texts) if isinstance(t, str) and t.strip()]
+        valid_texts = [
+            (i, t.strip()) for i, t in enumerate(texts) if isinstance(t, str) and t.strip()
+        ]
         invalid_indices = [i for i, t in enumerate(texts) if not (isinstance(t, str) and t.strip())]
 
         results = [None] * len(texts)
@@ -127,7 +134,7 @@ class SentimentClassifier:
             batch_indices = [i for i, _ in valid_texts]
 
             pipeline_results = self._pipeline(batch_texts)
-            for idx, result in zip(batch_indices, pipeline_results):
+            for idx, result in zip(batch_indices, pipeline_results, strict=False):
                 if isinstance(result, list):
                     max_score = max(result, key=lambda x: x["score"])
                 else:
@@ -237,7 +244,7 @@ class SentimentAnalyzer:
 
     def analyze_batch(self, texts: list[str]) -> list[SentimentResult]:
         results = self.classifier.predict_batch(texts)
-        for i, (text, result) in enumerate(zip(texts, results)):
+        for _i, (text, result) in enumerate(zip(texts, results, strict=False)):
             result.aspect_labels = self.aspect_extractor.extract_aspects(text)
             if result.sentiment == "NEGATIVE":
                 result.negative_reason = self.aspect_extractor.extract_negative_reasons(text)

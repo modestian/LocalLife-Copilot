@@ -12,39 +12,44 @@ def check_dependencies():
     print("=== Checking dependencies ===")
     try:
         import numpy as np
+
         print(f"  numpy: OK ({np.__version__})")
     except ImportError as e:
         print(f"  numpy: FAILED - {e}")
         sys.exit(1)
-    
+
     try:
         import torch
+
         print(f"  torch: OK ({torch.__version__})")
     except ImportError as e:
         print(f"  torch: FAILED - {e}")
         sys.exit(1)
-    
+
     try:
-        from transformers import AutoTokenizer, AutoModelForSequenceClassification
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+
         print("  transformers: OK")
     except ImportError as e:
         print(f"  transformers: FAILED - {e}")
         sys.exit(1)
-    
+
     try:
         from datasets import Dataset
+
         print("  datasets: OK")
     except ImportError as e:
         print(f"  datasets: FAILED - {e}")
         sys.exit(1)
-    
+
     try:
         from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+
         print("  sklearn: OK")
     except ImportError as e:
         print(f"  sklearn: FAILED - {e}")
         sys.exit(1)
-    
+
     print("=== All dependencies OK ===\n")
 
 
@@ -52,18 +57,19 @@ def load_dataset(file_path):
     print(f"Loading dataset: {file_path}")
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Dataset file not found: {file_path}")
-    
+
     texts = []
     labels = []
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if line:
                 item = json.loads(line)
                 texts.append(item["text"])
                 labels.append(item["label"])
-    
+
     from datasets import Dataset
+
     ds = Dataset.from_dict({"text": texts, "label": labels})
     print(f"  Loaded {len(ds)} samples")
     return ds
@@ -72,9 +78,9 @@ def load_dataset(file_path):
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
     predictions = logits.argmax(axis=-1)
-    
+
     from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-    
+
     return {
         "accuracy": accuracy_score(labels, predictions),
         "f1_macro": f1_score(labels, predictions, average="macro"),
@@ -87,9 +93,9 @@ def main():
     print("=" * 60)
     print("Sentiment Classification Model Fine-tuning")
     print("=" * 60)
-    
+
     check_dependencies()
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", default="uer/roberta-base-finetuned-dianping-chinese")
     parser.add_argument("--train_file", default="backend/training/data/train.jsonl")
@@ -102,22 +108,25 @@ def main():
     parser.add_argument("--learning_rate", type=float, default=2e-5)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
-    
+
     print(f"Arguments: {vars(args)}")
     print()
-    
+
     print("=== Setting seed ===")
     from transformers import set_seed
+
     set_seed(args.seed)
     print(f"Seed: {args.seed}")
-    
+
     print("\n=== Loading tokenizer ===")
     from transformers import AutoTokenizer
+
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     print(f"Tokenizer: {tokenizer.__class__.__name__}")
-    
+
     print("\n=== Loading model ===")
     from transformers import AutoModelForSequenceClassification
+
     model = AutoModelForSequenceClassification.from_pretrained(
         args.model_name,
         num_labels=NUM_LABELS,
@@ -125,10 +134,10 @@ def main():
     )
     print(f"Model: {model.__class__.__name__}")
     print(f"Number of labels: {model.num_labels}")
-    
+
     model.config.id2label = {v: k for k, v in LABEL_MAP.items()}
     model.config.label2id = LABEL_MAP
-    
+
     def tokenize_function(examples):
         return tokenizer(
             examples["text"],
@@ -136,14 +145,15 @@ def main():
             truncation=True,
             max_length=128,
         )
-    
+
     print("\n=== Loading datasets ===")
     train_dataset = load_dataset(args.train_file).map(tokenize_function, batched=True)
     val_dataset = load_dataset(args.val_file).map(tokenize_function, batched=True)
     test_dataset = load_dataset(args.test_file).map(tokenize_function, batched=True)
-    
+
     print("\n=== Configuring training ===")
-    from transformers import TrainingArguments, Trainer
+    from transformers import Trainer, TrainingArguments
+
     training_args = TrainingArguments(
         output_dir=args.output_dir,
         num_train_epochs=args.num_train_epochs,
@@ -163,7 +173,7 @@ def main():
         fp16=False,
         report_to="none",
     )
-    
+
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -171,20 +181,20 @@ def main():
         eval_dataset=val_dataset,
         compute_metrics=compute_metrics,
     )
-    
+
     print("\n=== Starting training ===")
     trainer.train()
-    
+
     print("\n=== Evaluating on test set ===")
     test_results = trainer.evaluate(test_dataset)
     print(f"Test results: {test_results}")
-    
+
     print("\n=== Saving model ===")
     os.makedirs(f"{args.output_dir}/final_model", exist_ok=True)
     model.save_pretrained(f"{args.output_dir}/final_model")
     tokenizer.save_pretrained(f"{args.output_dir}/final_model")
     print(f"Model saved to {args.output_dir}/final_model")
-    
+
     print("\n" + "=" * 60)
     print("Training completed successfully!")
     print("=" * 60)
