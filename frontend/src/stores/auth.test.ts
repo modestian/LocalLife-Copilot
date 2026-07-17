@@ -143,7 +143,7 @@ describe('auth store', () => {
     expect(store.isAuthenticated).toBe(false)
     expect(tokenStorage.get()).toBeNull()
     expect(store.lastError).toMatchObject({
-      code: 'UNKNOWN_ERROR',
+      code: 'CLIENT_UNKNOWN_ERROR',
       message: '发生未知错误，请稍后重试',
     })
   })
