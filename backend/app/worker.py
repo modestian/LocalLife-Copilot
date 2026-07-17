@@ -44,7 +44,7 @@ def configure_lifecycle_repository(repository: LifecycleRepository) -> WorkerLif
     service = WorkerLifecycleService(
         repository,
         LocalSourceStorage(settings.knowledge_data_root),
-        OpenSearchProjection(_lifecycle_projection_client, settings.opensearch_index),
+        OpenSearchProjection(_lifecycle_projection_client, settings.opensearch_write_alias),
         dispatch_lifecycle_task,
         max_source_bytes=settings.max_ingestion_source_bytes,
     )
