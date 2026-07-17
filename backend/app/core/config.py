@@ -26,9 +26,12 @@ class Settings(BaseSettings):
     opensearch_index: str = "local-life-chunks"
     opensearch_index_version: int = 1
     embedding_dimension: int = 512
+    embedding_batch_size: int = 32
+    embedding_model: str = "local-deterministic-v1"
     knowledge_data_root: str = "/data/knowledge"
     max_ingestion_source_bytes: int = 20 * 1024 * 1024
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
+    model_gateway_embedding_url: str = "http://model-gateway:8001/v1/embeddings"
     dependency_timeout_seconds: float = 2.0
     jwt_secret_key: SecretStr = SecretStr("development-only-change-this-jwt-secret-key")
     jwt_issuer: str = "local-life-copilot"
@@ -99,12 +102,19 @@ class Settings(BaseSettings):
             raise ValueError("opensearch_index must be a valid lowercase index prefix")
         return normalized
 
-    @field_validator("opensearch_index_version", "embedding_dimension")
+    @field_validator("opensearch_index_version", "embedding_dimension", "embedding_batch_size")
     @classmethod
     def validate_positive_search_integer(cls, value: int) -> int:
         if value <= 0:
-            raise ValueError("OpenSearch index version and embedding dimension must be positive")
+            raise ValueError("OpenSearch index version and embedding settings must be positive")
         return value
+
+    @field_validator("embedding_model")
+    @classmethod
+    def validate_embedding_model(cls, value: str) -> str:
+        if not (normalized := value.strip()):
+            raise ValueError("embedding_model must not be blank")
+        return normalized
 
     @field_validator("jwt_issuer", "jwt_audience")
     @classmethod

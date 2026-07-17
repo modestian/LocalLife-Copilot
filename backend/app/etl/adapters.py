@@ -10,6 +10,7 @@ from uuid import UUID
 from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 
+from app.etl.embeddings import BatchedEmbedder
 from app.etl.lifecycle import LifecycleError, projection_id
 from app.etl.models import ChunkRecord, JsonValue
 
@@ -46,22 +47,41 @@ class LocalSourceStorage:
 class OpenSearchProjection:
     """Idempotent Chunk projection using document-version/chunk-number IDs."""
 
-    def __init__(self, client: OpenSearch, index: str) -> None:
+    def __init__(
+        self,
+        client: OpenSearch,
+        index: str,
+        embedder: BatchedEmbedder,
+        *,
+        bulk_batch_size: int = 500,
+    ) -> None:
+        if bulk_batch_size <= 0:
+            raise ValueError("bulk batch size must be greater than zero")
         self._client = client
         self._index = index
+        self._embedder = embedder
+        self._bulk_batch_size = bulk_batch_size
 
     def upsert(self, document_version_id: UUID, chunks: Sequence[ChunkRecord]) -> None:
+        vectors = self._embedder.embed([chunk.content for chunk in chunks])
         actions = [
             {
                 "_op_type": "index",
                 "_index": self._index,
                 "_id": projection_id(document_version_id, chunk.chunk_no),
-                "_source": self._source(document_version_id, chunk),
+                "_source": self._source(document_version_id, chunk, vector),
             }
-            for chunk in chunks
+            for chunk, vector in zip(chunks, vectors, strict=True)
         ]
         if actions:
-            bulk(self._client, actions, refresh="wait_for", raise_on_error=True)
+            bulk(
+                self._client,
+                actions,
+                chunk_size=self._bulk_batch_size,
+                refresh="wait_for",
+                raise_on_error=True,
+                raise_on_exception=True,
+            )
 
     def delete(self, document_version_id: UUID) -> int:
         response = self._client.delete_by_query(
@@ -80,7 +100,9 @@ class OpenSearchProjection:
         return int(response["count"])
 
     @staticmethod
-    def _source(document_version_id: UUID, chunk: ChunkRecord) -> dict[str, JsonValue]:
+    def _source(
+        document_version_id: UUID, chunk: ChunkRecord, vector: Sequence[float]
+    ) -> dict[str, JsonValue]:
         source: dict[str, JsonValue] = {
             "document_version_id": str(document_version_id),
             "chunk_no": chunk.chunk_no,
@@ -90,6 +112,7 @@ class OpenSearchProjection:
             "page_number": chunk.page_number,
             "metadata": chunk.metadata,
             "source_key": chunk.metadata.get("source_key"),
+            "content_vector": list(vector),
         }
         for field in (
             "document_id",
