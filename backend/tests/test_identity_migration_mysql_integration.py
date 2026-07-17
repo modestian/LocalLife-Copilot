@@ -17,6 +17,13 @@ IDENTITY_TABLES = {
     "users",
 }
 
+KNOWLEDGE_METADATA_TABLES = {
+    "chunks",
+    "document_versions",
+    "documents",
+    "knowledge_bases",
+}
+
 
 @pytest.mark.skipif(
     not os.getenv("MIGRATION_DATABASE_URL"),
@@ -30,17 +37,22 @@ def test_mysql_identity_migration_supports_downgrade_and_reupgrade() -> None:
     try:
         command.upgrade(config, "head")
         assert IDENTITY_TABLES <= set(inspect(engine).get_table_names())
+        assert KNOWLEDGE_METADATA_TABLES <= set(inspect(engine).get_table_names())
 
         command.downgrade(config, "20260715_0001")
-        assert IDENTITY_TABLES.isdisjoint(inspect(engine).get_table_names())
+        table_names = set(inspect(engine).get_table_names())
+        assert IDENTITY_TABLES.isdisjoint(table_names)
+        assert KNOWLEDGE_METADATA_TABLES.isdisjoint(table_names)
 
         command.upgrade(config, "head")
-        assert IDENTITY_TABLES <= set(inspect(engine).get_table_names())
+        table_names = set(inspect(engine).get_table_names())
+        assert IDENTITY_TABLES <= table_names
+        assert KNOWLEDGE_METADATA_TABLES <= table_names
         with engine.connect() as connection:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260716_0002"
+        assert revision == "20260717_0003"
     finally:
         # Leave the shared CI/local integration database at head even if an assertion fails.
         command.upgrade(config, "head")
