@@ -1,7 +1,7 @@
 """Create review_analyses table for sentiment analysis result persistence.
 
-Revision ID: 20260717_0003
-Revises: 20260716_0002
+Revision ID: 20260717_0003b
+Revises: 20260717_0003
 Create Date: 2026-07-17
 """
 
@@ -11,8 +11,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import mysql
 
-revision: str = "20260717_0003"
-down_revision: str | None = "20260716_0002"
+revision: str = "20260717_0003b"
+down_revision: str | None = "20260717_0003"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
