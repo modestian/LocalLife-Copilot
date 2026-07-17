@@ -65,10 +65,13 @@ h1 {
 .submit-button { width: 100%; margin-top: 8px; }
 
 .home-page {
-  width: min(760px, calc(100% - 40px));
+  width: min(1180px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 14vh 0 64px;
+  padding: 72px 0 64px;
 }
+
+.home-page > h1 { max-width: 900px; font-size: clamp(2.5rem, 6vw, 4.8rem); }
+.home-page > .intro { max-width: 760px; }
 
 .topline { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 
