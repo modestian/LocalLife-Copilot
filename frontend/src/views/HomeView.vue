@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { getReadiness } from '@/api/health'
 import StatusCard from '@/components/StatusCard.vue'
+import WebSocketChatPanel from '@/components/WebSocketChatPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 
 type ApiState = 'checking' | 'ready' | 'unavailable'
@@ -52,6 +53,7 @@ async function logout(): Promise<void> {
       label="API 与数据依赖"
       :state="apiState"
     />
+    <WebSocketChatPanel />
     <nav aria-label="开发入口">
       <a
         href="/docs"
