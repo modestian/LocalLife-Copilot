@@ -10,9 +10,14 @@ from app.infrastructure.db.models.identity import (
     User,
     UserRole,
 )
+from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
 
 __all__ = [
+    "Chunk",
     "Department",
+    "Document",
+    "DocumentVersion",
+    "KnowledgeBase",
     "Permission",
     "RefreshToken",
     "ResourceGrant",
