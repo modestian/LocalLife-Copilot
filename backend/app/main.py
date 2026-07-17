@@ -16,6 +16,7 @@ from app.core.config import Settings, get_settings
 from app.core.readiness import ReadinessCheck, build_readiness_checks
 from app.core.security import AccessTokenService, PasswordService
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
+from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
 
 
 def create_app(
@@ -33,6 +34,7 @@ def create_app(
 
         engine = create_async_engine(app_settings.database_url, pool_pre_ping=True)
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        app.state.sentiment_repo = SQLAlchemySentimentRepository(session_factory)
         app.state.auth_service = AuthService(
             SQLAlchemyAuthRepository(session_factory),
             PasswordService(),

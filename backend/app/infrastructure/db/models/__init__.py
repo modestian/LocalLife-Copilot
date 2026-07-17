@@ -10,12 +10,14 @@ from app.infrastructure.db.models.identity import (
     User,
     UserRole,
 )
+from app.infrastructure.db.models.sentiment import ReviewAnalysis
 
 __all__ = [
     "Department",
     "Permission",
     "RefreshToken",
     "ResourceGrant",
+    "ReviewAnalysis",
     "Role",
     "RolePermission",
     "User",
