@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import KnowledgeDocumentWorkspace from '@/components/KnowledgeDocumentWorkspace.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import {
@@ -315,6 +316,14 @@ onMounted(() => store.loadDetail(id.value))
           <div><dt>更新时间</dt><dd>{{ formatDate(store.detail.updated_at) }}</dd></div>
         </dl>
       </section>
+
+      <KnowledgeDocumentWorkspace
+        v-if="access.allowed"
+        :knowledge-base-id="store.detail.id"
+        :default-chunk-size="store.detail.chunk_size"
+        :default-chunk-overlap="store.detail.chunk_overlap"
+        :can-manage="access.allowed"
+      />
     </template>
   </main>
 </template>
