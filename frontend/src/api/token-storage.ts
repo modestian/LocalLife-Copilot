@@ -3,6 +3,7 @@ import type { TokenPair, TokenSession } from '@/types/auth'
 const STORAGE_KEY = 'local-life-copilot.auth-session'
 
 let memorySession: TokenSession | null = readStoredSession()
+const listeners = new Set<(session: TokenSession | null) => void>()
 
 function isTokenSession(value: unknown): value is TokenSession {
   if (!value || typeof value !== 'object') return false
@@ -38,6 +39,7 @@ function persist(session: TokenSession | null): void {
   } catch {
     // Memory storage still allows the current tab to continue.
   }
+  listeners.forEach((listener) => listener(session))
 }
 
 export const tokenStorage = {
@@ -61,5 +63,10 @@ export const tokenStorage = {
 
   clear(): void {
     persist(null)
+  },
+
+  subscribe(listener: (session: TokenSession | null) => void): () => void {
+    listeners.add(listener)
+    return () => listeners.delete(listener)
   },
 }

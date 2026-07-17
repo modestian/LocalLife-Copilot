@@ -38,6 +38,13 @@ async function logout(): Promise<void> {
       </el-button>
     </div>
     <h1>用户工作台已就绪</h1>
+    <p
+      v-if="authStore.currentUser"
+      class="user-summary"
+    >
+      {{ authStore.currentUser.display_name }} ·
+      {{ authStore.currentUser.roles.map((role) => role.name).join('、') || '普通用户' }}
+    </p>
     <p class="intro">
       Vue、路由、状态管理、组件库与类型化 API Client 已接通，可继续实现探店和流式对话。
     </p>

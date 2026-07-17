@@ -57,8 +57,9 @@ async function refreshSession(): Promise<TokenPair> {
 }
 
 function expireSession(): void {
+  const hadSession = tokenStorage.get() !== null
   tokenStorage.clear()
-  authExpiredHandler?.()
+  if (hadSession) authExpiredHandler?.()
 }
 
 apiClient.interceptors.request.use(async (config) => {
@@ -93,9 +94,12 @@ apiClient.interceptors.response.use(
         error.response?.status === 401 &&
         config &&
         !config.skipAuthRefresh &&
-        !config.authRetryAttempted &&
-        tokenStorage.get()
+        !config.authRetryAttempted
       ) {
+        if (!tokenStorage.get()) {
+          authExpiredHandler?.()
+          throw toApiClientError(error)
+        }
         config.authRetryAttempted = true
         try {
           const tokens = await refreshSession()

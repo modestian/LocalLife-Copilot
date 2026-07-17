@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import type { FormInstance, FormRules } from 'element-plus'
 
-import { ApiClientError } from '@/api/errors'
+import { notifyApiError } from '@/api/error-feedback'
+import { resolveWorkbenchRouteName, safeRedirect } from '@/router/auth-routing'
 import { useAuthStore } from '@/stores/auth'
 import type { LoginPayload } from '@/types/auth'
 
@@ -22,11 +23,10 @@ async function submit(): Promise<void> {
   if (!(await formRef.value?.validate().catch(() => false))) return
   submitting.value = true
   try {
-    await authStore.login(form)
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-    await router.replace(redirect)
+    const user = await authStore.login(form)
+    await router.replace(safeRedirect(route.query.redirect) ?? { name: resolveWorkbenchRouteName(user) })
   } catch (error) {
-    ElMessage.error(error instanceof ApiClientError ? error.message : '登录失败，请稍后重试')
+    notifyApiError(error, '登录失败，请稍后重试')
   } finally {
     submitting.value = false
   }

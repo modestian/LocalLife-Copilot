@@ -1,5 +1,13 @@
 import { createApp } from 'vue'
-import { ElButton, ElCard, ElConfigProvider, ElForm, ElFormItem, ElInput } from 'element-plus'
+import {
+  ElButton,
+  ElCard,
+  ElConfigProvider,
+  ElForm,
+  ElFormItem,
+  ElInput,
+  ElMessage,
+} from 'element-plus'
 import { createPinia } from 'pinia'
 
 import App from './App.vue'
@@ -30,11 +38,13 @@ app.use(ElInput)
 
 const authStore = useAuthStore(pinia)
 setAuthExpiredHandler(() => {
+  const wasAuthenticated = authStore.isAuthenticated
   authStore.clearSession()
   const currentRoute = router.currentRoute.value
   if (currentRoute.meta.requiresAuth) {
     void router.replace({ name: 'login', query: { redirect: currentRoute.fullPath } })
   }
+  if (wasAuthenticated) ElMessage.warning('登录状态已过期，请重新登录')
 })
 
 app.mount('#app')
