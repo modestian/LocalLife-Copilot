@@ -21,3 +21,4 @@ backend/training/models/
 *.bin
 *.pt
 !backend/app/**/*.pt
+.qoder/
