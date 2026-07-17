@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { ref } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -6,6 +7,14 @@ import type {
   ConversationApi,
   ConversationSummary,
 } from '@/api/conversations'
+import type {
+  WebSocketChatController,
+  WebSocketChatState,
+} from '@/composables/useWebSocketChat'
+import type {
+  MerchantRecommendation,
+  RecommendationSource,
+} from '@/types/recommendation'
 
 import ConversationWorkspace from './ConversationWorkspace.vue'
 
@@ -35,10 +44,64 @@ function createApi(overrides: Partial<ConversationApi> = {}): ConversationApi {
   }
 }
 
+interface StreamResult {
+  content?: string
+  error?: string
+  recommendations?: MerchantRecommendation[]
+  sources?: RecommendationSource[]
+}
+
+function createStream(result: StreamResult = {}): WebSocketChatController {
+  const state = ref<WebSocketChatState>('idle')
+  const content = ref('')
+  const sources = ref<RecommendationSource[]>([])
+  const recommendations = ref<MerchantRecommendation[]>([])
+  const fallback = ref({ triggered: false })
+  const errorMessage = ref('')
+  const reconnectAttempt = ref(0)
+  const requestId = ref<string | null>(null)
+  const messageId = ref<string | null>(null)
+  const send = vi.fn(async () => {
+    state.value = 'streaming'
+    content.value = result.content ?? ''
+    sources.value = result.sources ?? []
+    recommendations.value = result.recommendations ?? []
+    if (result.error) {
+      errorMessage.value = result.error
+      state.value = 'error'
+      return
+    }
+    messageId.value = 'assistant-streamed'
+    state.value = 'completed'
+  })
+  const cancel = vi.fn(() => { state.value = 'cancelled' })
+  const retry = vi.fn(async () => { state.value = 'streaming' })
+  const disconnect = vi.fn()
+
+  return {
+    state,
+    content,
+    sources,
+    recommendations,
+    fallback,
+    errorMessage,
+    reconnectAttempt,
+    requestId,
+    messageId,
+    send,
+    cancel,
+    retry,
+    disconnect,
+  }
+}
+
 describe('ConversationWorkspace', () => {
   it('starts a scene conversation with composite exploration conditions', async () => {
     const api = createApi()
-    const wrapper = mount(ConversationWorkspace, { props: { api } })
+    const stream = createStream({
+      content: '可以看看三公里内有插座且工作日下午较安静的咖啡馆。',
+    })
+    const wrapper = mount(ConversationWorkspace, { props: { api, stream } })
     await flushPromises()
 
     await wrapper.get('[data-scenario="study"]').trigger('click')
@@ -51,7 +114,7 @@ describe('ConversationWorkspace', () => {
       scenario: 'study',
       constraints: expect.objectContaining({ budget_yuan: 60, cuisine: '咖啡' }),
     }))
-    expect(api.sendMessage).toHaveBeenCalledWith(
+    expect(stream.send).toHaveBeenCalledWith(
       'conversation-new',
       expect.stringContaining('场景：学习办公；距离：3 公里内；预算：人均 60 元以内；菜系/品类：咖啡'),
     )
@@ -97,8 +160,9 @@ describe('ConversationWorkspace', () => {
         created_at: now,
       }),
     })
+    const stream = createStream({ content: '可以，已缩小到人均 80 元以内。' })
     const wrapper = mount(ConversationWorkspace, {
-      props: { api, initialConversations: [conversation] },
+      props: { api, stream, initialConversations: [conversation] },
     })
 
     await wrapper.get('[data-conversation-id="conversation-history"]').trigger('click')
@@ -108,7 +172,7 @@ describe('ConversationWorkspace', () => {
 
     expect(wrapper.text()).toContain('我找到两家适合聚会的川菜馆')
     expect(api.createConversation).not.toHaveBeenCalled()
-    expect(api.sendMessage).toHaveBeenCalledWith(
+    expect(stream.send).toHaveBeenCalledWith(
       'conversation-history',
       expect.stringContaining('把预算限制在人均 80 元以内'),
     )
@@ -144,19 +208,60 @@ describe('ConversationWorkspace', () => {
     expect(wrapper.text()).toContain('这是从服务端恢复的历史消息')
   })
 
-  it('keeps the draft and removes the optimistic message when sending fails', async () => {
-    const api = createApi({
-      sendMessage: vi.fn().mockRejectedValue(new Error('网络暂时不可用')),
-    })
-    const wrapper = mount(ConversationWorkspace, { props: { api } })
+  it('keeps the failed answer visible with an actionable retry state', async () => {
+    const api = createApi()
+    const stream = createStream({ error: '网络暂时不可用' })
+    const wrapper = mount(ConversationWorkspace, { props: { api, stream } })
     await flushPromises()
 
     await wrapper.get('textarea').setValue('推荐一家附近的面馆')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(wrapper.get('textarea').element.value).toBe('推荐一家附近的面馆')
+    expect(wrapper.get('textarea').element.value).toBe('')
     expect(wrapper.text()).toContain('网络暂时不可用')
-    expect(wrapper.findAll('.chat-message')).toHaveLength(0)
+    expect(wrapper.findAll('.chat-message')).toHaveLength(2)
+    expect(wrapper.text()).toContain('生成失败')
+    expect(wrapper.text()).toContain('重试回答')
+  })
+
+  it('renders streamed recommendations and opens their highlighted citations', async () => {
+    const source: RecommendationSource = {
+      chunk_id: 'chunk-1',
+      source_location: '点评 / 星光咖啡',
+      source_url: '/app/reviews/review-1#chunk-1',
+      content: '靠窗位置安静，而且每张桌子附近都有插座。',
+      highlight_text: '靠窗位置安静',
+      score: 0.92,
+    }
+    const recommendation: MerchantRecommendation = {
+      merchant_id: 'merchant-1',
+      name: '星光咖啡',
+      category: '咖啡馆',
+      reason: '安静且有插座，适合学习。',
+      distance_meter: 850,
+      avg_price_cent: 5800,
+      data_updated_at: now,
+      source_chunk_ids: ['chunk-1'],
+    }
+    const stream = createStream({
+      content: '**星光咖啡**比较符合当前条件。',
+      recommendations: [recommendation],
+      sources: [source],
+    })
+    const wrapper = mount(ConversationWorkspace, {
+      props: { api: createApi(), stream },
+    })
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('找一家安静的咖啡馆')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('.safe-markdown strong').text()).toBe('星光咖啡')
+    expect(wrapper.text()).toContain('850 米')
+    await wrapper.get('.recommendation-card__sources').trigger('click')
+    expect(wrapper.get('[role="dialog"] mark').text()).toBe('靠窗位置安静')
+    expect(wrapper.get('[role="dialog"] a').attributes('href')).toBe('/app/reviews/review-1#chunk-1')
   })
 })

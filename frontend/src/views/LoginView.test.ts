@@ -109,7 +109,11 @@ describe('LoginView', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(message).toHaveBeenCalledWith('账号或密码错误')
+    expect(message).toHaveBeenCalledWith({
+      grouping: true,
+      message: '账号或密码错误',
+      showClose: true,
+    })
     expect(wrapper.get('button').attributes('data-loading')).toBe('false')
   })
 })

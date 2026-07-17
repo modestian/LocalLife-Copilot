@@ -23,11 +23,16 @@ const emit = defineEmits<{
   refine: [suggestion: string]
 }>()
 
-const selectedRecommendation = ref<MerchantRecommendation | null>(null)
-const shouldFallback = computed(() => props.fallback.triggered || props.recommendations.length === 0)
+const selectedSourceIds = ref<string[]>([])
+const selectedSourceTitle = ref('')
+const shouldFallback = computed(() => (
+  props.fallback.triggered || (props.recommendations.length === 0 && props.sources.length === 0)
+))
+const showsSourcesOnly = computed(() => (
+  props.recommendations.length === 0 && props.sources.length > 0 && !props.fallback.triggered
+))
 const selectedSources = computed(() => {
-  if (!selectedRecommendation.value) return []
-  const sourceIds = new Set(selectedRecommendation.value.source_chunk_ids)
+  const sourceIds = new Set(selectedSourceIds.value)
   return props.sources.filter((source) => sourceIds.has(source.chunk_id))
 })
 const fallbackSuggestions = computed(() => (
@@ -63,7 +68,18 @@ function freshness(updatedAt: string): { label: string; level: 'fresh' | 'recent
 }
 
 function openSources(recommendation: MerchantRecommendation): void {
-  selectedRecommendation.value = recommendation
+  selectedSourceTitle.value = `${recommendation.name} · 引用依据`
+  selectedSourceIds.value = [...recommendation.source_chunk_ids]
+}
+
+function openAllSources(): void {
+  selectedSourceTitle.value = '本次回答 · 引用依据'
+  selectedSourceIds.value = props.sources.map((source) => source.chunk_id)
+}
+
+function closeSources(): void {
+  selectedSourceIds.value = []
+  selectedSourceTitle.value = ''
 }
 
 function safeSourceUrl(sourceUrl: string): string {
@@ -84,7 +100,8 @@ function safeSourceUrl(sourceUrl: string): string {
           为你找到的选择
         </h2>
       </div>
-      <span v-if="!shouldFallback">{{ recommendations.length }} 家候选</span>
+      <span v-if="recommendations.length > 0">{{ recommendations.length }} 家候选</span>
+      <span v-else-if="showsSourcesOnly">{{ sources.length }} 条引用</span>
     </header>
 
     <section
@@ -115,7 +132,7 @@ function safeSourceUrl(sourceUrl: string): string {
     </section>
 
     <div
-      v-else
+      v-else-if="recommendations.length > 0"
       class="recommendation-grid"
     >
       <article
@@ -168,16 +185,44 @@ function safeSourceUrl(sourceUrl: string): string {
       </article>
     </div>
 
+    <section
+      v-else-if="showsSourcesOnly"
+      class="source-preview"
+      aria-label="回答引用预览"
+    >
+      <p>本次回答引用了 {{ sources.length }} 条原始资料，可查看高亮片段并跳转来源。</p>
+      <ol>
+        <li
+          v-for="source in sources.slice(0, 2)"
+          :key="source.chunk_id"
+        >
+          <strong>{{ source.source_location }}</strong>
+          <p>
+            <HighlightedText
+              :content="source.content"
+              :highlight="source.highlight_text"
+            />
+          </p>
+        </li>
+      </ol>
+      <button
+        type="button"
+        @click="openAllSources"
+      >
+        查看全部引用
+      </button>
+    </section>
+
     <p class="ai-boundary">
       <strong>AI 使用边界：</strong>
       推荐基于已收录资料与点评，不承诺实时库存、排队时间或营业状态；出发前请查看商家最新信息。
     </p>
 
     <div
-      v-if="selectedRecommendation"
+      v-if="selectedSourceIds.length > 0"
       class="source-drawer-backdrop"
       role="presentation"
-      @click.self="selectedRecommendation = null"
+      @click.self="closeSources"
     >
       <aside
         class="source-drawer"
@@ -189,13 +234,13 @@ function safeSourceUrl(sourceUrl: string): string {
           <div>
             <span>SUPPORTING SOURCES</span>
             <h3 id="source-drawer-title">
-              {{ selectedRecommendation.name }} · 引用依据
+              {{ selectedSourceTitle }}
             </h3>
           </div>
           <button
             aria-label="关闭引用"
             type="button"
-            @click="selectedRecommendation = null"
+            @click="closeSources"
           >
             ×
           </button>
@@ -264,6 +309,13 @@ function safeSourceUrl(sourceUrl: string): string {
 .recommendation-fallback p { margin: 0; color: #695b51; font-size: .88rem; line-height: 1.65; }
 .recommendation-fallback__actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 13px; }
 .recommendation-fallback__actions button { border: 1px solid #dec9bb; border-radius: 999px; padding: 6px 9px; background: #fffdfa; color: #8e3a2b; cursor: pointer; font: inherit; font-size: .72rem; font-weight: 700; }
+.source-preview { border: 1px solid #ead8c9; border-radius: 14px; padding: 16px; background: #fffdfa; }
+.source-preview > p { margin: 0 0 12px; color: #695b51; font-size: .82rem; }
+.source-preview ol { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+.source-preview li { border-left: 3px solid #d26b57; padding-left: 11px; }
+.source-preview li strong { color: #8e3a2b; font-size: .72rem; }
+.source-preview li p { margin: 4px 0 0; color: #493a31; font-size: .8rem; line-height: 1.55; }
+.source-preview > button { margin-top: 12px; border: 0; padding: 0; background: transparent; color: #a93a28; cursor: pointer; font: inherit; font-size: .78rem; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
 .source-drawer-backdrop { position: fixed; z-index: 30; inset: 0; background: rgb(40 29 22 / 46%); }
 .source-drawer { position: absolute; top: 0; right: 0; width: min(620px, 100%); height: 100%; overflow-y: auto; padding: 24px; background: #fffdfa; box-shadow: -20px 0 60px rgb(40 29 22 / 24%); }
 .source-drawer__heading { display: flex; justify-content: space-between; gap: 16px; }

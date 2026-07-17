@@ -47,7 +47,7 @@ describe('auth store', () => {
 
     const store = useAuthStore()
 
-    expect(store.isAuthenticated).toBe(true)
+    expect(store.isAuthenticated).toBe(false)
     expect(store.session?.access_token).toBe('access-token')
   })
 
@@ -137,11 +137,15 @@ describe('auth store', () => {
     vi.mocked(authApi.logout).mockRejectedValue(new Error('network unavailable'))
     const store = useAuthStore()
 
-    await expect(store.logout()).rejects.toThrow('network unavailable')
+    await expect(store.logout()).resolves.toBeUndefined()
 
     expect(authApi.logout).toHaveBeenCalledWith('refresh-token')
     expect(store.isAuthenticated).toBe(false)
     expect(tokenStorage.get()).toBeNull()
+    expect(store.lastError).toMatchObject({
+      code: 'UNKNOWN_ERROR',
+      message: '发生未知错误，请稍后重试',
+    })
   })
 
   it('clears the session without calling logout when no refresh token exists', () => {

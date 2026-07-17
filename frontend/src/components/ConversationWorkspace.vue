@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import {
   conversationApi,
@@ -9,13 +9,23 @@ import {
   type ConversationSummary,
   type ExploreConstraints,
 } from '@/api/conversations'
+import {
+  useWebSocketChat,
+  type WebSocketChatController,
+  type WebSocketChatState,
+} from '@/composables/useWebSocketChat'
+
+import RecommendationResults from './RecommendationResults.vue'
+import SafeMarkdown from './SafeMarkdown.vue'
 
 const props = withDefaults(defineProps<{
   api?: ConversationApi
   initialConversations?: ConversationSummary[]
+  stream?: WebSocketChatController
 }>(), {
   api: () => conversationApi,
   initialConversations: () => [],
+  stream: undefined,
 })
 
 interface SceneOption {
@@ -67,6 +77,8 @@ const scenes: SceneOption[] = [
 const conversations = ref<ConversationSummary[]>([...props.initialConversations])
 const activeConversationId = ref<string | null>(null)
 const messages = ref<ChatMessage[]>([])
+const defaultStream = useWebSocketChat()
+const stream = props.stream ?? defaultStream
 const selectedScenario = ref<ConversationScenario>('nearby')
 const query = ref('')
 const distanceKm = ref<number | null>(3)
@@ -79,6 +91,8 @@ const isLoadingMessages = ref(false)
 const isSending = ref(false)
 const errorMessage = ref('')
 const messageList = ref<HTMLElement | null>(null)
+const streamingMessageId = ref<string | null>(null)
+const pendingSummaryTitle = ref('')
 
 const activeConversation = computed(() => (
   conversations.value.find((conversation) => conversation.id === activeConversationId.value) ?? null
@@ -87,6 +101,42 @@ const selectedScene = computed(() => (
   scenes.find((scene) => scene.id === selectedScenario.value) ?? scenes[0]
 ))
 const canSend = computed(() => query.value.trim().length > 0 && !isSending.value)
+const streamIsActive = computed(() => (
+  ['connecting', 'streaming', 'reconnecting'].includes(stream.state.value)
+))
+
+watch(stream.content, async (content) => {
+  const message = activeStreamingMessage()
+  if (!message) return
+  message.content = content
+  await scrollToLatest()
+})
+
+watch(stream.state, async (state) => {
+  const message = activeStreamingMessage()
+  if (!message) return
+
+  const statusByState: Partial<Record<WebSocketChatState, ChatMessage['status']>> = {
+    connecting: 'STREAMING',
+    streaming: 'STREAMING',
+    reconnecting: 'STREAMING',
+    completed: 'COMPLETED',
+    cancelled: 'CANCELLED',
+    error: 'FAILED',
+  }
+  message.status = statusByState[state] ?? message.status
+  message.content = stream.content.value
+  message.sources = [...stream.sources.value]
+  message.recommendations = [...stream.recommendations.value]
+  message.fallback = { ...stream.fallback.value }
+
+  if (state === 'completed' && stream.messageId.value) message.id = stream.messageId.value
+  if (['completed', 'cancelled', 'error'].includes(state)) {
+    updateConversationSummary(message.conversation_id, pendingSummaryTitle.value)
+    isSending.value = false
+  }
+  await scrollToLatest()
+})
 
 onMounted(async () => {
   if (conversations.value.length === 0) await loadConversations()
@@ -110,6 +160,7 @@ function chooseScene(scene: SceneOption): void {
 }
 
 function startNewConversation(): void {
+  if (streamIsActive.value) stream.cancel()
   activeConversationId.value = null
   messages.value = []
   query.value = ''
@@ -117,6 +168,7 @@ function startNewConversation(): void {
 }
 
 async function selectConversation(conversation: ConversationSummary): Promise<void> {
+  if (streamIsActive.value) stream.cancel()
   activeConversationId.value = conversation.id
   selectedScenario.value = conversation.scenario ?? 'nearby'
   errorMessage.value = ''
@@ -168,7 +220,6 @@ async function sendMessage(): Promise<void> {
   const composedContent = composeMessage(content, constraints)
   isSending.value = true
   errorMessage.value = ''
-  let optimisticMessageId: string | null = null
 
   try {
     let conversationId = activeConversationId.value
@@ -183,7 +234,7 @@ async function sendMessage(): Promise<void> {
       conversationId = conversation.id
     }
 
-    optimisticMessageId = `local-${crypto.randomUUID()}`
+    const optimisticMessageId = `local-${crypto.randomUUID()}`
     messages.value.push({
       id: optimisticMessageId,
       conversation_id: conversationId,
@@ -192,22 +243,61 @@ async function sendMessage(): Promise<void> {
       status: 'COMPLETED',
       created_at: new Date().toISOString(),
     })
+    streamingMessageId.value = `stream-${crypto.randomUUID()}`
+    pendingSummaryTitle.value = content
+    messages.value.push({
+      id: streamingMessageId.value,
+      conversation_id: conversationId,
+      role: 'ASSISTANT',
+      content: '',
+      status: 'STREAMING',
+      created_at: new Date().toISOString(),
+      sources: [],
+      recommendations: [],
+      fallback: { triggered: false },
+    })
     query.value = ''
     await scrollToLatest()
 
-    const assistantMessage = await props.api.sendMessage(conversationId, composedContent)
-    messages.value.push(assistantMessage)
-    updateConversationSummary(conversationId, content)
-    await scrollToLatest()
+    await stream.send(conversationId, composedContent)
   } catch (error: unknown) {
-    if (optimisticMessageId) {
-      messages.value = messages.value.filter((message) => message.id !== optimisticMessageId)
-    }
     query.value = content
+    if (streamingMessageId.value) {
+      messages.value = messages.value.filter((message) => message.id !== streamingMessageId.value)
+      streamingMessageId.value = null
+    }
     errorMessage.value = getErrorMessage(error, '消息发送失败，请检查网络后重试。')
-  } finally {
     isSending.value = false
   }
+}
+
+function activeStreamingMessage(): ChatMessage | undefined {
+  return messages.value.find((message) => message.id === streamingMessageId.value)
+}
+
+async function retryStreamingMessage(): Promise<void> {
+  const message = activeStreamingMessage()
+  if (!message) return
+  message.status = 'STREAMING'
+  isSending.value = true
+  await stream.retry()
+}
+
+function cancelStreamingMessage(): void {
+  stream.cancel()
+}
+
+function applyRefinement(suggestion: string): void {
+  query.value = suggestion
+}
+
+function streamStatusLabel(status: ChatMessage['status']): string {
+  if (status === 'STREAMING') {
+    return stream.state.value === 'reconnecting'
+      ? `正在重连 ${stream.reconnectAttempt.value}/3`
+      : '正在生成'
+  }
+  return ({ COMPLETED: '回答完成', FAILED: '生成失败', CANCELLED: '已停止' })[status] ?? ''
 }
 
 function updateConversationSummary(conversationId: string, fallbackTitle: string): void {
@@ -345,15 +435,56 @@ function formatTime(value: string): string {
             <strong>{{ message.role === 'USER' ? '你' : '探店助手' }}</strong>
             <span>{{ formatTime(message.created_at) }}</span>
           </div>
-          <p>{{ message.content }}</p>
+          <SafeMarkdown
+            v-if="message.role === 'ASSISTANT' && message.content"
+            :content="message.content"
+          />
+          <p v-else-if="message.content">
+            {{ message.content }}
+          </p>
+          <div
+            v-else-if="message.status === 'STREAMING'"
+            class="assistant-thinking"
+            role="status"
+          >
+            <span /><span /><span /> 正在结合当前条件查找合适的商家…
+          </div>
+          <div
+            v-if="message.role === 'ASSISTANT'"
+            class="streaming-message-state"
+            :data-state="message.status.toLowerCase()"
+          >
+            <span>{{ streamStatusLabel(message.status) }}</span>
+            <button
+              v-if="message.id === streamingMessageId && streamIsActive"
+              type="button"
+              @click="cancelStreamingMessage"
+            >
+              停止生成
+            </button>
+            <button
+              v-if="message.id === streamingMessageId && message.status === 'FAILED'"
+              type="button"
+              @click="retryStreamingMessage"
+            >
+              重试回答
+            </button>
+          </div>
+          <p
+            v-if="message.id === streamingMessageId && stream.errorMessage.value"
+            class="streaming-message-error"
+            :role="message.status === 'FAILED' ? 'alert' : 'status'"
+          >
+            {{ stream.errorMessage.value }}
+          </p>
+          <RecommendationResults
+            v-if="message.role === 'ASSISTANT' && (message.recommendations?.length || message.sources?.length || message.fallback?.triggered)"
+            :recommendations="message.recommendations ?? []"
+            :sources="message.sources ?? []"
+            :fallback="message.fallback"
+            @refine="applyRefinement"
+          />
         </article>
-        <div
-          v-if="isSending"
-          class="assistant-thinking"
-          role="status"
-        >
-          <span /><span /><span /> 正在结合当前条件查找合适的商家…
-        </div>
       </div>
 
       <p
@@ -463,9 +594,17 @@ function formatTime(value: string): string {
 .chat-message.is-assistant { justify-self: start; border: 1px solid #eaded3; background: #fffdfa; color: #41342c; }
 .chat-message__meta { display: flex; justify-content: space-between; gap: 18px; font-size: .68rem; opacity: .74; }
 .chat-message p { margin: 7px 0 0; line-height: 1.65; white-space: pre-wrap; }
+.chat-message :deep(.safe-markdown) { margin-top: 8px; }
+.chat-message :deep(.safe-markdown > :first-child) { margin-top: 0; }
+.chat-message :deep(.safe-markdown > :last-child) { margin-bottom: 0; }
 .assistant-thinking { color: #7b6d63; font-size: .8rem; }
 .assistant-thinking span { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: #c34833; }
 .conversation-error { margin: 0 0 10px; border-radius: 8px; padding: 9px 11px; background: #fff0ed; color: #a4362b; font-size: .8rem; }
+.streaming-message-state { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: #75675d; font-size: .7rem; font-weight: 700; }
+.streaming-message-state button { border: 1px solid #d9ccc1; border-radius: 7px; padding: 5px 8px; background: #fffdfa; color: #8e3a2b; cursor: pointer; font: inherit; }
+.streaming-message-state[data-state="failed"] { color: #a4362b; }
+.streaming-message-error { border-radius: 7px; padding: 7px 9px; background: #fff0ed; color: #a4362b; font-size: .75rem; }
+.chat-message :deep(.recommendation-results) { width: min(780px, calc(100vw - 390px)); margin: 16px 0 0; box-shadow: none; }
 .composer { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid #eaded3; }
 .condition-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 8px; align-items: end; }
 .condition-grid label { display: grid; gap: 4px; color: #75675d; font-size: .7rem; font-weight: 700; }
@@ -478,6 +617,6 @@ function formatTime(value: string): string {
 .composer__input button:disabled { cursor: wait; opacity: .55; }
 .composer > small { color: #88786d; font-size: .68rem; }
 @media (max-width: 900px) { .conversation-workspace { grid-template-columns: 220px minmax(0, 1fr); } .condition-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 680px) { .conversation-workspace { display: block; min-height: auto; } .conversation-sidebar { border-right: 0; border-bottom: 1px solid #e7dbd0; } .conversation-list { display: flex; overflow-x: auto; } .conversation-list li { min-width: 190px; } .conversation-main { padding: 18px; } .scene-grid { grid-template-columns: 1fr; } .chat-message { max-width: 92%; } }
+@media (max-width: 680px) { .conversation-workspace { display: block; min-height: auto; } .conversation-sidebar { border-right: 0; border-bottom: 1px solid #e7dbd0; } .conversation-list { display: flex; overflow-x: auto; } .conversation-list li { min-width: 190px; } .conversation-main { padding: 18px; } .scene-grid { grid-template-columns: 1fr; } .chat-message { max-width: 92%; } .chat-message :deep(.recommendation-results) { width: 100%; } }
 @media (max-width: 430px) { .condition-grid { grid-template-columns: 1fr 1fr; } .open-now-option { grid-column: span 2; } .composer__input { align-items: stretch; flex-direction: column; } .composer__input button { width: 100%; } }
 </style>

@@ -17,7 +17,7 @@ export async function getShortLivedWebSocketToken(): Promise<string> {
 }
 
 export function buildWebSocketChatUrl(token: string): string {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin
+  const apiBaseUrl = new URL(import.meta.env.VITE_API_BASE_URL || '/', window.location.origin)
   const url = new URL('/api/v1/ws/chat', apiBaseUrl)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   url.searchParams.set('access_token', token)

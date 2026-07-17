@@ -1,4 +1,9 @@
 import { apiClient, requestData } from './client'
+import type {
+  MerchantRecommendation,
+  RecommendationFallback,
+  RecommendationSource,
+} from '@/types/recommendation'
 
 export type ConversationScenario = 'nearby' | 'date' | 'study' | 'gathering' | 'family'
 export type MessageRole = 'USER' | 'ASSISTANT'
@@ -19,6 +24,9 @@ export interface ChatMessage {
   content: string
   status: MessageStatus
   created_at: string
+  sources?: RecommendationSource[]
+  recommendations?: MerchantRecommendation[]
+  fallback?: RecommendationFallback
 }
 
 export interface ConversationSummary {
