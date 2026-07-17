@@ -1,4 +1,4 @@
-import type { LoginPayload, TokenPair } from '@/types/auth'
+import type { CurrentUser, LoginPayload, TokenPair } from '@/types/auth'
 
 import { requestData } from './client'
 
@@ -9,6 +9,13 @@ export const authApi = {
       url: '/api/v1/auth/login',
       data: payload,
       skipAuthRefresh: true,
+    })
+  },
+
+  getCurrentUser(): Promise<CurrentUser> {
+    return requestData<CurrentUser>({
+      method: 'GET',
+      url: '/api/v1/users/me',
     })
   },
 

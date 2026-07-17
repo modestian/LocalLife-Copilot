@@ -21,9 +21,19 @@ export interface UserRole {
   name: string
 }
 
+export interface ResourceScope {
+  resource_type: 'KNOWLEDGE_BASE' | 'MERCHANT' | 'REGION'
+  resource_id: string
+  actions: string[]
+}
+
 export interface CurrentUser {
   id: string
   username: string
-  display_name?: string
+  display_name: string
+  email: string | null
+  department_id: string | null
   roles: UserRole[]
+  permissions: string[]
+  resource_scopes: ResourceScope[]
 }

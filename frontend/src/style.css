@@ -70,6 +70,19 @@ h1 {
   padding: 14vh 0 64px;
 }
 
+.state-page {
+  width: min(680px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 20vh 0 64px;
+}
+
+.user-summary {
+  margin: 16px 0 0;
+  color: #8b3a2c;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .topline { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 
 .status-card {
@@ -93,8 +106,185 @@ h1 {
 nav { display: flex; flex-wrap: wrap; gap: 18px; }
 a { color: #9d3423; font-weight: 700; text-underline-offset: 4px; }
 
+.guest-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 16%, rgb(222 82 54 / 15%), transparent 28%),
+    linear-gradient(145deg, #faf7f1, #f0e8dc);
+}
+
+.guest-header,
+.guest-main,
+.guest-footer {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+}
+
+.guest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 76px;
+  border-bottom: 1px solid rgb(74 54 42 / 10%);
+}
+
+.brand-mark {
+  color: var(--brand);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+}
+
+.guest-header nav {
+  align-items: center;
+  gap: 24px;
+}
+
+.guest-header nav a,
+.nav-action {
+  border: 0;
+  color: #5f5046;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.guest-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: clamp(48px, 8vw, 112px);
+  align-items: center;
+  min-height: 620px;
+  padding: 80px 0;
+}
+
+.guest-hero h1 {
+  max-width: 760px;
+  font-size: clamp(3.5rem, 8vw, 7.2rem);
+}
+
+.guest-hero .intro { max-width: 660px; }
+
+.hero-actions {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-top: 32px;
+}
+
+.guest-boundary-card {
+  padding: 32px;
+  border: 1px solid rgb(74 54 42 / 12%);
+  border-radius: 24px;
+  background: rgb(255 255 255 / 68%);
+  box-shadow: 0 24px 72px rgb(74 54 42 / 10%);
+}
+
+.guest-boundary-card span,
+.scene-card > span {
+  color: var(--brand);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.guest-boundary-card strong {
+  display: block;
+  margin: 12px 0 20px;
+  font-family: Georgia, "Noto Serif SC", serif;
+  font-size: 2rem;
+}
+
+.guest-boundary-card ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #695b51;
+  line-height: 2;
+}
+
+.scene-section { padding: 64px 0 96px; }
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 40px;
+  margin-bottom: 32px;
+}
+
+.section-heading h2 {
+  margin: 10px 0 0;
+  font-family: Georgia, "Noto Serif SC", serif;
+  font-size: clamp(2rem, 5vw, 3.6rem);
+}
+
+.section-heading p { max-width: 420px; color: var(--muted); line-height: 1.7; }
+
+.scene-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.scene-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 330px;
+  padding: 28px;
+  border: 1px solid rgb(74 54 42 / 12%);
+  border-radius: 20px;
+  background: rgb(255 255 255 / 58%);
+}
+
+.scene-card h3 { margin: 18px 0 12px; font-size: 1.45rem; }
+.scene-card p { margin: 0; color: var(--muted); line-height: 1.7; }
+
+.scene-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 24px; }
+
+.scene-tags small {
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #725c4e;
+  background: #eee3d5;
+}
+
+.scene-card button {
+  margin-top: auto;
+  padding: 24px 0 0;
+  border: 0;
+  color: #9d3423;
+  background: transparent;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.guest-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px 0 36px;
+  border-top: 1px solid rgb(74 54 42 / 10%);
+  color: #7b6d63;
+  font-size: 0.85rem;
+}
+
 @media (max-width: 760px) {
   .auth-page { grid-template-columns: 1fr; gap: 32px; width: min(100% - 32px, 520px); padding: 48px 0; }
   .auth-intro h1 { font-size: clamp(2.4rem, 12vw, 4rem); }
   .home-page { padding-top: 64px; }
+  .guest-header,
+  .guest-main,
+  .guest-footer { width: min(100% - 32px, 560px); }
+  .guest-header nav > a,
+  .nav-action { display: none; }
+  .guest-hero { grid-template-columns: 1fr; gap: 32px; min-height: auto; padding: 64px 0; }
+  .guest-hero h1 { font-size: clamp(3rem, 17vw, 5rem); }
+  .section-heading { display: block; }
+  .scene-grid { grid-template-columns: 1fr; }
+  .scene-card { min-height: 280px; }
+  .guest-footer { flex-direction: column; }
 }
