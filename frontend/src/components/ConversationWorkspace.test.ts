@@ -96,6 +96,22 @@ function createStream(result: StreamResult = {}): WebSocketChatController {
 }
 
 describe('ConversationWorkspace', () => {
+  it('keeps all persistent conversation controls unavailable to guests', async () => {
+    const api = createApi()
+    const stream = createStream()
+    const wrapper = mount(ConversationWorkspace, {
+      props: { api, stream, readOnly: true },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('当前为只读浏览')
+    expect(wrapper.find('form').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('＋ 新对话')
+    expect(api.listConversations).not.toHaveBeenCalled()
+    expect(api.createConversation).not.toHaveBeenCalled()
+    expect(stream.send).not.toHaveBeenCalled()
+  })
+
   it('starts a scene conversation with composite exploration conditions', async () => {
     const api = createApi()
     const stream = createStream({

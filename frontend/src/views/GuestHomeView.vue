@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 
-import { loginRouteFor } from '@/router/auth-routing'
-
 const router = useRouter()
 
 const scenes = [
@@ -29,8 +27,12 @@ const scenes = [
   },
 ]
 
-function requireLogin(redirect = '/app'): void {
-  void router.push(loginRouteFor(redirect))
+function openSection(path: string): void {
+  void router.push(path)
+}
+
+function login(): void {
+  void router.push({ name: 'login' })
 }
 </script>
 
@@ -45,17 +47,18 @@ function requireLogin(redirect = '/app'): void {
         LOCAL LIFE · AI COPILOT
       </a>
       <nav aria-label="游客导航">
-        <a href="#scenes">场景灵感</a>
-        <button
-          class="nav-action"
-          type="button"
-          @click="requireLogin('/app')"
-        >
-          我的会话
-        </button>
+        <router-link to="/app">
+          探店
+        </router-link>
+        <router-link to="/merchant">
+          商家板块
+        </router-link>
+        <router-link to="/admin">
+          管理板块
+        </router-link>
         <el-button
           type="primary"
-          @click="requireLogin('/app')"
+          @click="login"
         >
           登录
         </el-button>
@@ -68,14 +71,14 @@ function requireLogin(redirect = '/app'): void {
           <span class="eyebrow">GUEST MODE · 只读浏览</span>
           <h1>先看看，<br>再决定去哪家。</h1>
           <p class="intro">
-            游客可以浏览公开的场景灵感。登录后，才能按距离、预算与口味发起探店、保存会话和提交反馈。
+            无需登录即可进入所有板块浏览内容；游客仅有读取权限，提交、编辑、删除等操作需要登录并通过权限校验。
           </p>
           <div class="hero-actions">
             <el-button
               type="primary"
-              @click="requireLogin('/app')"
+              @click="openSection('/app')"
             >
-              登录后开始探店
+              进入探店板块
             </el-button>
             <a href="#scenes">先浏览场景</a>
           </div>
@@ -84,9 +87,9 @@ function requireLogin(redirect = '/app'): void {
           <span>游客权限</span>
           <strong>公开内容只读</strong>
           <ul>
-            <li>可浏览场景说明与使用边界</li>
-            <li>探店、会话和反馈需要登录</li>
-            <li>商家与管理能力按角色授权</li>
+            <li>可进入探店、商家和管理板块查看</li>
+            <li>不能新建、编辑、删除或提交内容</li>
+            <li>登录后仍按账号角色授予操作权限</li>
           </ul>
         </aside>
       </section>
@@ -100,7 +103,7 @@ function requireLogin(redirect = '/app'): void {
             <span class="eyebrow">SCENE GUIDE</span>
             <h2>从今天的场景出发</h2>
           </div>
-          <p>以下内容可直接浏览；进入个性化推荐时会要求登录。</p>
+          <p>以下内容和各业务板块均可直接浏览；执行操作时才会要求登录。</p>
         </div>
         <div class="scene-grid">
           <article
@@ -119,9 +122,9 @@ function requireLogin(redirect = '/app'): void {
             </div>
             <button
               type="button"
-              @click="requireLogin(`/app?scene=${scene.key}`)"
+              @click="openSection(`/app?scene=${scene.key}`)"
             >
-              登录后按此场景探店 →
+              按此场景进入探店 →
             </button>
           </article>
         </div>

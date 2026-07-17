@@ -22,10 +22,12 @@ const props = withDefaults(defineProps<{
   api?: ConversationApi
   initialConversations?: ConversationSummary[]
   stream?: WebSocketChatController
+  readOnly?: boolean
 }>(), {
   api: () => conversationApi,
   initialConversations: () => [],
   stream: undefined,
+  readOnly: false,
 })
 
 interface SceneOption {
@@ -100,7 +102,7 @@ const activeConversation = computed(() => (
 const selectedScene = computed(() => (
   scenes.find((scene) => scene.id === selectedScenario.value) ?? scenes[0]
 ))
-const canSend = computed(() => query.value.trim().length > 0 && !isSending.value)
+const canSend = computed(() => !props.readOnly && query.value.trim().length > 0 && !isSending.value)
 const streamIsActive = computed(() => (
   ['connecting', 'streaming', 'reconnecting'].includes(stream.state.value)
 ))
@@ -139,7 +141,7 @@ watch(stream.state, async (state) => {
 })
 
 onMounted(async () => {
-  if (conversations.value.length === 0) await loadConversations()
+  if (!props.readOnly && conversations.value.length === 0) await loadConversations()
 })
 
 async function loadConversations(): Promise<void> {
@@ -160,6 +162,7 @@ function chooseScene(scene: SceneOption): void {
 }
 
 function startNewConversation(): void {
+  if (props.readOnly) return
   if (streamIsActive.value) stream.cancel()
   activeConversationId.value = null
   messages.value = []
@@ -213,7 +216,7 @@ function composeMessage(content: string, constraints: ExploreConstraints): strin
 }
 
 async function sendMessage(): Promise<void> {
-  if (!canSend.value) return
+  if (props.readOnly || !canSend.value) return
 
   const content = query.value.trim()
   const constraints = currentConstraints()
@@ -339,6 +342,7 @@ function formatTime(value: string): string {
           <h2>探店记录</h2>
         </div>
         <button
+          v-if="!readOnly"
           type="button"
           @click="startNewConversation"
         >
@@ -347,7 +351,13 @@ function formatTime(value: string): string {
       </div>
 
       <p
-        v-if="isLoadingConversations"
+        v-if="readOnly"
+        class="conversation-sidebar__state"
+      >
+        游客可以浏览探店场景，登录后可查看和保存历史会话。
+      </p>
+      <p
+        v-else-if="isLoadingConversations"
         class="conversation-sidebar__state"
         role="status"
       >
@@ -495,7 +505,16 @@ function formatTime(value: string): string {
         {{ errorMessage }}
       </p>
 
+      <div
+        v-if="readOnly"
+        class="conversation-readonly"
+        role="note"
+      >
+        <strong>当前为只读浏览</strong>
+        <span>登录后可填写探店条件、发起对话并保存结果。</span>
+      </div>
       <form
+        v-else
         class="composer"
         @submit.prevent="sendMessage"
       >
@@ -600,6 +619,8 @@ function formatTime(value: string): string {
 .assistant-thinking { color: #7b6d63; font-size: .8rem; }
 .assistant-thinking span { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: #c34833; }
 .conversation-error { margin: 0 0 10px; border-radius: 8px; padding: 9px 11px; background: #fff0ed; color: #a4362b; font-size: .8rem; }
+.conversation-readonly { display: flex; gap: 6px; flex-direction: column; margin-top: 14px; border: 1px dashed #d5c6b9; border-radius: 10px; padding: 13px 15px; background: #f8f2eb; color: #695b51; font-size: .84rem; }
+.conversation-readonly strong { color: #9d3423; }
 .streaming-message-state { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: #75675d; font-size: .7rem; font-weight: 700; }
 .streaming-message-state button { border: 1px solid #d9ccc1; border-radius: 7px; padding: 5px 8px; background: #fffdfa; color: #8e3a2b; cursor: pointer; font: inherit; }
 .streaming-message-state[data-state="failed"] { color: #a4362b; }
