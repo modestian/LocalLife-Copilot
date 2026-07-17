@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { getReadiness } from '@/api/health'
+import ChatFeedbackControls from '@/components/ChatFeedbackControls.vue'
 import StatusCard from '@/components/StatusCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -45,6 +46,19 @@ async function logout(): Promise<void> {
       label="API 与数据依赖"
       :state="apiState"
     />
+    <section
+      class="assistant-sample"
+      aria-label="对话回答示例"
+    >
+      <p class="assistant-sample__label">
+        AI 回答示例
+      </p>
+      <p>推荐先确认营业时间和人均预算，再结合最新评论选择合适的商家。</p>
+      <ChatFeedbackControls
+        conversation-id="0190c4d2-7f20-7b31-9f75-8f6cc8e2b120"
+        message-id="0190c4d2-7f20-7b31-9f75-8f6cc8e2b121"
+      />
+    </section>
     <nav aria-label="开发入口">
       <a
         href="/docs"
