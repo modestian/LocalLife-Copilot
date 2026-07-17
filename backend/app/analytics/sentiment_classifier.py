@@ -250,4 +250,3 @@ class SentimentAnalyzer:
             if result.sentiment == "NEGATIVE":
                 result.negative_reason = self.aspect_extractor.extract_negative_reasons(text)
         return results
-
