@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.users import router as users_router
 from app.application.auth import AuthService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
@@ -75,6 +76,7 @@ def create_app(
     )
     app.include_router(health_router)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     return app
 
 
