@@ -28,7 +28,7 @@ const router = createRouter({
       path: '/app',
       name: 'user-home',
       component: () => import('@/views/HomeView.vue'),
-      meta: { requiresAuth: true, roles: ['USER'], title: '用户工作台' },
+      meta: { publicReadOnly: true, roles: ['USER'], title: '用户工作台' },
     },
     {
       path: '/merchant',
@@ -36,7 +36,7 @@ const router = createRouter({
       component: () => import('@/views/RoleWorkspaceView.vue'),
       props: { title: '商家工作台', description: '商家口碑与经营能力将在后续任务中接入。' },
       meta: {
-        requiresAuth: true,
+        publicReadOnly: true,
         roles: ['MERCHANT_ADMIN', 'MERCHANT_OPERATOR'],
         title: '商家工作台',
       },
@@ -45,11 +45,39 @@ const router = createRouter({
       path: '/admin',
       name: 'admin-home',
       component: () => import('@/views/RoleWorkspaceView.vue'),
-      props: { title: '管理工作台', description: '知识库、平台与模型管理能力将在对应任务中接入。' },
+      props: {
+        title: '管理工作台',
+        description: '查看知识库、平台与模型管理能力；游客访问时保持只读。',
+        entry: {
+          to: '/admin/knowledge-bases',
+          label: '进入知识库管理',
+          description: '查看知识库状态、文档与 Chunk 统计及配置权限。',
+        },
+      },
       meta: {
-        requiresAuth: true,
+        publicReadOnly: true,
         roles: ['PLATFORM_ADMIN', 'KB_ADMIN', 'OPS_ADMIN', 'MODEL_ADMIN'],
         title: '管理工作台',
+      },
+    },
+    {
+      path: '/admin/knowledge-bases',
+      name: 'knowledge-bases',
+      component: () => import('@/views/admin/KnowledgeBaseListView.vue'),
+      meta: {
+        publicReadOnly: true,
+        roles: ['PLATFORM_ADMIN', 'KB_ADMIN'],
+        title: '知识库管理',
+      },
+    },
+    {
+      path: '/admin/knowledge-bases/:id',
+      name: 'knowledge-base-detail',
+      component: () => import('@/views/admin/KnowledgeBaseDetailView.vue'),
+      meta: {
+        publicReadOnly: true,
+        roles: ['PLATFORM_ADMIN', 'KB_ADMIN'],
+        title: '知识库详情',
       },
     },
     {
@@ -67,18 +95,22 @@ router.beforeEach(async (to) => {
   const hasSession = tokenStorage.get() !== null
 
   if (to.meta.guestOnly && !hasSession) return true
+  if (to.meta.publicReadOnly && !hasSession) return true
   if (to.meta.requiresAuth && !hasSession) {
     return loginRouteFor(to.fullPath)
   }
 
   if (
     hasSession &&
-    (to.meta.requiresAuth || to.meta.guestOnly || to.meta.redirectAuthenticated)
+    (to.meta.requiresAuth ||
+      to.meta.publicReadOnly ||
+      to.meta.guestOnly ||
+      to.meta.redirectAuthenticated)
   ) {
     try {
       await authStore.initialize()
     } catch {
-      if (to.meta.redirectAuthenticated) return true
+      if (to.meta.publicReadOnly || to.meta.redirectAuthenticated) return true
       if (!tokenStorage.get()) {
         return to.meta.guestOnly ? true : loginRouteFor(to.fullPath)
       }
@@ -89,7 +121,8 @@ router.beforeEach(async (to) => {
   const user = authStore.currentUser
   if (to.meta.redirectAuthenticated && user) return { name: resolveWorkbenchRouteName(user) }
   if (to.meta.guestOnly && user) return { name: resolveWorkbenchRouteName(user) }
-  if (!to.meta.requiresAuth) return true
+  if (!to.meta.requiresAuth && !to.meta.publicReadOnly) return true
+  if (to.meta.publicReadOnly && !user) return true
   if (!user) return loginRouteFor(to.fullPath)
   if (!canAccessRoles(user, to.meta.roles)) return { name: resolveWorkbenchRouteName(user) }
   return true

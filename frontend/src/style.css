@@ -86,7 +86,31 @@ h1 {
 .home-page > h1 { max-width: 900px; font-size: clamp(2.5rem, 6vw, 4.8rem); }
 .home-page > .intro { max-width: 760px; }
 
+.readonly-notice {
+  margin: 18px 0 0;
+  border-left: 3px solid var(--brand);
+  padding: 10px 14px;
+  background: rgb(255 255 255 / 52%);
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .topline { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+
+.workspace-entry {
+  display: grid;
+  gap: 8px;
+  max-width: 520px;
+  margin-top: 32px;
+  border: 1px solid rgb(74 54 42 / 12%);
+  border-radius: 16px;
+  padding: 20px;
+  background: rgb(255 255 255 / 62%);
+  text-decoration: none;
+}
+
+.workspace-entry span { font-size: 1rem; }
+.workspace-entry small { color: var(--muted); font-weight: 500; line-height: 1.6; }
 
 .status-card {
   display: flex;

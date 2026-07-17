@@ -8,9 +8,11 @@ import SafeMarkdown from './SafeMarkdown.vue'
 const props = withDefaults(defineProps<{
   conversationId?: string
   knowledgeBaseIds?: string[]
+  readOnly?: boolean
 }>(), {
   conversationId: 'conversation-demo-streaming',
   knowledgeBaseIds: () => [],
+  readOnly: false,
 })
 
 const prompt = ref('推荐两家适合下雨天约会、人均 100 元以内的餐厅')
@@ -27,7 +29,7 @@ const statusLabel = computed(() => ({
 }[chat.state.value]))
 
 async function submit(): Promise<void> {
-  if (!prompt.value.trim() || isActive.value) return
+  if (props.readOnly || !prompt.value.trim() || isActive.value) return
   await chat.send(props.conversationId, prompt.value.trim(), props.knowledgeBaseIds)
 }
 </script>
@@ -82,7 +84,18 @@ async function submit(): Promise<void> {
       {{ chat.errorMessage.value }}
     </p>
 
-    <form @submit.prevent="submit">
+    <div
+      v-if="readOnly"
+      class="streaming-panel__readonly"
+      role="note"
+    >
+      <strong>当前为只读浏览</strong>
+      <span>登录后可发起对话并保存结果。</span>
+    </div>
+    <form
+      v-else
+      @submit.prevent="submit"
+    >
       <textarea
         v-model="prompt"
         rows="3"
@@ -115,7 +128,7 @@ async function submit(): Promise<void> {
         </button>
       </div>
     </form>
-    <small>使用短期一次性令牌连接 · 心跳超时自动重连 · Ctrl / ⌘ + Enter 发送</small>
+    <small v-if="!readOnly">使用短期一次性令牌连接 · 心跳超时自动重连 · Ctrl / ⌘ + Enter 发送</small>
   </section>
 </template>
 
@@ -132,6 +145,8 @@ async function submit(): Promise<void> {
 .streaming-cursor { display: inline-block; width: 7px; height: 16px; margin-left: 3px; background: #c34833; vertical-align: text-bottom; animation: blink .8s steps(2) infinite; }
 .streaming-panel__message { margin: 0 0 10px; border-radius: 8px; padding: 9px 11px; background: #f6eee5; color: #695b51; font-size: .8rem; }
 .streaming-panel__message.is-error { background: #fff0ed; color: #a4362b; }
+.streaming-panel__readonly { display: flex; gap: 6px; flex-direction: column; border: 1px dashed #d5c6b9; border-radius: 10px; padding: 13px 15px; background: #f8f2eb; color: #695b51; font-size: .84rem; }
+.streaming-panel__readonly strong { color: #9d3423; }
 .streaming-panel form { display: grid; gap: 9px; }
 .streaming-panel textarea { width: 100%; resize: vertical; border: 1px solid #d9ccc1; border-radius: 9px; padding: 10px; background: #fffdfa; color: #392d26; font: inherit; line-height: 1.5; }
 .streaming-panel textarea:focus { outline: 2px solid rgb(212 71 45 / 26%); border-color: #c34833; }
