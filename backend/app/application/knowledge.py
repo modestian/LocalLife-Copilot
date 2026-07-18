@@ -24,6 +24,7 @@ class KnowledgeBaseInput:
     owner_id: UUID
     name: str
     embedding_model_version_id: UUID
+    tenant_id: UUID
     department_id: UUID | None = None
     description: str | None = None
     chunk_size: int = 500
@@ -47,6 +48,7 @@ class KnowledgeBaseView:
     normalized_name: str
     status: str
     version: int
+    tenant_id: UUID
     department_id: UUID | None = None
     description: str | None = None
 
@@ -108,7 +110,7 @@ class KnowledgeRepository(Protocol):
     async def create_knowledge_base(self, payload: KnowledgeBaseInput) -> KnowledgeBaseView: ...
 
     async def list_knowledge_bases(
-        self, *, limit: int = 50, offset: int = 0
+        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[KnowledgeBaseView]: ...
 
     async def update_knowledge_base(
@@ -146,10 +148,10 @@ class KnowledgeService:
         return await self._repository.create_knowledge_base(payload)
 
     async def list_knowledge_bases(
-        self, *, limit: int = 50, offset: int = 0
+        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[KnowledgeBaseView]:
         return await self._repository.list_knowledge_bases(
-            limit=_validate_limit(limit), offset=_validate_offset(offset)
+            tenant_id, limit=_validate_limit(limit), offset=_validate_offset(offset)
         )
 
     async def update_knowledge_base(

@@ -43,13 +43,17 @@ class SQLAlchemyKnowledgeRepository:
             return _knowledge_base_view(row)
 
     async def list_knowledge_bases(
-        self, *, limit: int = 50, offset: int = 0
+        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[KnowledgeBaseView]:
         async with self._session_factory() as session:
             rows = (
                 await session.scalars(
                     select(KnowledgeBase)
-                    .where(KnowledgeBase.deleted_at.is_(None), KnowledgeBase.status != "DELETED")
+                    .where(
+                        KnowledgeBase.tenant_id == tenant_id,
+                        KnowledgeBase.deleted_at.is_(None),
+                        KnowledgeBase.status != "DELETED",
+                    )
                     .order_by(KnowledgeBase.created_at.desc(), KnowledgeBase.id)
                     .limit(limit)
                     .offset(offset)

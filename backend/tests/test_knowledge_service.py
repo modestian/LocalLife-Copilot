@@ -30,6 +30,7 @@ class InMemoryKnowledgeRepository:
         row = KnowledgeBaseView(
             id=uuid7(),
             owner_id=payload.owner_id,
+            tenant_id=payload.tenant_id,
             department_id=payload.department_id,
             name=payload.name.strip(),
             normalized_name=normalize_name(payload.name),
@@ -41,9 +42,13 @@ class InMemoryKnowledgeRepository:
         return row
 
     async def list_knowledge_bases(
-        self, *, limit: int = 50, offset: int = 0
+        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[KnowledgeBaseView]:
-        rows = [row for row in self.knowledge_bases.values() if row.status != "DELETED"]
+        rows = [
+            row
+            for row in self.knowledge_bases.values()
+            if row.tenant_id == tenant_id and row.status != "DELETED"
+        ]
         return rows[offset : offset + limit]
 
     async def update_knowledge_base(
@@ -58,6 +63,7 @@ class InMemoryKnowledgeRepository:
             id=row.id,
             owner_id=row.owner_id,
             department_id=row.department_id,
+            tenant_id=row.tenant_id,
             name=name,
             normalized_name=normalized_name,
             description=patch.description if patch.description is not None else row.description,
@@ -72,6 +78,7 @@ class InMemoryKnowledgeRepository:
         self.knowledge_bases[row.id] = KnowledgeBaseView(
             id=row.id,
             owner_id=row.owner_id,
+            tenant_id=row.tenant_id,
             department_id=row.department_id,
             name=row.name,
             normalized_name=row.normalized_name,
@@ -237,16 +244,20 @@ class InMemoryKnowledgeRepository:
 @pytest.mark.asyncio
 async def test_knowledge_base_crud_and_logical_delete() -> None:
     service = KnowledgeService(InMemoryKnowledgeRepository())
+    tenant_id = uuid7()
     created = await service.create_knowledge_base(
         KnowledgeBaseInput(
             owner_id=uuid7(),
             name="  Menu Docs  ",
             embedding_model_version_id=uuid7(),
+            tenant_id=tenant_id,
         )
     )
 
     assert created.name == "Menu Docs"
     assert created.normalized_name == "menu docs"
+    assert created.tenant_id == tenant_id
+    assert await service.list_knowledge_bases(uuid7()) == []
     updated = await service.update_knowledge_base(
         created.id, KnowledgeBasePatch(name="Menu Knowledge", description="curated")
     )
@@ -254,7 +265,7 @@ async def test_knowledge_base_crud_and_logical_delete() -> None:
 
     await service.delete_knowledge_base(created.id)
 
-    assert await service.list_knowledge_bases() == []
+    assert await service.list_knowledge_bases(tenant_id) == []
     with pytest.raises(KnowledgeBaseNotFound):
         await service.list_documents(created.id)
 
@@ -264,7 +275,9 @@ async def test_document_crud_is_idempotent_by_source_and_logically_deletes() -> 
     repository = InMemoryKnowledgeRepository()
     service = KnowledgeService(repository)
     kb = await service.create_knowledge_base(
-        KnowledgeBaseInput(owner_id=uuid7(), name="KB", embedding_model_version_id=uuid7())
+        KnowledgeBaseInput(
+            owner_id=uuid7(), name="KB", embedding_model_version_id=uuid7(), tenant_id=uuid7()
+        )
     )
 
     first = await service.create_document(
@@ -290,7 +303,9 @@ async def test_document_crud_is_idempotent_by_source_and_logically_deletes() -> 
 async def test_document_version_writes_are_idempotent_and_can_rollback() -> None:
     service = KnowledgeService(InMemoryKnowledgeRepository())
     kb = await service.create_knowledge_base(
-        KnowledgeBaseInput(owner_id=uuid7(), name="KB", embedding_model_version_id=uuid7())
+        KnowledgeBaseInput(
+            owner_id=uuid7(), name="KB", embedding_model_version_id=uuid7(), tenant_id=uuid7()
+        )
     )
     document = await service.create_document(DocumentInput(kb.id, "file", "guide.md", "Guide"))
     version_input = DocumentVersionInput(
@@ -332,7 +347,12 @@ async def test_service_rejects_invalid_payloads() -> None:
 
     with pytest.raises(ValueError, match="name"):
         await service.create_knowledge_base(
-            KnowledgeBaseInput(owner_id=uuid7(), name=" ", embedding_model_version_id=uuid7())
+            KnowledgeBaseInput(
+                owner_id=uuid7(),
+                name=" ",
+                embedding_model_version_id=uuid7(),
+                tenant_id=uuid7(),
+            )
         )
     with pytest.raises(ValueError, match="chunk_size"):
         await service.create_knowledge_base(
@@ -340,6 +360,7 @@ async def test_service_rejects_invalid_payloads() -> None:
                 owner_id=uuid7(),
                 name="KB",
                 embedding_model_version_id=uuid7(),
+                tenant_id=uuid7(),
                 chunk_size=10,
             )
         )

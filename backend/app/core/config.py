@@ -143,6 +143,13 @@ class Settings(BaseSettings):
         )
 
     @property
+    def sync_database_url(self) -> str:
+        return (
+            f"mysql+pymysql://{quote_plus(self.mysql_user)}:{quote_plus(self.mysql_password)}"
+            f"@{self.mysql_host}:{self.mysql_port}/{quote_plus(self.mysql_database)}?charset=utf8mb4"
+        )
+
+    @property
     def opensearch_concrete_index(self) -> str:
         return f"{self.opensearch_index}-v{self.opensearch_index_version}"
 
