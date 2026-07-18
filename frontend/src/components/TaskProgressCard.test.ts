@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { taskApi } from '@/api/tasks'
+import { ApiClientError } from '@/api/errors'
 import type { AcceptedTask, AsyncTaskDetail } from '@/types/task'
 
 import TaskProgressCard from './TaskProgressCard.vue'
@@ -173,6 +174,77 @@ describe('TaskProgressCard', () => {
 
     expect(taskApi.cancel).toHaveBeenCalledWith('task-1')
     expect(wrapper.text()).toContain('已取消')
+    wrapper.unmount()
+  })
+
+  it('shows file-level failure details and disables retry after the attempt limit', async () => {
+    vi.mocked(taskApi.get).mockResolvedValue(taskDetail({
+      status: 'FAILED',
+      stage: 'INDEXING',
+      progress: 78,
+      cancellable: false,
+      retryable: false,
+      attempt_count: 3,
+      max_attempts: 3,
+      error_code: 'INDEXING_FAILED',
+      error_message: '索引写入失败',
+      completed_at: '2026-07-17T08:02:00Z',
+      files: [{
+        file_name: 'menu.csv',
+        document_id: 'document-1',
+        status: 'FAILED',
+        stage: 'INDEXING',
+        progress: 78,
+        error_code: 'OPENSEARCH_UNAVAILABLE',
+        error_message: '搜索服务暂不可用',
+      }],
+    }))
+    const wrapper = mount(TaskProgressCard, {
+      props: { task: { ...accepted, status: 'FAILED', progress: 78 }, canManage: true },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('.file-progress li').classes()).toContain('has-error')
+    expect(wrapper.text()).toContain('OPENSEARCH_UNAVAILABLE · 搜索服务暂不可用')
+    expect(wrapper.text()).toContain('INDEXING_FAILED')
+    expect(wrapper.text()).toContain('失败阶段：构建索引')
+    expect(wrapper.text()).toContain('已尝试 3 / 3 次')
+    const retryButton = wrapper.get('.retry-button')
+    expect(retryButton.text()).toContain('已达重试上限')
+    expect(retryButton.attributes('disabled')).toBeDefined()
+    await retryButton.trigger('click')
+    expect(taskApi.retry).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('keeps failure details visible when retry submission is rejected', async () => {
+    vi.mocked(taskApi.get).mockResolvedValue(taskDetail({
+      status: 'FAILED',
+      stage: 'SPLITTING',
+      progress: 45,
+      cancellable: false,
+      retryable: true,
+      error_code: 'SPLITTING_FAILED',
+      error_message: '切分参数无效',
+      completed_at: '2026-07-17T08:02:00Z',
+      files: [],
+    }))
+    vi.mocked(taskApi.retry).mockRejectedValue(new ApiClientError({
+      status: 409,
+      code: 'TASK_RETRY_CONFLICT',
+      message: '任务状态已变化，无法重复提交重试',
+    }))
+    const wrapper = mount(TaskProgressCard, {
+      props: { task: { ...accepted, status: 'FAILED', progress: 45 }, canManage: true },
+    })
+    await flushPromises()
+    await wrapper.get('.retry-button').trigger('click')
+    await flushPromises()
+
+    expect(taskApi.retry).toHaveBeenCalledWith('task-1')
+    expect(wrapper.get('.task-error').text()).toContain('任务状态已变化，无法重复提交重试')
+    expect(wrapper.get('.failure-detail').text()).toContain('SPLITTING_FAILED')
+    expect(wrapper.get('.retry-button').attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 })
