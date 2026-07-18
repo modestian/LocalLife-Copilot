@@ -2,6 +2,10 @@ name: CI
 
 on:
   pull_request:
+    branches: [main]
+  # GitHub Merge Queue validates its temporary merge commit via this event.
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
 
@@ -9,7 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # Do not let PR, merge-queue, and post-merge runs cancel one another.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -105,6 +110,7 @@ jobs:
     name: Build ${{ matrix.image }} image
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - image: api
@@ -131,5 +137,12 @@ jobs:
     steps:
       - name: Require every CI job to pass
         env:
-          RESULTS: ${{ join(needs.*.result, ',') }}
-        run: test "$RESULTS" = "success,success,success,success"
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          COMPOSE_RESULT: ${{ needs.compose.result }}
+          IMAGES_RESULT: ${{ needs.images.result }}
+        run: |
+          test "$BACKEND_RESULT" = "success"
+          test "$FRONTEND_RESULT" = "success"
+          test "$COMPOSE_RESULT" = "success"
+          test "$IMAGES_RESULT" = "success"
