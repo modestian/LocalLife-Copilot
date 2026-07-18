@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from collections import Counter
+from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -237,11 +238,13 @@ def generate_error_report(sentiment_result: dict | None) -> str:
 
 
 def main():
-    # Support command-line argument: python evaluate_benchmark.py [path]
+    # Support command-line argument: python evaluate_sentiment.py [path]
     if len(sys.argv) > 1:
         benchmark_path = sys.argv[1]
     else:
-        benchmark_path = "tests/data/training_data_1000.jsonl"
+        benchmark_path = str(
+            Path(__file__).resolve().parents[1] / "tests" / "data" / "benchmark_reviews.jsonl"
+        )
 
     print("=" * 60)
     print("大众点评AI智能助手 - 基准样本离线评测")
