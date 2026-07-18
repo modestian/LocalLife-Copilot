@@ -137,6 +137,99 @@ class InMemoryAnalyticsRepository:
 
         return filtered[offset : offset + limit]
 
+    async def get_aspect_sentiment_stats(
+        self,
+        merchant_id: str,
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        filtered = [
+            r
+            for r in self._records
+            if r.merchant_id == merchant_id
+            and (start_date is None or (r.review_date and r.review_date >= start_date))
+            and (end_date is None or (r.review_date and r.review_date < end_date))
+        ]
+
+        stats: dict[str, Counter[str]] = {}
+        for r in filtered:
+            try:
+                aspects = json.loads(r.aspect_labels)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if not isinstance(aspects, list):
+                continue
+            for aspect in aspects:
+                if aspect not in stats:
+                    stats[aspect] = Counter()
+                stats[aspect][r.sentiment] += 1
+
+        result: list[dict] = []
+        for aspect, counts in stats.items():
+            positive = counts.get("POSITIVE", 0)
+            neutral = counts.get("NEUTRAL", 0)
+            negative = counts.get("NEGATIVE", 0)
+            total = positive + neutral + negative
+            result.append(
+                {
+                    "aspect": aspect,
+                    "positive": positive,
+                    "neutral": neutral,
+                    "negative": negative,
+                    "total": total,
+                    "positive_rate": round(positive / total, 4) if total else 0.0,
+                }
+            )
+        result.sort(key=lambda x: x["positive_rate"], reverse=True)
+        return result
+
+    async def get_reputation_change(
+        self,
+        merchant_id: str,
+        *,
+        granularity: Literal["day", "week", "month"] = "week",
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        trend_data = await self.get_sentiment_trend(
+            merchant_id,
+            granularity=granularity,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        result: list[dict] = []
+        prev_rate: float | None = None
+        threshold = 0.05
+        for bucket in trend_data:
+            total = bucket["positive"] + bucket["neutral"] + bucket["negative"]
+            rate = round(bucket["positive"] / total, 4) if total else 0.0
+            if prev_rate is None:
+                change = None
+                trend = "stable"
+            else:
+                change = round(rate - prev_rate, 4)
+                if change > threshold:
+                    trend = "improving"
+                elif change < -threshold:
+                    trend = "declining"
+                else:
+                    trend = "stable"
+            result.append(
+                {
+                    "period": bucket["period"],
+                    "positive": bucket["positive"],
+                    "neutral": bucket["neutral"],
+                    "negative": bucket["negative"],
+                    "total": total,
+                    "positive_rate": rate,
+                    "change": change,
+                    "trend": trend,
+                }
+            )
+            prev_rate = rate
+        return result
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -438,3 +531,139 @@ class TestDrillDownReviewsEndpoint:
             assert "confidence" in item
             assert isinstance(item["aspect_labels"], list)
             assert isinstance(item["negative_reasons"], list)
+
+
+# ---------------------------------------------------------------------------
+# Merchant highlights tests (TK-402-01)
+# ---------------------------------------------------------------------------
+
+
+class TestMerchantHighlights:
+    @pytest.mark.asyncio
+    async def test_highlights_returns_top_aspects(self, service: AnalyticsService) -> None:
+        # min_mentions=2 so taste (total=2) is included
+        result = await service.get_merchant_highlights("M001", min_mentions=2)
+        assert len(result) >= 1
+        aspects = {item["aspect"] for item in result}
+        assert "taste" in aspects
+        assert "service" in aspects
+        # Sorted by positive_rate descending
+        rates = [item["positive_rate"] for item in result]
+        assert rates == sorted(rates, reverse=True)
+
+    @pytest.mark.asyncio
+    async def test_highlights_filters_low_mentions(self, service: AnalyticsService) -> None:
+        # min_mentions=3 filters out aspects with <3 total
+        result = await service.get_merchant_highlights("M001", min_mentions=3)
+        aspects = {item["aspect"] for item in result}
+        # service has 3 total, taste has 2 total, price has 1 total
+        assert "service" in aspects
+        assert "taste" not in aspects
+
+    @pytest.mark.asyncio
+    async def test_highlights_top_n_limit(self, service: AnalyticsService) -> None:
+        result = await service.get_merchant_highlights("M001", top_n=1)
+        assert len(result) == 1
+
+    @pytest.mark.asyncio
+    async def test_highlights_empty_merchant(self, service: AnalyticsService) -> None:
+        result = await service.get_merchant_highlights("UNKNOWN")
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_highlights_invalid_top_n(self, service: AnalyticsService) -> None:
+        with pytest.raises(ValueError, match="top_n must be at least 1"):
+            await service.get_merchant_highlights("M001", top_n=0)
+
+    @pytest.mark.asyncio
+    async def test_highlights_invalid_min_mentions(self, service: AnalyticsService) -> None:
+        with pytest.raises(ValueError, match="min_mentions must be at least 1"):
+            await service.get_merchant_highlights("M001", min_mentions=0)
+
+
+class TestReputationChange:
+    @pytest.mark.asyncio
+    async def test_reputation_change_by_day(self, service: AnalyticsService) -> None:
+        result = await service.get_reputation_change("M001", granularity="day")
+        assert len(result) == 2  # 2025-07-01 and 2025-07-02
+        # First period: change is None
+        assert result[0]["change"] is None
+        assert result[0]["trend"] == "stable"
+        # Second period has a change value
+        assert result[1]["change"] is not None
+
+    @pytest.mark.asyncio
+    async def test_reputation_change_rates(self, service: AnalyticsService) -> None:
+        result = await service.get_reputation_change("M001", granularity="day")
+        # 2025-07-01: 1 pos, 1 neu, 1 neg → rate=0.3333
+        assert result[0]["positive_rate"] == pytest.approx(0.3333, abs=0.001)
+        # 2025-07-02: 0 pos, 0 neu, 1 neg → rate=0.0
+        assert result[1]["positive_rate"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_reputation_change_declining(self, service: AnalyticsService) -> None:
+        result = await service.get_reputation_change("M001", granularity="day")
+        # 0.333 → 0.0 is a decline > 5%
+        assert result[1]["trend"] == "declining"
+
+    @pytest.mark.asyncio
+    async def test_reputation_change_empty_merchant(self, service: AnalyticsService) -> None:
+        result = await service.get_reputation_change("UNKNOWN")
+        assert result == []
+
+    @pytest.mark.asyncio
+    async def test_reputation_change_invalid_granularity(self, service: AnalyticsService) -> None:
+        with pytest.raises(ValueError, match="granularity must be one of"):
+            await service.get_reputation_change("M001", granularity="year")
+
+
+class TestHighlightsEndpoint:
+    def test_success(self, sample_records: list[FakeReviewAnalysis]) -> None:
+        client = _create_test_client(sample_records)
+        response = client.get("/api/v1/merchants/M001/analytics/highlights")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["code"] == "OK"
+        assert isinstance(body["data"], list)
+        if body["data"]:
+            item = body["data"][0]
+            assert {"aspect", "positive", "neutral", "negative", "total", "positive_rate"} <= set(
+                item.keys()
+            )
+
+    def test_with_params(self, sample_records: list[FakeReviewAnalysis]) -> None:
+        client = _create_test_client(sample_records)
+        response = client.get("/api/v1/merchants/M001/analytics/highlights?top_n=1&min_mentions=2")
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body["data"]) <= 1
+
+    def test_invalid_top_n(self, sample_records: list[FakeReviewAnalysis]) -> None:
+        client = _create_test_client(sample_records)
+        response = client.get("/api/v1/merchants/M001/analytics/highlights?top_n=0")
+        assert response.status_code == 422
+
+
+class TestReputationChangeEndpoint:
+    def test_success(self, sample_records: list[FakeReviewAnalysis]) -> None:
+        client = _create_test_client(sample_records)
+        response = client.get("/api/v1/merchants/M001/analytics/reputation-change?granularity=day")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["code"] == "OK"
+        assert isinstance(body["data"], list)
+        if body["data"]:
+            item = body["data"][0]
+            assert {"period", "positive_rate", "change", "trend"} <= set(item.keys())
+
+    def test_with_granularity(self, sample_records: list[FakeReviewAnalysis]) -> None:
+        client = _create_test_client(sample_records)
+        response = client.get("/api/v1/merchants/M001/analytics/reputation-change?granularity=day")
+        assert response.status_code == 200
+        body = response.json()
+        assert len(body["data"]) == 2
+
+    def test_invalid_granularity(self, sample_records: list[FakeReviewAnalysis]) -> None:
+        client = _create_test_client(sample_records)
+        response = client.get("/api/v1/merchants/M001/analytics/reputation-change?granularity=year")
+        assert response.status_code == 422

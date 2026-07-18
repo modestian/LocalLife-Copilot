@@ -31,6 +31,23 @@ class AnalyticsRepository(Protocol):
         end_date: datetime | None = None,
     ) -> list[dict]: ...
 
+    async def get_aspect_sentiment_stats(
+        self,
+        merchant_id: str,
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]: ...
+
+    async def get_reputation_change(
+        self,
+        merchant_id: str,
+        *,
+        granularity: Literal["day", "week", "month"] = "week",
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]: ...
+
     async def drill_down_reviews(
         self,
         merchant_id: str,
@@ -121,6 +138,58 @@ class AnalyticsService:
             negative_reason=negative_reason,
             limit=limit,
             offset=offset,
+        )
+
+    async def get_merchant_highlights(
+        self,
+        merchant_id: str,
+        *,
+        top_n: int = 5,
+        min_mentions: int = 3,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        """Return the merchant's top differentiated aspects.
+
+        Filters aspects with at least ``min_mentions`` total reviews,
+        then returns the top ``top_n`` by ``positive_rate``.
+        """
+        _validate_merchant_id(merchant_id)
+        _validate_date_range(start_date, end_date)
+        if top_n < 1:
+            raise ValueError("top_n must be at least 1")
+        if min_mentions < 1:
+            raise ValueError("min_mentions must be at least 1")
+
+        stats = await self._repository.get_aspect_sentiment_stats(
+            merchant_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        highlights = [s for s in stats if s["total"] >= min_mentions]
+        return highlights[:top_n]
+
+    async def get_reputation_change(
+        self,
+        merchant_id: str,
+        *,
+        granularity: str = "week",
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        """Return per-period positive rate and trend classification."""
+        _validate_merchant_id(merchant_id)
+        if granularity not in _VALID_GRANULARITIES:
+            raise ValueError(
+                f"granularity must be one of {_VALID_GRANULARITIES}, got {granularity!r}"
+            )
+        _validate_date_range(start_date, end_date)
+
+        return await self._repository.get_reputation_change(
+            merchant_id,
+            granularity=granularity,  # type: ignore[arg-type]
+            start_date=start_date,
+            end_date=end_date,
         )
 
 
