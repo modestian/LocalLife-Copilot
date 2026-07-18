@@ -73,6 +73,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # MySQL may use either tenant index to support fk_kb_tenant. Drop the
+    # foreign key before removing those indexes to avoid error 1553.
+    op.drop_constraint("fk_kb_tenant", "knowledge_bases", type_="foreignkey")
     op.drop_index("ix_kb_tenant_status", table_name="knowledge_bases")
     op.drop_constraint("uq_kb_tenant_name_active", "knowledge_bases", type_="unique")
 
@@ -82,6 +85,5 @@ def downgrade() -> None:
         ["department_id", "normalized_name", "status"],
     )
 
-    op.drop_constraint("fk_kb_tenant", "knowledge_bases", type_="foreignkey")
     op.drop_column("knowledge_bases", "active_flag")
     op.drop_column("knowledge_bases", "tenant_id")

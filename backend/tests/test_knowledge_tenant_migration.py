@@ -19,6 +19,7 @@ import sqlalchemy as sa
 
 class RecordingOperations:
     def __init__(self) -> None:
+        self.operations: list[tuple[str, str]] = []
         self.added_columns: list[tuple[str, str, sa.Column]] = []
         self.added_foreign_keys: list[tuple[str, str, str, list[str], list[str], str | None]] = []
         self.added_indexes: list[tuple[str, str, list[str]]] = []
@@ -72,9 +73,11 @@ class RecordingOperations:
         table: str,
         type_: str | None = None,
     ) -> None:
+        self.operations.append(("drop_constraint", name))
         self.dropped_constraints.append((name, table, type_))
 
     def drop_index(self, name: str, *, table_name: str | None = None) -> None:
+        self.operations.append(("drop_index", name))
         self.dropped_indexes.append((name, table_name))
 
     def drop_column(self, table: str, column: str) -> None:
@@ -179,6 +182,13 @@ def test_downgrade_restores_original_schema() -> None:
     migration.op = recorder
 
     migration.downgrade()
+
+    assert recorder.operations.index(
+        ("drop_constraint", "fk_kb_tenant")
+    ) < recorder.operations.index(("drop_index", "ix_kb_tenant_status"))
+    assert recorder.operations.index(
+        ("drop_constraint", "fk_kb_tenant")
+    ) < recorder.operations.index(("drop_constraint", "uq_kb_tenant_name_active"))
 
     # New index dropped
     assert any(name == "ix_kb_tenant_status" for name, table_name in recorder.dropped_indexes), (
