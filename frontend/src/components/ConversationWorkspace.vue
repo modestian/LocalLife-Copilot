@@ -16,6 +16,7 @@ import {
 } from '@/composables/useWebSocketChat'
 
 import RecommendationResults from './RecommendationResults.vue'
+import MessageFeedbackControl from './MessageFeedbackControl.vue'
 import SafeMarkdown from './SafeMarkdown.vue'
 
 const props = withDefaults(defineProps<{
@@ -493,6 +494,11 @@ function formatTime(value: string): string {
             :sources="message.sources ?? []"
             :fallback="message.fallback"
             @refine="applyRefinement"
+          />
+          <MessageFeedbackControl
+            v-if="!readOnly && message.role === 'ASSISTANT' && message.status === 'COMPLETED'"
+            :conversation-id="message.conversation_id"
+            :message-id="message.id"
           />
         </article>
       </div>
