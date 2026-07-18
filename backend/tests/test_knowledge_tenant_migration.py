@@ -15,7 +15,6 @@ from types import ModuleType
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.dialects import mysql
 
 
 class RecordingOperations:
@@ -41,7 +40,9 @@ class RecordingOperations:
         remote_cols: list[str],
         ondelete: str | None = None,
     ) -> None:
-        self.added_foreign_keys.append((name or "", source, referent, local_cols, remote_cols, ondelete))
+        self.added_foreign_keys.append(
+            (name or "", source, referent, local_cols, remote_cols, ondelete)
+        )
 
     def create_index(
         self,

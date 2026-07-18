@@ -56,7 +56,7 @@ class SQLAlchemyKnowledgeRepository:
                     .offset(offset)
                 )
             ).all()
-                        return [_knowledge_base_view(row) for row in rows]
+            return [_knowledge_base_view(row) for row in rows]
 
     async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
