@@ -88,10 +88,40 @@ describe('ModelLifecycleWorkbench', () => {
   })
 
   it('does not fabricate approval or rollback state without a documented endpoint', async () => {
-    const wrapper = mount(ModelLifecycleWorkbench, { props: { api: createApi(), initialModels: [approvedModel] } })
+    const api = createApi()
+    const wrapper = mount(ModelLifecycleWorkbench, { props: { api, initialModels: [approvedModel] } })
 
     await wrapper.findAll('.model-lifecycle__actions button').at(-1)?.trigger('click')
 
     expect(wrapper.text()).toContain('回滚接口尚未在 API 文档中定义')
+    expect(api.deployModel).not.toHaveBeenCalled()
+  })
+
+  it('keeps deployment disabled for a model that has not passed the APPROVED state', async () => {
+    const api = createApi()
+    const wrapper = mount(ModelLifecycleWorkbench, {
+      props: { api, initialModels: [{ ...approvedModel, status: 'EVALUATED' }] },
+    })
+    const deploymentForm = wrapper.findAll('form')[2]
+    const deployButton = deploymentForm.get('button[type="submit"]')
+
+    await deploymentForm.get('textarea').setValue('未审批版本不得灰度发布。')
+    await deploymentForm.get('input[type="checkbox"]').setValue(true)
+    await deploymentForm.trigger('submit')
+
+    expect(deployButton.attributes('disabled')).toBeDefined()
+    expect(api.deployModel).not.toHaveBeenCalled()
+  })
+
+  it('renders the model-card empty state after an empty model-list response', async () => {
+    const api = createApi()
+    vi.mocked(api.listModels).mockResolvedValue([])
+    const wrapper = mount(ModelLifecycleWorkbench, { props: { api } })
+
+    await wrapper.get('.model-lifecycle__header button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.model-lifecycle__empty').text()).toContain('加载模型列表')
+    expect(wrapper.text()).toContain('当前没有可显示的模型版本')
   })
 })

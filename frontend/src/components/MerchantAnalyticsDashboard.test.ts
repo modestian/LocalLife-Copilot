@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { merchantAnalyticsApi } from '@/api/merchant-analytics'
+import { ApiClientError } from '@/api/errors'
 import type { AnalyticsReview } from '@/types/merchant-analytics'
 
 import MerchantAnalyticsDashboard from './MerchantAnalyticsDashboard.vue'
@@ -113,5 +114,53 @@ describe('MerchantAnalyticsDashboard', () => {
     expect(dialog.text()).toContain('特征「菜品」相关点评')
     expect(dialog.text()).toContain('招牌菜很好吃')
     expect(dialog.text()).not.toContain('等位很久')
+  })
+
+  it('shows a clear empty state when the selected window has no analysis sample', async () => {
+    vi.mocked(merchantAnalyticsApi.getSentimentTrend).mockResolvedValue([])
+    vi.mocked(merchantAnalyticsApi.getNegativeReasons).mockResolvedValue([])
+    vi.mocked(merchantAnalyticsApi.getReviews).mockResolvedValue([])
+
+    const wrapper = mount(MerchantAnalyticsDashboard, { props: { merchantId: 'merchant-1' } })
+    await flushPromises()
+
+    expect(wrapper.get('.analytics-state').text()).toContain('当前时间窗暂无分析数据')
+    expect(wrapper.find('.analytics-grid').exists()).toBe(false)
+  })
+
+  it('keeps aspect and negative-reason charts in explicit empty states when their data is absent', async () => {
+    vi.mocked(merchantAnalyticsApi.getSentimentTrend).mockResolvedValue([
+      { period: '2026-07-18', positive: 2, neutral: 0, negative: 0 },
+    ])
+    vi.mocked(merchantAnalyticsApi.getNegativeReasons).mockResolvedValue([])
+    vi.mocked(merchantAnalyticsApi.getReviews).mockResolvedValue([{
+      ...reviews[0],
+      aspect_labels: [],
+    }])
+
+    const wrapper = mount(MerchantAnalyticsDashboard, { props: { merchantId: 'merchant-1' } })
+    await flushPromises()
+
+    expect(wrapper.findAll('.chart-empty')).toHaveLength(2)
+    expect(wrapper.text()).toContain('没有可展示的特征标签')
+    expect(wrapper.text()).toContain('没有差评归因数据')
+  })
+
+  it('shows a non-retryable permission state when the analytics API rejects access', async () => {
+    const forbidden = new ApiClientError({
+      status: 403,
+      code: 'MERCHANT_SCOPE_FORBIDDEN',
+      message: '当前账号没有此商家的数据授权。',
+    })
+    vi.mocked(merchantAnalyticsApi.getSentimentTrend).mockRejectedValue(forbidden)
+    vi.mocked(merchantAnalyticsApi.getNegativeReasons).mockRejectedValue(forbidden)
+    vi.mocked(merchantAnalyticsApi.getReviews).mockRejectedValue(forbidden)
+
+    const wrapper = mount(MerchantAnalyticsDashboard, { props: { merchantId: 'merchant-forbidden' } })
+    await flushPromises()
+
+    expect(wrapper.get('.analytics-state').classes()).toContain('is-forbidden')
+    expect(wrapper.text()).toContain('无权查看此商家')
+    expect(wrapper.find('.analytics-state button').exists()).toBe(false)
   })
 })
