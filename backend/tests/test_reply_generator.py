@@ -197,7 +197,7 @@ def _create_test_client() -> TestClient:
     """Create a minimal FastAPI TestClient for reply endpoint tests."""
     from fastapi import FastAPI
 
-    from app.api.analytics import router as analytics_router
+    from app.api.analytics import reviews_router as analytics_reviews_router
     from app.core.api import install_api_contract
     from app.core.config import get_settings
 
@@ -205,7 +205,7 @@ def _create_test_client() -> TestClient:
     settings = get_settings()
     app.state.settings = settings
     install_api_contract(app, settings)
-    app.include_router(analytics_router, prefix=settings.api_v1_prefix)
+    app.include_router(analytics_reviews_router, prefix=settings.api_v1_prefix)
     return TestClient(app)
 
 
@@ -213,7 +213,7 @@ class TestReplyEndpoint:
     def test_positive_reply_success(self) -> None:
         client = _create_test_client()
         response = client.post(
-            "/api/v1/merchants/M001/analytics/reply",
+            "/api/v1/reviews/test-review-id/reply-suggestions",
             json={
                 "review_text": "味道很好",
                 "sentiment": "POSITIVE",
@@ -229,11 +229,16 @@ class TestReplyEndpoint:
         assert data["template_id"] == "positive_default"
         assert "reply_text" in data
         assert "violations" in data
+        assert "model_version" in data
+        assert "prompt_version" in data
+        assert "generated_at" in data
+        assert "evidence_review_ids" in data
+        assert data["evidence_review_ids"] == ["test-review-id"]
 
     def test_negative_reply_with_reason(self) -> None:
         client = _create_test_client()
         response = client.post(
-            "/api/v1/merchants/M001/analytics/reply",
+            "/api/v1/reviews/test-review-id/reply-suggestions",
             json={
                 "review_text": "上菜太慢了",
                 "sentiment": "NEGATIVE",
@@ -249,7 +254,7 @@ class TestReplyEndpoint:
     def test_empty_review_text_rejected(self) -> None:
         client = _create_test_client()
         response = client.post(
-            "/api/v1/merchants/M001/analytics/reply",
+            "/api/v1/reviews/test-review-id/reply-suggestions",
             json={
                 "review_text": "",
                 "sentiment": "POSITIVE",
@@ -262,7 +267,7 @@ class TestReplyEndpoint:
     def test_invalid_sentiment_rejected(self) -> None:
         client = _create_test_client()
         response = client.post(
-            "/api/v1/merchants/M001/analytics/reply",
+            "/api/v1/reviews/test-review-id/reply-suggestions",
             json={
                 "review_text": "测试",
                 "sentiment": "UNKNOWN",
@@ -275,7 +280,7 @@ class TestReplyEndpoint:
     def test_missing_body_field_rejected(self) -> None:
         client = _create_test_client()
         response = client.post(
-            "/api/v1/merchants/M001/analytics/reply",
+            "/api/v1/reviews/test-review-id/reply-suggestions",
             json={
                 "review_text": "测试",
                 # missing sentiment
@@ -288,7 +293,7 @@ class TestReplyEndpoint:
     def test_neutral_reply(self) -> None:
         client = _create_test_client()
         response = client.post(
-            "/api/v1/merchants/M001/analytics/reply",
+            "/api/v1/reviews/test-review-id/reply-suggestions",
             json={
                 "review_text": "环境一般",
                 "sentiment": "NEUTRAL",

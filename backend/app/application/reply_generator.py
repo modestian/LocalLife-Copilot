@@ -10,8 +10,15 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 
 from app.analytics.sentiment_classifier import AspectExtractor
+
+# ---------------------------------------------------------------------------
+# Version
+# ---------------------------------------------------------------------------
+
+PROMPT_VERSION = "v1.0-template"
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -35,6 +42,10 @@ class ReplyResult:
     reply_text: str
     template_id: str
     compliance_passed: bool
+    model_version: str = "unknown"
+    prompt_version: str = PROMPT_VERSION
+    generated_at: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
+    evidence_review_ids: list[str] = field(default_factory=list)
     violations: list[str] = field(default_factory=list)
 
 
@@ -323,6 +334,8 @@ class ReplyGenerator:
         sentiment: str,
         aspect_labels: list[str] | None = None,
         negative_reasons: list[str] | None = None,
+        review_id: str | None = None,
+        model_version: str = "unknown",
     ) -> ReplyResult:
         """Generate a review reply.
 
@@ -332,9 +345,13 @@ class ReplyGenerator:
             sentiment: One of POSITIVE / NEUTRAL / NEGATIVE.
             aspect_labels: Aspect codes from sentiment analysis.
             negative_reasons: Negative reason codes (only for NEGATIVE).
+            review_id: Original review ID for traceability.
+            model_version: Sentiment model version for traceability.
 
         Returns:
-            ReplyResult with reply_text, template_id, and compliance status.
+            ReplyResult with reply_text, template_id, compliance status,
+            and traceability fields (model_version, prompt_version,
+            generated_at, evidence_review_ids).
         """
         aspects = list(aspect_labels) if aspect_labels else []
         if not aspects and review_text:
@@ -349,6 +366,9 @@ class ReplyGenerator:
             reply_text=reply_text,
             template_id=template.template_id,
             compliance_passed=len(violations) == 0,
+            model_version=model_version,
+            prompt_version=PROMPT_VERSION,
+            evidence_review_ids=[review_id] if review_id else [],
             violations=violations,
         )
 

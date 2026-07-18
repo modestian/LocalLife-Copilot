@@ -474,6 +474,7 @@ def _create_test_client(sample_records: list[FakeReviewAnalysis]) -> TestClient:
     """
     from fastapi import FastAPI
 
+    from app.api.analytics import business_router as analytics_business_router
     from app.api.analytics import compare_router as analytics_compare_router
     from app.api.analytics import get_analytics_service
     from app.api.analytics import router as analytics_router
@@ -486,6 +487,7 @@ def _create_test_client(sample_records: list[FakeReviewAnalysis]) -> TestClient:
     install_api_contract(app, settings)
     app.include_router(analytics_router, prefix=settings.api_v1_prefix)
     app.include_router(analytics_compare_router, prefix=settings.api_v1_prefix)
+    app.include_router(analytics_business_router, prefix=settings.api_v1_prefix)
 
     repo = InMemoryAnalyticsRepository(sample_records)
     service = AnalyticsService(repo)

@@ -8,7 +8,9 @@ from opensearchpy import OpenSearch
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.api.analytics import business_router as analytics_business_router
 from app.api.analytics import compare_router as analytics_compare_router
+from app.api.analytics import reviews_router as analytics_reviews_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
@@ -90,6 +92,8 @@ def create_app(
     app.include_router(health_router)
     app.include_router(analytics_router, prefix=app_settings.api_v1_prefix)
     app.include_router(analytics_compare_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(analytics_business_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(analytics_reviews_router, prefix=app_settings.api_v1_prefix)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     return app

@@ -14,6 +14,8 @@ from app.core.errors import AppError
 
 router = APIRouter(prefix="/merchants/{merchant_id}/analytics", tags=["analytics"])
 compare_router = APIRouter(prefix="/analytics", tags=["analytics"])
+business_router = APIRouter(prefix="/merchants/{merchant_id}", tags=["analytics"])
+reviews_router = APIRouter(prefix="/reviews", tags=["analytics"])
 
 
 # ---------------------------------------------------------------------------
@@ -97,13 +99,60 @@ class ReplyRequest(BaseModel):
     sentiment: str
     aspect_labels: list[str] = []
     negative_reasons: list[str] = []
+    model_version: str = "unknown"
 
 
 class ReplyResponse(BaseModel):
     reply_text: str
     template_id: str
     compliance_passed: bool
+    model_version: str
+    prompt_version: str
+    generated_at: str
+    evidence_review_ids: list[str] = []
     violations: list[str] = []
+
+
+class EvidenceItem(BaseModel):
+    review_id: str
+    review_text: str
+    sentiment: str
+    aspect_labels: list[str]
+    negative_reasons: list[str]
+    review_date: str | None = None
+
+
+class RecommendationItem(BaseModel):
+    recommendation_id: str
+    category: str
+    priority: str
+    title: str
+    description: str
+    related_aspect: str | None = None
+    related_negative_reason: str | None = None
+    confidence: float
+    evidence: list[EvidenceItem] = []
+
+
+class RecommendationSummary(BaseModel):
+    total_reviews: int
+    positive: int
+    neutral: int
+    negative: int
+    positive_rate: float
+    negative_rate: float
+    data_confidence: float
+
+
+class RecommendationReportDTO(BaseModel):
+    merchant_id: str
+    model_version: str
+    prompt_version: str
+    generated_at: str
+    evidence_review_ids: list[str]
+    summary: RecommendationSummary
+    recommendations: list[RecommendationItem]
+    low_sample_warning: bool
 
 
 # ---------------------------------------------------------------------------
@@ -302,9 +351,9 @@ async def compare_merchants(
 _reply_generator = ReplyGenerator()
 
 
-@router.post("/reply")
+@reviews_router.post("/{review_id}/reply-suggestions")
 async def generate_reply(
-    merchant_id: str,
+    review_id: str,
     request: Request,
     body: ReplyRequest,
 ) -> dict[str, Any]:
@@ -324,14 +373,87 @@ async def generate_reply(
         sentiment=body.sentiment,
         aspect_labels=body.aspect_labels,
         negative_reasons=body.negative_reasons,
+        review_id=review_id,
+        model_version=body.model_version,
     )
     response = ReplyResponse(
         reply_text=result.reply_text,
         template_id=result.template_id,
         compliance_passed=result.compliance_passed,
+        model_version=result.model_version,
+        prompt_version=result.prompt_version,
+        generated_at=result.generated_at.isoformat(),
+        evidence_review_ids=result.evidence_review_ids,
         violations=result.violations,
     )
     return success_response(request, response.model_dump())
+
+
+# ---------------------------------------------------------------------------
+# Business suggestions endpoint (TK-402-04)
+# ---------------------------------------------------------------------------
+
+
+@business_router.post("/business-suggestions")
+async def merchant_recommendations(
+    merchant_id: str,
+    request: Request,
+    service: AnalyticsServiceDependency,
+    start_date: _DateParam = None,
+    end_date: _DateParam = None,
+) -> dict[str, Any]:
+    """Generate business recommendations with evidence and confidence."""
+    try:
+        report = await service.generate_recommendations(
+            merchant_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except ValueError as exc:
+        raise AppError(400, "INVALID_PARAMETER", str(exc)) from exc
+
+    dto = RecommendationReportDTO(
+        merchant_id=report.merchant_id,
+        model_version=report.model_version,
+        prompt_version=report.prompt_version,
+        generated_at=report.generated_at.isoformat(),
+        evidence_review_ids=report.evidence_review_ids,
+        summary=RecommendationSummary(
+            total_reviews=report.summary["total_reviews"],
+            positive=report.summary["positive"],
+            neutral=report.summary["neutral"],
+            negative=report.summary["negative"],
+            positive_rate=report.summary["positive_rate"],
+            negative_rate=report.summary["negative_rate"],
+            data_confidence=report.summary["data_confidence"],
+        ),
+        recommendations=[
+            RecommendationItem(
+                recommendation_id=rec.recommendation_id,
+                category=rec.category,
+                priority=rec.priority,
+                title=rec.title,
+                description=rec.description,
+                related_aspect=rec.related_aspect,
+                related_negative_reason=rec.related_negative_reason,
+                confidence=rec.confidence,
+                evidence=[
+                    EvidenceItem(
+                        review_id=ev.review_id,
+                        review_text=ev.review_text,
+                        sentiment=ev.sentiment,
+                        aspect_labels=ev.aspect_labels,
+                        negative_reasons=ev.negative_reasons,
+                        review_date=ev.review_date,
+                    )
+                    for ev in rec.evidence
+                ],
+            )
+            for rec in report.recommendations
+        ],
+        low_sample_warning=report.low_sample_warning,
+    )
+    return success_response(request, dto.model_dump())
 
 
 # ---------------------------------------------------------------------------
