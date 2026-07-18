@@ -17,9 +17,7 @@ from app.infrastructure.db.models.tasks import AsyncTask
 class SQLAlchemyLifecycleRepository:
     """Synchronous worker repository backed by MySQL row locks and task leases."""
 
-    def __init__(
-        self, session_factory: sessionmaker[Session], *, lease_seconds: int = 60
-    ) -> None:
+    def __init__(self, session_factory: sessionmaker[Session], *, lease_seconds: int = 60) -> None:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         self._session_factory = session_factory
@@ -195,9 +193,7 @@ class SQLAlchemyLifecycleRepository:
                 for row in rows
             ]
 
-    def mark_chunks_indexed(
-        self, document_version_id: UUID, projection_ids: Sequence[str]
-    ) -> None:
+    def mark_chunks_indexed(self, document_version_id: UUID, projection_ids: Sequence[str]) -> None:
         with self._session_factory.begin() as session:
             rows = session.scalars(
                 select(Chunk)
@@ -272,8 +268,7 @@ class SQLAlchemyLifecycleRepository:
             )
             if (
                 task is not None
-                and task.status
-                in {TaskStatus.RUNNING.value, TaskStatus.CANCEL_REQUESTED.value}
+                and task.status in {TaskStatus.RUNNING.value, TaskStatus.CANCEL_REQUESTED.value}
                 and task.locked_by == self._claimed_by.get(task_id)
                 and task.locked_until is not None
                 and task.locked_until > utc_now()

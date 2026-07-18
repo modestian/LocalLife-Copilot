@@ -17,8 +17,7 @@ from app.infrastructure.db.base import utc_now
 def test_pending_and_interruptible_running_tasks_can_be_cancelled() -> None:
     assert cancellation_target(TaskStatus.PENDING, TaskStage.QUEUED) is TaskStatus.CANCELLED
     assert (
-        cancellation_target(TaskStatus.RUNNING, TaskStage.CLEANING)
-        is TaskStatus.CANCEL_REQUESTED
+        cancellation_target(TaskStatus.RUNNING, TaskStage.CLEANING) is TaskStatus.CANCEL_REQUESTED
     )
 
 

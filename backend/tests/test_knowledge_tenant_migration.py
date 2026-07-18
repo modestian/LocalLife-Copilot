@@ -111,15 +111,11 @@ def test_upgrade_adds_tenant_id_column_with_foreign_key() -> None:
     assert {"tenant_id", "active_flag"} <= added_columns.keys()
     assert isinstance(added_columns["active_flag"].computed, sa.Computed)
     assert any(
-        table == "knowledge_bases"
-        and column == "tenant_id"
-        and options["nullable"] is False
+        table == "knowledge_bases" and column == "tenant_id" and options["nullable"] is False
         for table, column, options in recorder.altered_columns
     )
     assert any(
-        name == "fk_kb_tenant"
-        and source == "knowledge_bases"
-        and ondelete == "RESTRICT"
+        name == "fk_kb_tenant" and source == "knowledge_bases" and ondelete == "RESTRICT"
         for name, source, _, _, _, ondelete in recorder.added_foreign_keys
     )
 
@@ -199,9 +195,7 @@ def test_downgrade_restores_original_schema() -> None:
     ), "ix_kb_department_status should be restored on downgrade"
 
     # New unique constraint dropped
-    assert any(
-        name == "uq_kb_tenant_name_active" for name, _, _ in recorder.dropped_constraints
-    )
+    assert any(name == "uq_kb_tenant_name_active" for name, _, _ in recorder.dropped_constraints)
 
     # Old unique constraint restored
     restored_uniques = [

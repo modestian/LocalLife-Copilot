@@ -153,9 +153,7 @@ class SQLAlchemyTaskRepository:
             _release_task(row)
             return True
 
-    async def succeed(
-        self, task_id: UUID, *, worker_id: str, result: dict[str, object]
-    ) -> bool:
+    async def succeed(self, task_id: UUID, *, worker_id: str, result: dict[str, object]) -> bool:
         async with self._session_factory() as session, session.begin():
             row = await _owned_running_task(session, task_id, worker_id)
             if row is None:
@@ -274,9 +272,7 @@ class SQLAlchemyOutboxRepository:
             _release_event(row)
             return True
 
-    async def mark_failed(
-        self, event_id: UUID, *, publisher_id: str, error_message: str
-    ) -> bool:
+    async def mark_failed(self, event_id: UUID, *, publisher_id: str, error_message: str) -> bool:
         now = utc_now()
         async with self._session_factory() as session, session.begin():
             row = await _locked_event(session, event_id)

@@ -30,9 +30,7 @@ def uuid_column(name: str, *, nullable: bool = False) -> sa.Column:
 def datetime_column(
     name: str, *, nullable: bool = True, server_default: sa.TextClause | None = None
 ) -> sa.Column:
-    return sa.Column(
-        name, mysql.DATETIME(fsp=6), nullable=nullable, server_default=server_default
-    )
+    return sa.Column(name, mysql.DATETIME(fsp=6), nullable=nullable, server_default=server_default)
 
 
 def upgrade() -> None:
@@ -44,15 +42,11 @@ def upgrade() -> None:
         uuid_column("resource_id"),
         sa.Column("status", sa.String(20), nullable=False, server_default="PENDING"),
         sa.Column("stage", sa.String(20), nullable=False, server_default="QUEUED"),
-        sa.Column(
-            "progress", mysql.TINYINT(unsigned=True), nullable=False, server_default="0"
-        ),
+        sa.Column("progress", mysql.TINYINT(unsigned=True), nullable=False, server_default="0"),
         sa.Column(
             "attempt_count", mysql.INTEGER(unsigned=True), nullable=False, server_default="0"
         ),
-        sa.Column(
-            "max_attempts", mysql.INTEGER(unsigned=True), nullable=False, server_default="3"
-        ),
+        sa.Column("max_attempts", mysql.INTEGER(unsigned=True), nullable=False, server_default="3"),
         sa.Column("locked_by", sa.String(128), nullable=True),
         datetime_column("locked_until"),
         datetime_column("heartbeat_at"),
@@ -121,9 +115,7 @@ def upgrade() -> None:
         sa.CheckConstraint("event_version > 0", name=op.f("ck_outbox_events_event_version")),
         **TABLE_OPTIONS,
     )
-    op.create_index(
-        "ix_outbox_unpublished", "outbox_events", ["published_at", "occurred_at"]
-    )
+    op.create_index("ix_outbox_unpublished", "outbox_events", ["published_at", "occurred_at"])
     op.create_index("ix_outbox_locked_until", "outbox_events", ["locked_until"])
 
 

@@ -24,9 +24,7 @@ class TaskStage(StrEnum):
     DELETING = "DELETING"
 
 
-TERMINAL_TASK_STATUSES = frozenset(
-    {TaskStatus.SUCCEEDED, TaskStatus.FAILED, TaskStatus.CANCELLED}
-)
+TERMINAL_TASK_STATUSES = frozenset({TaskStatus.SUCCEEDED, TaskStatus.FAILED, TaskStatus.CANCELLED})
 NON_INTERRUPTIBLE_STAGES = frozenset(
     {TaskStage.PERSISTING, TaskStage.INDEXING, TaskStage.VERIFYING, TaskStage.DELETING}
 )
