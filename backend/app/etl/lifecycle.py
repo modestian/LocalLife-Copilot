@@ -87,6 +87,8 @@ class LifecycleJob:
 
     task_id: UUID
     operation: TaskOperation
+    tenant_id: UUID
+    knowledge_base_id: UUID
     document_id: UUID
     document_version_id: UUID
     source_uri: str | None = None
@@ -278,8 +280,13 @@ class WorkerLifecycleService:
 
         self._checkpoint(job, TaskStage.LOADING, 5)
         source_metadata = dict(job.metadata)
-        source_metadata.setdefault("document_id", str(job.document_id))
-        source_metadata.setdefault("document_version_id", str(job.document_version_id))
+        # Security-sensitive projection fields always come from the claimed database
+        # relationships, never from caller-controlled source metadata.
+        source_metadata["tenant_id"] = str(job.tenant_id)
+        source_metadata["knowledge_base_id"] = str(job.knowledge_base_id)
+        source_metadata["document_id"] = str(job.document_id)
+        source_metadata["document_version_id"] = str(job.document_version_id)
+        source_metadata["resource_scope"] = [f"KNOWLEDGE_BASE:{job.knowledge_base_id}"]
         with self._storage.open(job.source_uri) as source:
             validated_source, source_report = self._validate_source(
                 source,

@@ -47,9 +47,14 @@ class SQLAlchemyLifecycleRepository:
                 )
             ):
                 return None
-            document = session.scalar(select(Document).where(Document.id == task.resource_id))
-            if document is None:
+            claimed_resource = session.execute(
+                select(Document, KnowledgeBase)
+                .join(KnowledgeBase, KnowledgeBase.id == Document.knowledge_base_id)
+                .where(Document.id == task.resource_id)
+            ).one_or_none()
+            if claimed_resource is None:
                 return None
+            document, knowledge_base = claimed_resource
             version = session.scalar(
                 select(DocumentVersion).where(
                     DocumentVersion.document_id == document.id,
@@ -70,6 +75,8 @@ class SQLAlchemyLifecycleRepository:
             return LifecycleJob(
                 task_id=task.id,
                 operation=operation,
+                tenant_id=knowledge_base.tenant_id,
+                knowledge_base_id=knowledge_base.id,
                 document_id=document.id,
                 document_version_id=version.id,
                 source_uri=version.file_uri,

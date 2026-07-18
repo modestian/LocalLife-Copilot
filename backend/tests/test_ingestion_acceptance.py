@@ -141,6 +141,8 @@ def make_job(operation: TaskOperation, version_id: UUID, *, reason: str | None =
     return LifecycleJob(
         task_id=uuid4(),
         operation=operation,
+        tenant_id=uuid4(),
+        knowledge_base_id=uuid4(),
         document_id=uuid4(),
         document_version_id=version_id,
         source_uri="memory://same-file" if operation is TaskOperation.INGEST else None,
