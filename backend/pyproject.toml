@@ -51,6 +51,7 @@ include = ["app*"]
 addopts = "--strict-markers --strict-config"
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.coverage.run]
 branch = true
