@@ -19,7 +19,7 @@ LocalLife Copilot 使用 Docker Compose 编排以下容器：
 - Docker Desktop 已启动，并支持 Docker Compose v2
 - 本机执行后端质量检查时使用 Python 3.13.14（仓库根目录 `.python-version` 已锁定）
 - 建议给 Docker 分配至少 4 GB 内存
-- 建议保留至少 8 GB 可用磁盘空间
+- 建议首次构建前至少保留 25 GB 可用磁盘空间；构建完成并清理缓存后，日常占用会明显下降
 
 首次获取项目：
 
@@ -50,6 +50,8 @@ Copy-Item .env.example .env
 ```powershell
 docker compose up --build --wait
 ```
+
+后端镜像默认安装 CPU 版 PyTorch，不会下载未使用的 CUDA/NVIDIA 运行库。首次构建需要下载完整 Python 依赖，耗时可能较长；后续只修改 `backend/app` 或迁移代码时会复用由 `pyproject.toml` 决定的依赖层。只有依赖清单、基础镜像或 Dockerfile 的依赖安装步骤变化时，才需要重新生成该层。
 
 启动顺序由健康检查控制：
 
@@ -180,6 +182,32 @@ docker compose down --volumes --remove-orphans
 ```
 
 最后一条命令会永久删除本项目的 MySQL、Redis 和 OpenSearch 数据，只在明确需要重置环境时使用。
+
+### 8.1 查看和清理 Docker 构建缓存
+
+查看镜像、容器、数据卷和构建缓存占用：
+
+```powershell
+docker system df
+```
+
+清理悬空构建缓存：
+
+```powershell
+docker builder prune
+```
+
+磁盘空间紧张时，清理所有当前未被构建使用的缓存：
+
+```powershell
+docker builder prune -a
+```
+
+以上命令不会删除当前镜像、正在运行的容器或 MySQL、Redis、OpenSearch 数据卷。使用 `-a` 后，现有服务仍可直接启动，但下一次镜像构建可能需要重新下载依赖；依赖层重新生成后，后续构建会继续复用缓存。
+
+不要使用 `docker compose down --volumes` 或 `docker volume prune` 代替构建缓存清理，这些命令可能删除本地业务数据。
+
+Docker Desktop 在 Windows 上通常把 Linux 数据存储在动态扩容的 VHDX 虚拟磁盘中。清理缓存后，`docker system df` 会立即下降，但资源管理器中的磁盘剩余空间可能稍后才更新；如果长期没有归还，需要先退出 Docker Desktop，再使用 Docker Desktop 的磁盘回收功能或以管理员权限压缩其 VHDX。压缩前必须确认 Docker Desktop 已完全停止，且不得删除 VHDX 文件本身。
 
 ## 9. 本地质量检查
 
