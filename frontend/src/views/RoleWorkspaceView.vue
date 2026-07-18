@@ -1,16 +1,25 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
 
-defineProps<{
+interface WorkspaceEntry {
+  to: string
+  label: string
+  description: string
+}
+
+const props = defineProps<{
   title: string
   description: string
-  entry?: { to: string; label: string; description: string }
+  entry?: WorkspaceEntry
+  entries?: WorkspaceEntry[]
 }>()
 
 const authStore = useAuthStore()
 const router = useRouter()
+const workspaceEntries = computed(() => props.entries ?? (props.entry ? [props.entry] : []))
 
 async function logout(): Promise<void> {
   await authStore.logout()
@@ -59,12 +68,13 @@ function login(): void {
       {{ description }}
     </p>
     <router-link
-      v-if="entry"
+      v-for="workspaceEntry in workspaceEntries"
+      :key="workspaceEntry.to"
       class="workspace-entry"
-      :to="entry.to"
+      :to="workspaceEntry.to"
     >
-      <span>{{ entry.label }} →</span>
-      <small>{{ entry.description }}</small>
+      <span>{{ workspaceEntry.label }} →</span>
+      <small>{{ workspaceEntry.description }}</small>
     </router-link>
   </main>
 </template>

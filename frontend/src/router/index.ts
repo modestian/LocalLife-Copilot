@@ -47,11 +47,18 @@ const router = createRouter({
       props: {
         title: '管理工作台',
         description: '查看知识库、平台与模型管理能力；游客访问时保持只读。',
-        entry: {
-          to: '/admin/knowledge-bases',
-          label: '进入知识库管理',
-          description: '查看知识库状态、文档与 Chunk 统计及配置权限。',
-        },
+        entries: [
+          {
+            to: '/admin/knowledge-bases',
+            label: '进入知识库管理',
+            description: '查看知识库状态、文档与 Chunk 统计及配置权限。',
+          },
+          {
+            to: '/admin/models',
+            label: '进入模型管理',
+            description: '管理数据集、LoRA 训练、模型卡、审批和发布操作。',
+          },
+        ],
       },
       meta: {
         publicReadOnly: true,
@@ -77,6 +84,16 @@ const router = createRouter({
         publicReadOnly: true,
         roles: ['PLATFORM_ADMIN', 'KB_ADMIN'],
         title: '知识库详情',
+      },
+    },
+    {
+      path: '/admin/models',
+      name: 'model-management',
+      component: () => import('@/views/admin/ModelManagementView.vue'),
+      meta: {
+        requiresAuth: true,
+        roles: ['PLATFORM_ADMIN', 'MODEL_ADMIN'],
+        title: '模型管理',
       },
     },
     {
