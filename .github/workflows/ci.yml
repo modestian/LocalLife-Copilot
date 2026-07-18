@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 concurrency:
-  # Do not let PR, merge-queue, and post-merge runs cancel one another.
-  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  # Keep each main push independent while still cancelling stale PR runs.
+  group: ci-${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
