@@ -12,6 +12,7 @@ from app.core.api import success_response
 from app.core.errors import AppError
 
 router = APIRouter(prefix="/merchants/{merchant_id}/analytics", tags=["analytics"])
+compare_router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +64,33 @@ class ReputationBucket(BaseModel):
     trend: str
 
 
+class ComparisonSummary(BaseModel):
+    merchant_id: str
+    positive: int
+    neutral: int
+    negative: int
+    total: int
+    positive_rate: float
+    negative_rate: float
+
+
+class AspectComparisonRow(BaseModel):
+    aspect: str
+    merchants: list[dict]
+
+
+class ReasonComparisonRow(BaseModel):
+    reason: str
+    merchants: list[dict]
+
+
+class ComparisonResult(BaseModel):
+    merchants: list[str]
+    summary: list[ComparisonSummary]
+    aspect_comparison: list[AspectComparisonRow]
+    negative_reason_comparison: list[ReasonComparisonRow]
+
+
 # ---------------------------------------------------------------------------
 # Annotated query-parameter types (B008-safe)
 # ---------------------------------------------------------------------------
@@ -75,6 +103,7 @@ _LimitParam = Annotated[int, Query(ge=1, le=200)]
 _OffsetParam = Annotated[int, Query(ge=0)]
 _TopNParam = Annotated[int, Query(ge=1, le=20)]
 _MinMentionsParam = Annotated[int, Query(ge=1, le=100)]
+_MerchantIdsParam = Annotated[list[str], Query(min_length=2, max_length=4)]
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +250,34 @@ async def reputation_change(
     except ValueError as exc:
         raise AppError(400, "INVALID_PARAMETER", str(exc)) from exc
     return success_response(request, [ReputationBucket(**row).model_dump() for row in data])
+
+
+@compare_router.get("/compare")
+async def compare_merchants(
+    request: Request,
+    service: AnalyticsServiceDependency,
+    merchant_ids: _MerchantIdsParam,
+    start_date: _DateParam = None,
+    end_date: _DateParam = None,
+) -> dict[str, Any]:
+    """Compare 2-4 merchants under the same time window and metrics."""
+    try:
+        data = await service.compare_merchants(
+            merchant_ids,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except ValueError as exc:
+        raise AppError(400, "INVALID_PARAMETER", str(exc)) from exc
+    result = ComparisonResult(
+        merchants=data["merchants"],
+        summary=[ComparisonSummary(**s) for s in data["summary"]],
+        aspect_comparison=[AspectComparisonRow(**a) for a in data["aspect_comparison"]],
+        negative_reason_comparison=[
+            ReasonComparisonRow(**r) for r in data["negative_reason_comparison"]
+        ],
+    )
+    return success_response(request, result.model_dump())
 
 
 # ---------------------------------------------------------------------------

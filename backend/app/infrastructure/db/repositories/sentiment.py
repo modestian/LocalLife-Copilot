@@ -299,6 +299,86 @@ class SQLAlchemySentimentRepository:
             prev_rate = rate
         return result
 
+    async def get_comparison_stats(
+        self,
+        merchant_ids: list[str],
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> dict[str, dict]:
+        """Return per-merchant sentiment summary for comparison.
+
+        Queries multiple merchants in a single SQL pass and returns a
+        dict keyed by ``merchant_id``.
+
+        Each value contains:
+        - ``positive``, ``neutral``, ``negative``, ``total``
+        - ``positive_rate``, ``negative_rate``
+
+        Args:
+            merchant_ids: 2-4 merchant IDs to compare.
+            start_date: Inclusive lower bound on ``review_date``.
+            end_date: Exclusive upper bound on ``review_date``.
+        """
+        if not merchant_ids:
+            return {}
+
+        placeholders = ", ".join(f":mid{i}" for i in range(len(merchant_ids)))
+        sql = text(
+            f"SELECT merchant_id, "
+            f"SUM(sentiment = 'POSITIVE') AS positive, "
+            f"SUM(sentiment = 'NEUTRAL') AS neutral, "
+            f"SUM(sentiment = 'NEGATIVE') AS negative "
+            f"FROM review_analyses "
+            f"WHERE merchant_id IN ({placeholders}) "
+            f"{'AND review_date >= :start_date ' if start_date else ''}"
+            f"{'AND review_date < :end_date ' if end_date else ''}"
+            f"GROUP BY merchant_id"
+        )
+
+        params: dict = {f"mid{i}": mid for i, mid in enumerate(merchant_ids)}
+        if start_date:
+            params["start_date"] = start_date
+        if end_date:
+            params["end_date"] = end_date
+
+        async with self._session_factory() as session:
+            result = await session.execute(sql, params)
+            rows = result.fetchall()
+
+        stats: dict[str, dict] = {}
+        for row in rows:
+            mid, positive, neutral, negative = (
+                row[0],
+                int(row[1] or 0),
+                int(row[2] or 0),
+                int(row[3] or 0),
+            )
+            total = positive + neutral + negative
+            stats[mid] = {
+                "merchant_id": mid,
+                "positive": positive,
+                "neutral": neutral,
+                "negative": negative,
+                "total": total,
+                "positive_rate": round(positive / total, 4) if total else 0.0,
+                "negative_rate": round(negative / total, 4) if total else 0.0,
+            }
+
+        # Ensure all requested merchants appear in output (even with 0 reviews)
+        for mid in merchant_ids:
+            if mid not in stats:
+                stats[mid] = {
+                    "merchant_id": mid,
+                    "positive": 0,
+                    "neutral": 0,
+                    "negative": 0,
+                    "total": 0,
+                    "positive_rate": 0.0,
+                    "negative_rate": 0.0,
+                }
+        return stats
+
     async def drill_down_reviews(
         self,
         merchant_id: str,
