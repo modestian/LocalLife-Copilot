@@ -15,7 +15,15 @@ def test_chunk_index_mapping_is_strict_and_dimensioned() -> None:
     assert body["mappings"]["dynamic"] == "strict"
     properties = body["mappings"]["properties"]
     assert properties["content"]["analyzer"] == "zh_search"
-    assert properties["content_vector"] == {"type": "knn_vector", "dimension": 512}
+    assert properties["content_vector"] == {
+        "type": "knn_vector",
+        "dimension": 512,
+        "method": {
+            "name": "hnsw",
+            "space_type": "cosinesimil",
+            "engine": "lucene",
+        },
+    }
     assert properties["tenant_id"] == {"type": "keyword"}
     assert properties["knowledge_base_id"] == {"type": "keyword"}
 

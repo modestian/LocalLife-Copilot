@@ -19,6 +19,8 @@ from app.etl.lifecycle import (
 from app.etl.models import ChunkRecord
 
 TASK_ID = UUID("0190c4d2-7f20-7b31-9f75-8f6cc8e2b121")
+TENANT_ID = UUID("0190c4d2-7f20-7b31-9f75-8f6cc8e2b124")
+KNOWLEDGE_BASE_ID = UUID("0190c4d2-7f20-7b31-9f75-8f6cc8e2b125")
 DOCUMENT_ID = UUID("0190c4d2-7f20-7b31-9f75-8f6cc8e2b122")
 VERSION_ID = UUID("0190c4d2-7f20-7b31-9f75-8f6cc8e2b123")
 
@@ -153,10 +155,18 @@ def make_job(operation: TaskOperation = TaskOperation.INGEST) -> LifecycleJob:
     return LifecycleJob(
         task_id=TASK_ID,
         operation=operation,
+        tenant_id=TENANT_ID,
+        knowledge_base_id=KNOWLEDGE_BASE_ID,
         document_id=DOCUMENT_ID,
         document_version_id=VERSION_ID,
         source_uri="memory://document" if operation is TaskOperation.INGEST else None,
         source_key="document.txt" if operation is TaskOperation.INGEST else None,
+        metadata={
+            "tenant_id": "spoofed-tenant",
+            "knowledge_base_id": "spoofed-kb",
+            "document_id": "spoofed-document",
+            "resource_scope": ["PUBLIC"],
+        },
         splitter_config={"strategy": "recursive", "chunk_size": 100, "chunk_overlap": 0},
     )
 
@@ -188,6 +198,11 @@ def test_ingest_persists_projects_verifies_then_marks_document_ready() -> None:
     assert repository.completed is not None
     assert repository.completed["document_version_id"] == str(VERSION_ID)
     assert repository.completed["chunk_count"] == 1
+    metadata = repository.chunks[VERSION_ID][0].metadata
+    assert metadata["tenant_id"] == str(TENANT_ID)
+    assert metadata["knowledge_base_id"] == str(KNOWLEDGE_BASE_ID)
+    assert metadata["document_id"] == str(DOCUMENT_ID)
+    assert metadata["resource_scope"] == [f"KNOWLEDGE_BASE:{KNOWLEDGE_BASE_ID}"]
     assert repository.completed["cleaning_report"]["input_count"] == 1
     assert repository.completed["splitting_report"]["strategy"] == "recursive"
     assert repository.completed["source_validation"]["size_bytes"] == len(MemoryStorage().content)

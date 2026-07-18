@@ -34,6 +34,11 @@ def chunk_index_body(embedding_dimension: int) -> dict[str, Any]:
                 "content_vector": {
                     "type": "knn_vector",
                     "dimension": embedding_dimension,
+                    "method": {
+                        "name": "hnsw",
+                        "space_type": "cosinesimil",
+                        "engine": "lucene",
+                    },
                 },
                 "source_key": {"type": "keyword"},
                 "source_type": {"type": "keyword"},

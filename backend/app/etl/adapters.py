@@ -115,6 +115,7 @@ class OpenSearchProjection:
             "content_vector": list(vector),
         }
         for field in (
+            "tenant_id",
             "document_id",
             "knowledge_base_id",
             "merchant_id",

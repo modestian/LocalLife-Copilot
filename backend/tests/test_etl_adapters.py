@@ -36,7 +36,9 @@ def chunk(number: int = 0) -> ChunkRecord:
         token_count=4,
         metadata={
             "source_key": "reviews/store.txt",
+            "tenant_id": "tenant-1",
             "knowledge_base_id": "kb-1",
+            "resource_scope": ["KNOWLEDGE_BASE:kb-1"],
             "merchant_id": "merchant-1",
             "business_status": "OPEN",
             "valid_to": "2026-12-31T23:59:59Z",
@@ -98,7 +100,9 @@ def test_opensearch_projection_uses_stable_ids_for_idempotent_upsert(monkeypatch
     ]
     assert captured[0]["_source"]["document_version_id"] == str(VERSION_ID)
     assert captured[0]["_source"]["source_key"] == "reviews/store.txt"
+    assert captured[0]["_source"]["tenant_id"] == "tenant-1"
     assert captured[0]["_source"]["knowledge_base_id"] == "kb-1"
+    assert captured[0]["_source"]["resource_scope"] == ["KNOWLEDGE_BASE:kb-1"]
     assert captured[0]["_source"]["business_status"] == "OPEN"
     assert captured[0]["_source"]["valid_to"] == "2026-12-31T23:59:59Z"
     assert captured[0]["_source"]["content_vector"] == [0.1, 0.2, 0.3]
