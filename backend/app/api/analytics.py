@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 from app.application.analytics import AnalyticsService
+from app.application.reply_generator import ReplyGenerator
 from app.core.api import success_response
 from app.core.errors import AppError
 
@@ -89,6 +90,20 @@ class ComparisonResult(BaseModel):
     summary: list[ComparisonSummary]
     aspect_comparison: list[AspectComparisonRow]
     negative_reason_comparison: list[ReasonComparisonRow]
+
+
+class ReplyRequest(BaseModel):
+    review_text: str
+    sentiment: str
+    aspect_labels: list[str] = []
+    negative_reasons: list[str] = []
+
+
+class ReplyResponse(BaseModel):
+    reply_text: str
+    template_id: str
+    compliance_passed: bool
+    violations: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -278,6 +293,45 @@ async def compare_merchants(
         ],
     )
     return success_response(request, result.model_dump())
+
+
+# ---------------------------------------------------------------------------
+# Reply generation endpoint (TK-402-03)
+# ---------------------------------------------------------------------------
+
+_reply_generator = ReplyGenerator()
+
+
+@router.post("/reply")
+async def generate_reply(
+    merchant_id: str,
+    request: Request,
+    body: ReplyRequest,
+) -> dict[str, Any]:
+    """Generate a compliant review reply for the given review data."""
+    if not body.review_text or not body.review_text.strip():
+        raise AppError(400, "INVALID_PARAMETER", "review_text must not be empty")
+    valid_sentiments = {"POSITIVE", "NEUTRAL", "NEGATIVE"}
+    if body.sentiment not in valid_sentiments:
+        raise AppError(
+            400,
+            "INVALID_PARAMETER",
+            f"sentiment must be one of {valid_sentiments}, got {body.sentiment!r}",
+        )
+
+    result = _reply_generator.generate(
+        review_text=body.review_text,
+        sentiment=body.sentiment,
+        aspect_labels=body.aspect_labels,
+        negative_reasons=body.negative_reasons,
+    )
+    response = ReplyResponse(
+        reply_text=result.reply_text,
+        template_id=result.template_id,
+        compliance_passed=result.compliance_passed,
+        violations=result.violations,
+    )
+    return success_response(request, response.model_dump())
 
 
 # ---------------------------------------------------------------------------
