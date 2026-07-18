@@ -12,13 +12,16 @@ from app.infrastructure.db.models.identity import (
 )
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
+from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 
 __all__ = [
+    "AsyncTask",
     "Chunk",
     "Department",
     "Document",
     "DocumentVersion",
     "KnowledgeBase",
+    "OutboxEvent",
     "Permission",
     "RefreshToken",
     "ResourceGrant",

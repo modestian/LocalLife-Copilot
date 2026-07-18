@@ -30,4 +30,11 @@ describe('guest read-only routing', () => {
     expect(router.currentRoute.value.name).toBe('login')
     expect(router.currentRoute.value.query.redirect).toBe('/merchant')
   })
+
+  it('requires authentication before exposing model management operations', async () => {
+    await router.push('/admin/models')
+
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.redirect).toBe('/admin/models')
+  })
 })

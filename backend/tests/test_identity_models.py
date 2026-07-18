@@ -25,11 +25,13 @@ def constraint_names(table: Table, constraint_type: type) -> set[str | None]:
 
 def test_identity_metadata_contains_required_tables() -> None:
     assert set(Base.metadata.tables) == {
+        "async_tasks",
         "chunks",
         "departments",
         "document_versions",
         "documents",
         "knowledge_bases",
+        "outbox_events",
         "permissions",
         "refresh_tokens",
         "resource_grants",

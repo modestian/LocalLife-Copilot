@@ -2,11 +2,15 @@ from uuid import UUID
 
 from celery import Celery
 from opensearchpy import OpenSearch
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import sessionmaker
 
 from app.core.config import get_settings
 from app.etl.adapters import LocalSourceStorage, OpenSearchProjection
 from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.etl.lifecycle import LifecycleRepository, TaskOperation, WorkerLifecycleService
+from app.infrastructure.db.repositories.lifecycle import SQLAlchemyLifecycleRepository
 
 settings = get_settings()
 
@@ -31,6 +35,7 @@ def ping() -> str:
 
 _lifecycle_service: WorkerLifecycleService | None = None
 _lifecycle_projection_client: OpenSearch | None = None
+_lifecycle_engine: Engine | None = None
 
 
 def configure_lifecycle_service(service: WorkerLifecycleService) -> None:
@@ -69,8 +74,19 @@ def configure_lifecycle_repository(repository: LifecycleRepository) -> WorkerLif
 
 def _lifecycle() -> WorkerLifecycleService:
     if _lifecycle_service is None:
-        raise RuntimeError("knowledge lifecycle service has not been configured")
+        _configure_default_lifecycle_service()
+    if _lifecycle_service is None:
+        raise RuntimeError("knowledge lifecycle service could not be configured")
     return _lifecycle_service
+
+
+def _configure_default_lifecycle_service() -> None:
+    global _lifecycle_engine
+    _lifecycle_engine = create_engine(settings.sync_database_url, pool_pre_ping=True)
+    repository = SQLAlchemyLifecycleRepository(
+        sessionmaker(_lifecycle_engine, expire_on_commit=False)
+    )
+    configure_lifecycle_repository(repository)
 
 
 @celery_app.task(name="knowledge.ingest")
