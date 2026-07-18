@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import MerchantAnalyticsDashboard from '@/components/MerchantAnalyticsDashboard.vue'
+import MerchantInsightWorkbench from '@/components/MerchantInsightWorkbench.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -139,6 +140,12 @@ watch(routeMerchantId, (value) => {
     <MerchantAnalyticsDashboard
       v-if="selectedMerchantId"
       :key="selectedMerchantId"
+      :merchant-id="selectedMerchantId"
+    />
+
+    <MerchantInsightWorkbench
+      v-if="selectedMerchantId"
+      :key="`${selectedMerchantId}-insights`"
       :merchant-id="selectedMerchantId"
     />
 
