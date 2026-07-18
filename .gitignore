@@ -13,3 +13,12 @@ coverage/
 .idea/
 .vscode/
 *.log
+
+# Model training artifacts
+backend/training/output/
+backend/training/models/
+*.safetensors
+*.bin
+*.pt
+!backend/app/**/*.pt
+.qoder/

@@ -1,6 +1,10 @@
 from unittest.mock import MagicMock
 
-from app.infrastructure.search.indexes import chunk_index_body, ensure_chunk_index
+from app.infrastructure.search.indexes import (
+    chunk_index_body,
+    ensure_chunk_index,
+    switch_chunk_aliases,
+)
 
 
 def test_chunk_index_mapping_is_strict_and_dimensioned() -> None:
@@ -83,3 +87,19 @@ def test_ensure_chunk_index_switches_aliases_atomically() -> None:
         },
     ]
     assert actions[-1]["add"]["is_write_index"] is True
+
+
+def test_switch_chunk_aliases_does_not_create_or_modify_index_mapping() -> None:
+    client = MagicMock()
+    client.indices.exists_alias.return_value = False
+
+    switch_chunk_aliases(
+        client,
+        index="local-life-chunks-v2",
+        read_alias="local-life-chunks-read",
+        write_alias="local-life-chunks-write",
+    )
+
+    client.indices.create.assert_not_called()
+    client.indices.put_mapping.assert_not_called()
+    client.indices.update_aliases.assert_called_once()

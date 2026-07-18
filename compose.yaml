@@ -70,6 +70,11 @@ services:
       context: ./backend
     command: ["uvicorn", "app.model_gateway:app", "--host", "0.0.0.0", "--port", "8001"]
     expose: ["8001"]
+    environment:
+      SENTIMENT_MODEL: ${SENTIMENT_MODEL:-/models/sentiment}
+      SENTIMENT_MODEL_REVISION: ${SENTIMENT_MODEL_REVISION:-}
+    volumes:
+      - ./backend/training/output/final_model:/models/sentiment:ro
     networks: [backend]
     healthcheck:
       test:
@@ -104,9 +109,12 @@ services:
       OPENSEARCH_INDEX: ${OPENSEARCH_INDEX:-local-life-chunks}
       OPENSEARCH_INDEX_VERSION: ${OPENSEARCH_INDEX_VERSION:-1}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-512}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-local-deterministic-v1}
       KNOWLEDGE_DATA_ROOT: ${KNOWLEDGE_DATA_ROOT:-/data/knowledge}
       MAX_INGESTION_SOURCE_BYTES: ${MAX_INGESTION_SOURCE_BYTES:-20971520}
       MODEL_GATEWAY_HEALTH_URL: ${MODEL_GATEWAY_HEALTH_URL:-http://model-gateway:8001/health/live}
+      MODEL_GATEWAY_EMBEDDING_URL: ${MODEL_GATEWAY_EMBEDDING_URL:-http://model-gateway:8001/v1/embeddings}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:-development-only-change-this-jwt-secret-key}
       JWT_ISSUER: ${JWT_ISSUER:-local-life-copilot}
