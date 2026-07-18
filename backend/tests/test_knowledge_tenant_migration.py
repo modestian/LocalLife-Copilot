@@ -84,12 +84,7 @@ class RecordingOperations:
 
 
 def load_migration() -> ModuleType:
-    path = (
-        Path(__file__).parents[1]
-        / "migrations"
-        / "versions"
-        / "20260718_0004_add_tenant_id.py"
-    )
+    path = Path(__file__).parents[1] / "migrations" / "versions" / "20260718_0004_add_tenant_id.py"
     spec = importlib.util.spec_from_file_location("knowledge_tenant_migration", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -127,13 +122,12 @@ def test_upgrade_backfills_tenant_id_from_department_id() -> None:
     backfill_sqls = [
         sql
         for sql in recorder.executed_sqls
-        if "UPDATE knowledge_bases" in sql.upper()
-        and "tenant_id" in sql
+        if "UPDATE knowledge_bases" in sql.upper() and "tenant_id" in sql
     ]
     assert len(backfill_sqls) >= 1, "should execute backfill SQL for tenant_id"
-    assert any(
-        "department_id" in sql for sql in backfill_sqls
-    ), "backfill should reference department_id"
+    assert any("department_id" in sql for sql in backfill_sqls), (
+        "backfill should reference department_id"
+    )
 
 
 def test_upgrade_migrates_unique_constraint_to_tenant_id() -> None:
@@ -144,9 +138,9 @@ def test_upgrade_migrates_unique_constraint_to_tenant_id() -> None:
     migration.upgrade()
 
     # Old constraint dropped
-    assert any(
-        name == "uq_kb_name_status" for name, table, _ in recorder.dropped_constraints
-    ), "old uq_kb_name_status should be dropped"
+    assert any(name == "uq_kb_name_status" for name, table, _ in recorder.dropped_constraints), (
+        "old uq_kb_name_status should be dropped"
+    )
 
     # New constraint created with tenant_id
     new_unique = [
@@ -157,8 +151,7 @@ def test_upgrade_migrates_unique_constraint_to_tenant_id() -> None:
     assert len(new_unique) == 1
     _, columns = new_unique[0]
     assert columns == ["tenant_id", "normalized_name", "status"], (
-        f"new unique constraint should cover (tenant_id, normalized_name, status), "
-        f"got {columns}"
+        f"new unique constraint should cover (tenant_id, normalized_name, status), got {columns}"
     )
 
 
@@ -171,8 +164,7 @@ def test_upgrade_migrates_index_from_department_to_tenant() -> None:
 
     # Old index dropped
     assert any(
-        name == "ix_kb_department_status"
-        for name, table_name in recorder.dropped_indexes
+        name == "ix_kb_department_status" for name, table_name in recorder.dropped_indexes
     ), "old ix_kb_department_status index should be dropped"
 
     # New index created
@@ -190,10 +182,9 @@ def test_downgrade_restores_original_schema() -> None:
     migration.downgrade()
 
     # New index dropped
-    assert any(
-        name == "ix_kb_tenant_status"
-        for name, table_name in recorder.dropped_indexes
-    ), "ix_kb_tenant_status should be dropped on downgrade"
+    assert any(name == "ix_kb_tenant_status" for name, table_name in recorder.dropped_indexes), (
+        "ix_kb_tenant_status should be dropped on downgrade"
+    )
 
     # Old index restored
     assert any(
@@ -203,8 +194,7 @@ def test_downgrade_restores_original_schema() -> None:
 
     # New unique constraint dropped
     dropped_uniques = [
-        name for name, table, _ in recorder.dropped_constraints
-        if name == "uq_kb_name_status"
+        name for name, table, _ in recorder.dropped_constraints if name == "uq_kb_name_status"
     ]
     assert len(dropped_uniques) >= 1, "uq_kb_name_status should be dropped on downgrade"
 
@@ -218,9 +208,9 @@ def test_downgrade_restores_original_schema() -> None:
         assert restored_uniques[-1] == ["department_id", "normalized_name", "status"]
 
     # tenant_id column and foreign key removed
-    assert any(
-        colname == "tenant_id" for table, colname in recorder.dropped_columns
-    ), "tenant_id column should be dropped on downgrade"
+    assert any(colname == "tenant_id" for table, colname in recorder.dropped_columns), (
+        "tenant_id column should be dropped on downgrade"
+    )
 
 
 def test_migration_chain_is_continuous() -> None:

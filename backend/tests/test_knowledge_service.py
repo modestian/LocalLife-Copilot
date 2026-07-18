@@ -59,9 +59,7 @@ class InMemoryKnowledgeRepository:
             id=row.id,
             owner_id=row.owner_id,
             department_id=(
-                patch.department_id
-                if patch.department_id is not None
-                else row.department_id
+                patch.department_id if patch.department_id is not None else row.department_id
             ),
             tenant_id=patch.tenant_id if patch.tenant_id is not None else row.tenant_id,
             name=name,
