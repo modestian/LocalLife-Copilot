@@ -14,7 +14,6 @@ describe('guest read-only routing', () => {
 
   it.each([
     ['/app', 'user-home'],
-    ['/merchant', 'merchant-home'],
     ['/admin', 'admin-home'],
     ['/admin/knowledge-bases', 'knowledge-bases'],
     ['/admin/knowledge-bases/kb-public', 'knowledge-base-detail'],
@@ -23,5 +22,12 @@ describe('guest read-only routing', () => {
 
     expect(router.currentRoute.value.name).toBe(routeName)
     expect(router.currentRoute.value.meta.publicReadOnly).toBe(true)
+  })
+
+  it('requires authentication before exposing merchant analytics', async () => {
+    await router.push('/merchant')
+
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.redirect).toBe('/merchant')
   })
 })

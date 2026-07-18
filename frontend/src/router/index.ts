@@ -31,14 +31,13 @@ const router = createRouter({
       meta: { publicReadOnly: true, roles: ['USER'], title: '用户工作台' },
     },
     {
-      path: '/merchant',
+      path: '/merchant/:merchantId?',
       name: 'merchant-home',
-      component: () => import('@/views/RoleWorkspaceView.vue'),
-      props: { title: '商家工作台', description: '商家口碑与经营能力将在后续任务中接入。' },
+      component: () => import('@/views/merchant/MerchantAnalyticsView.vue'),
       meta: {
-        publicReadOnly: true,
+        requiresAuth: true,
         roles: ['MERCHANT_ADMIN', 'MERCHANT_OPERATOR'],
-        title: '商家工作台',
+        title: '商家口碑工作台',
       },
     },
     {
