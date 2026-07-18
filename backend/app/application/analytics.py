@@ -8,6 +8,10 @@ performs parameter validation only – no business-rule mutation.
 from datetime import datetime
 from typing import Literal, Protocol
 
+from app.application.recommendation_generator import (
+    RecommendationGenerator,
+    RecommendationReport,
+)
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
 
 
@@ -282,6 +286,86 @@ class AnalyticsService:
             "aspect_comparison": aspect_comparison,
             "negative_reason_comparison": reason_comparison,
         }
+
+    async def generate_recommendations(
+        self,
+        merchant_id: str,
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> RecommendationReport:
+        """Generate business recommendations with evidence and confidence.
+
+        Orchestrates data fetching from the repository, then delegates to
+        :class:`RecommendationGenerator` for rule-based recommendation synthesis.
+        """
+        _validate_merchant_id(merchant_id)
+        _validate_date_range(start_date, end_date)
+
+        # 1. Summary stats (reuse comparison endpoint's query)
+        comparison = await self._repository.get_comparison_stats(
+            [merchant_id],
+            start_date=start_date,
+            end_date=end_date,
+        )
+        summary_stats = comparison.get(
+            merchant_id,
+            {
+                "positive": 0,
+                "neutral": 0,
+                "negative": 0,
+                "total": 0,
+            },
+        )
+
+        # 2. Negative reason aggregation
+        negative_reason_stats = await self._repository.get_negative_reason_aggregation(
+            merchant_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        # 3. Aspect sentiment stats
+        aspect_stats = await self._repository.get_aspect_sentiment_stats(
+            merchant_id,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        # 4. Fetch evidence reviews for each negative reason
+        evidence_reviews: dict[str, list[ReviewAnalysis]] = {}
+        for stat in negative_reason_stats:
+            reason = stat["reason"]
+            count = stat["count"]
+            if count < 2:
+                continue
+            reviews = await self._repository.drill_down_reviews(
+                merchant_id,
+                sentiment="NEGATIVE",
+                start_date=start_date,
+                end_date=end_date,
+                negative_reason=reason,
+                limit=5,
+            )
+            evidence_reviews[reason] = reviews
+
+        # 5. Extract model_version from evidence reviews (for traceability)
+        model_version = "unknown"
+        for reviews in evidence_reviews.values():
+            if reviews:
+                model_version = getattr(reviews[0], "model_version", "unknown")
+                break
+
+        # 6. Generate report
+        generator = RecommendationGenerator()
+        return generator.generate(
+            merchant_id=merchant_id,
+            negative_reason_stats=negative_reason_stats,
+            aspect_stats=aspect_stats,
+            summary_stats=summary_stats,
+            evidence_reviews=evidence_reviews,
+            model_version=model_version,
+        )
 
 
 # ---------------------------------------------------------------------------
