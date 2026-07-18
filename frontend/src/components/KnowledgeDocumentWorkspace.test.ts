@@ -17,6 +17,34 @@ vi.mock('@/api/documents', () => ({
   },
 }))
 
+vi.mock('@/api/tasks', () => ({
+  taskApi: {
+    get: vi.fn().mockResolvedValue({
+      task_id: 'task-rollback',
+      task_type: 'DOCUMENT_ROLLBACK',
+      resource_type: 'DOCUMENT',
+      resource_id: 'document-1',
+      status: 'PENDING',
+      stage: 'QUEUED',
+      progress: 0,
+      cancellable: true,
+      retryable: false,
+      attempt_count: 0,
+      max_attempts: 3,
+      error_code: null,
+      error_message: null,
+      files: [],
+      result: null,
+      created_at: '2026-07-17T08:00:00Z',
+      updated_at: '2026-07-17T08:00:00Z',
+      started_at: null,
+      completed_at: null,
+    }),
+    cancel: vi.fn(),
+    retry: vi.fn(),
+  },
+}))
+
 const summary: DocumentSummary = {
   id: 'document-1',
   knowledge_base_id: 'kb-1',

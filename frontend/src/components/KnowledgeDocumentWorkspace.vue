@@ -4,16 +4,17 @@ import { computed, onMounted, ref } from 'vue'
 import { documentApi } from '@/api/documents'
 import { getUserFacingError } from '@/api/errors'
 import type {
-  AcceptedTask,
   DocumentDetail,
   DocumentPreview,
   DocumentStatus,
   DocumentSummary,
 } from '@/types/document'
+import type { AcceptedTask, TrackedTask } from '@/types/task'
 import { formatFileSize } from '@/utils/document-upload'
 
 import DocumentUploadPanel from './DocumentUploadPanel.vue'
 import HighlightedText from './HighlightedText.vue'
+import TaskProgressCard from './TaskProgressCard.vue'
 
 const props = defineProps<{
   knowledgeBaseId: string
@@ -29,8 +30,7 @@ const pageSize = 10
 const status = ref<'' | Exclude<DocumentStatus, 'DELETED'>>('')
 const loading = ref(false)
 const listError = ref('')
-const acceptedTask = ref<AcceptedTask | null>(null)
-const acceptedNames = ref<string[]>([])
+const trackedTasks = ref<TrackedTask[]>([])
 
 const selected = ref<DocumentDetail | null>(null)
 const preview = ref<DocumentPreview | null>(null)
@@ -142,9 +142,9 @@ async function rollback(): Promise<void> {
   mutating.value = true
   previewError.value = ''
   try {
-    acceptedTask.value = await documentApi.rollback(selected.value.id, versionNo)
-    acceptedNames.value = []
-    mutationMessage.value = `版本回滚任务已提交：${acceptedTask.value.task_id}`
+    const accepted = await documentApi.rollback(selected.value.id, versionNo)
+    trackTask(accepted)
+    mutationMessage.value = `版本回滚任务已提交：${accepted.task_id}`
     const documentId = selected.value.id
     await loadDocuments()
     const summary = documents.value.find((item) => item.id === documentId)
@@ -163,9 +163,9 @@ async function deleteDocument(): Promise<void> {
   mutating.value = true
   previewError.value = ''
   try {
-    acceptedTask.value = await documentApi.delete(selected.value.id)
-    acceptedNames.value = []
-    mutationMessage.value = `删除任务已提交：${acceptedTask.value.task_id}`
+    const accepted = await documentApi.delete(selected.value.id)
+    trackTask(accepted)
+    mutationMessage.value = `删除任务已提交：${accepted.task_id}`
     closePreview()
     await loadDocuments()
   } catch (error) {
@@ -176,9 +176,19 @@ async function deleteDocument(): Promise<void> {
 }
 
 function onUploadAccepted(task: AcceptedTask, files: File[]): void {
-  acceptedTask.value = task
-  acceptedNames.value = files.map((file) => file.name)
+  trackTask(task, files.map((file) => file.name))
   void loadDocuments(true)
+}
+
+function trackTask(task: AcceptedTask, fileNames: string[] = []): void {
+  trackedTasks.value = [
+    { accepted: task, file_names: fileNames },
+    ...trackedTasks.value.filter((item) => item.accepted.task_id !== task.task_id),
+  ]
+}
+
+function onTaskTerminal(): void {
+  void loadDocuments()
 }
 
 function previousPage(): void {
@@ -214,17 +224,29 @@ onMounted(() => loadDocuments())
       @accepted="onUploadAccepted"
     />
 
-    <div
-      v-if="acceptedTask"
-      class="accepted-task"
-      role="status"
+    <section
+      v-if="trackedTasks.length"
+      class="task-tracker"
+      aria-label="任务进度"
     >
-      <div>
-        <strong>任务已进入队列</strong>
-        <span>{{ acceptedTask.task_id }} · {{ acceptedTask.progress }}%</span>
+      <div class="task-tracker__heading">
+        <div>
+          <span class="eyebrow">TASK TRACKING</span>
+          <h3>任务进度</h3>
+        </div>
+        <span>自动刷新处理阶段与每个文件的状态</span>
       </div>
-      <span v-if="acceptedNames.length">{{ acceptedNames.join('、') }}</span>
-    </div>
+      <div class="task-tracker__list">
+        <TaskProgressCard
+          v-for="task in trackedTasks"
+          :key="task.accepted.task_id"
+          :task="task.accepted"
+          :file-names="task.file_names"
+          :can-manage="canManage"
+          @terminal="onTaskTerminal"
+        />
+      </div>
+    </section>
 
     <div class="document-list-heading">
       <div>
@@ -499,9 +521,11 @@ onMounted(() => loadDocuments())
 .document-workspace { margin-top: 24px; border: 1px solid rgb(74 54 42 / 12%); border-radius: 16px; padding: 24px; background: rgb(255 255 255 / 64%); }
 .workspace-title { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 20px; color: #7b6d63; font-size: .78rem; }
 .workspace-title h2 { margin: 8px 0 0; color: #2c211b; font-size: 1.45rem; }
-.accepted-task { display: flex; justify-content: space-between; gap: 20px; margin-top: 14px; border-left: 3px solid #31845b; border-radius: 8px; padding: 12px 14px; background: #edf8f1; color: #306a4a; font-size: .76rem; }
-.accepted-task div { display: grid; gap: 3px; }
-.accepted-task > span { max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-tracker { margin-top: 16px; border: 1px solid #dfd2c7; border-radius: 14px; padding: 18px; background: #faf4ec; }
+.task-tracker__heading { display: flex; justify-content: space-between; gap: 20px; align-items: end; margin-bottom: 12px; }
+.task-tracker__heading h3 { margin: 6px 0 0; font-size: 1.1rem; }
+.task-tracker__heading > span { color: #7b6d63; font-size: .72rem; }
+.task-tracker__list { display: grid; gap: 10px; }
 .document-list-heading { display: flex; justify-content: space-between; gap: 20px; align-items: end; margin-top: 28px; }
 .document-list-heading h3 { margin: 0 0 4px; }
 .document-list-heading div > span { color: #7b6d63; font-size: .74rem; }
@@ -560,8 +584,7 @@ td:last-child button { border: 0; background: transparent; color: #9d3423; curso
 .danger-button { border: 1px solid #d9a59c; border-radius: 8px; padding: 8px 12px; background: #fff1ee; color: #a4362b; cursor: pointer; font-weight: 800; }
 .danger-button:disabled { cursor: not-allowed; opacity: .5; }
 @media (max-width: 760px) {
-  .workspace-title, .document-list-heading, .accepted-task, .preview-controls, .version-toolbar { align-items: stretch; flex-direction: column; }
-  .accepted-task > span { max-width: 100%; }
+  .workspace-title, .document-list-heading, .task-tracker__heading, .preview-controls, .version-toolbar { align-items: stretch; flex-direction: column; }
   .document-metadata { grid-template-columns: 1fr; }
   .preview-panel { padding: 20px 14px; }
   .preview-controls form input { min-width: 0; width: 100%; }
