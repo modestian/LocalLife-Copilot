@@ -60,7 +60,6 @@ def upgrade() -> None:
     )
 
     op.drop_constraint("uq_kb_name_status", "knowledge_bases", type_="unique")
-    op.drop_index("ix_kb_department_status", table_name="knowledge_bases")
     op.create_unique_constraint(
         "uq_kb_tenant_name_active",
         "knowledge_bases",
@@ -76,11 +75,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_index("ix_kb_tenant_status", table_name="knowledge_bases")
     op.drop_constraint("uq_kb_tenant_name_active", "knowledge_bases", type_="unique")
-    op.create_index(
-        "ix_kb_department_status",
-        "knowledge_bases",
-        ["department_id", "status", "created_at"],
-    )
 
     op.create_unique_constraint(
         "uq_kb_name_status",
