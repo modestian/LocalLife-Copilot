@@ -184,6 +184,121 @@ class SQLAlchemySentimentRepository:
 
         return [{"reason": reason, "count": count} for reason, count in counter.most_common()]
 
+    async def get_aspect_sentiment_stats(
+        self,
+        merchant_id: str,
+        *,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        """Return per-aspect sentiment distribution for a merchant.
+
+        For each aspect label found in the merchant's reviews, counts how
+        many POSITIVE / NEUTRAL / NEGATIVE reviews mention it.
+
+        Returns:
+            List of dicts with keys ``aspect``, ``positive``, ``neutral``,
+            ``negative``, ``total``, ``positive_rate`` sorted by
+            ``positive_rate`` descending.
+        """
+        async with self._session_factory() as session:
+            stmt = select(ReviewAnalysis.aspect_labels, ReviewAnalysis.sentiment).where(
+                ReviewAnalysis.merchant_id == merchant_id
+            )
+            if start_date:
+                stmt = stmt.where(ReviewAnalysis.review_date >= start_date)
+            if end_date:
+                stmt = stmt.where(ReviewAnalysis.review_date < end_date)
+
+            rows = (await session.execute(stmt)).all()
+
+        # Per-aspect counters: {aspect: {sentiment: count}}
+        stats: dict[str, Counter[str]] = {}
+        for raw_aspects, sentiment in rows:
+            try:
+                aspects = json.loads(raw_aspects) if isinstance(raw_aspects, str) else raw_aspects
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if not isinstance(aspects, list):
+                continue
+            for aspect in aspects:
+                if aspect not in stats:
+                    stats[aspect] = Counter()
+                stats[aspect][sentiment] += 1
+
+        result: list[dict] = []
+        for aspect, counts in stats.items():
+            positive = counts.get("POSITIVE", 0)
+            neutral = counts.get("NEUTRAL", 0)
+            negative = counts.get("NEGATIVE", 0)
+            total = positive + neutral + negative
+            result.append(
+                {
+                    "aspect": aspect,
+                    "positive": positive,
+                    "neutral": neutral,
+                    "negative": negative,
+                    "total": total,
+                    "positive_rate": round(positive / total, 4) if total else 0.0,
+                }
+            )
+        result.sort(key=lambda x: x["positive_rate"], reverse=True)
+        return result
+
+    async def get_reputation_change(
+        self,
+        merchant_id: str,
+        *,
+        granularity: Literal["day", "week", "month"] = "week",
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        """Return per-period positive rate and trend classification.
+
+        Builds on top of :meth:`get_sentiment_trend`, adding:
+        - ``positive_rate``: positive / total for each period
+        - ``change``: difference vs previous period (None for the first)
+        - ``trend``: one of ``improving``, ``declining``, ``stable``
+        """
+        trend_data = await self.get_sentiment_trend(
+            merchant_id,
+            granularity=granularity,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        result: list[dict] = []
+        prev_rate: float | None = None
+        threshold = 0.05  # 5% change is significant
+        for bucket in trend_data:
+            total = bucket["positive"] + bucket["neutral"] + bucket["negative"]
+            rate = round(bucket["positive"] / total, 4) if total else 0.0
+            if prev_rate is None:
+                change = None
+                trend = "stable"
+            else:
+                change = round(rate - prev_rate, 4)
+                if change > threshold:
+                    trend = "improving"
+                elif change < -threshold:
+                    trend = "declining"
+                else:
+                    trend = "stable"
+            result.append(
+                {
+                    "period": bucket["period"],
+                    "positive": bucket["positive"],
+                    "neutral": bucket["neutral"],
+                    "negative": bucket["negative"],
+                    "total": total,
+                    "positive_rate": rate,
+                    "change": change,
+                    "trend": trend,
+                }
+            )
+            prev_rate = rate
+        return result
+
     async def drill_down_reviews(
         self,
         merchant_id: str,
