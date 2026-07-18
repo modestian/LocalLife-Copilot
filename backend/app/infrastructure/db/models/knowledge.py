@@ -48,6 +48,7 @@ class KnowledgeBase(TimestampMixin, VersionMixin, Base):
         CheckConstraint("chunk_size BETWEEN 100 AND 4000", name="chunk_size"),
         CheckConstraint("chunk_overlap < chunk_size", name="overlap"),
         CheckConstraint("status IN ('ACTIVE', 'ARCHIVED', 'DELETED')", name="status"),
+        Index("ix_kb_department_status", "department_id", "status", "created_at"),
         Index("ix_kb_tenant_status", "tenant_id", "status", "created_at"),
         MYSQL_TABLE_OPTIONS,
     )
