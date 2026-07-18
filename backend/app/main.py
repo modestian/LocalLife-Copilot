@@ -8,9 +8,11 @@ from opensearchpy import OpenSearch
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.users import router as users_router
+from app.application.analytics import AnalyticsService
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
 from app.core.api import install_api_contract
@@ -38,6 +40,7 @@ def create_app(
         engine = create_async_engine(app_settings.database_url, pool_pre_ping=True)
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
         app.state.sentiment_repo = SQLAlchemySentimentRepository(session_factory)
+        app.state.analytics_service = AnalyticsService(app.state.sentiment_repo)
         access_tokens = AccessTokenService(
             secret_key=app_settings.jwt_secret_key.get_secret_value(),
             issuer=app_settings.jwt_issuer,
@@ -84,6 +87,7 @@ def create_app(
         allow_headers=["*"],
     )
     app.include_router(health_router)
+    app.include_router(analytics_router, prefix=app_settings.api_v1_prefix)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     return app
