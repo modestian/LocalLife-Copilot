@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { documentApi } from '@/api/documents'
+import { ApiClientError } from '@/api/errors'
 import type { DocumentDetail, DocumentPreview, DocumentSummary } from '@/types/document'
 
 import KnowledgeDocumentWorkspace from './KnowledgeDocumentWorkspace.vue'
@@ -176,5 +177,55 @@ describe('KnowledgeDocumentWorkspace', () => {
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('回滚到版本 1'))
     expect(documentApi.rollback).toHaveBeenCalledWith('document-1', 1)
     expect(wrapper.text()).toContain('版本回滚任务已提交：task-rollback')
+  })
+
+  it('does not submit rollback when the administrator cancels confirmation', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    const wrapper = mount(KnowledgeDocumentWorkspace, {
+      props: {
+        knowledgeBaseId: 'kb-1',
+        defaultChunkSize: 500,
+        defaultChunkOverlap: 80,
+        canManage: true,
+      },
+    })
+    await flushPromises()
+    await wrapper.get('tbody button').trigger('click')
+    await flushPromises()
+    await wrapper.get('.version-toolbar select').setValue(1)
+    await flushPromises()
+    await wrapper.get('.version-toolbar button').trigger('click')
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('回滚到版本 1'))
+    expect(documentApi.rollback).not.toHaveBeenCalled()
+    expect(wrapper.text()).not.toContain('版本回滚任务已提交')
+  })
+
+  it('keeps the selected version visible and reports a rejected rollback', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    vi.mocked(documentApi.rollback).mockRejectedValue(new ApiClientError({
+      status: 409,
+      code: 'VERSION_CONFLICT',
+      message: '文档版本已发生变化，请刷新后重试',
+    }))
+    const wrapper = mount(KnowledgeDocumentWorkspace, {
+      props: {
+        knowledgeBaseId: 'kb-1',
+        defaultChunkSize: 500,
+        defaultChunkOverlap: 80,
+        canManage: true,
+      },
+    })
+    await flushPromises()
+    await wrapper.get('tbody button').trigger('click')
+    await flushPromises()
+    await wrapper.get('.version-toolbar select').setValue(1)
+    await flushPromises()
+    await wrapper.get('.version-toolbar button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.preview-error').text()).toContain('文档版本已发生变化，请刷新后重试')
+    expect(wrapper.get('.version-toolbar select').element).toHaveProperty('value', '1')
+    expect(wrapper.text()).not.toContain('版本回滚任务已提交')
   })
 })
