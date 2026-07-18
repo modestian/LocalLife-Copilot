@@ -31,6 +31,7 @@ class SQLAlchemyKnowledgeRepository:
             row = KnowledgeBase(
                 owner_id=payload.owner_id,
                 department_id=payload.department_id,
+                tenant_id=payload.tenant_id,
                 name=payload.name.strip(),
                 normalized_name=normalize_name(payload.name),
                 description=payload.description,
@@ -55,7 +56,7 @@ class SQLAlchemyKnowledgeRepository:
                     .offset(offset)
                 )
             ).all()
-            return [_knowledge_base_view(row) for row in rows]
+                        return [_knowledge_base_view(row) for row in rows]
 
     async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
@@ -71,6 +72,10 @@ class SQLAlchemyKnowledgeRepository:
                 row.chunk_size = patch.chunk_size
             if patch.chunk_overlap is not None:
                 row.chunk_overlap = patch.chunk_overlap
+            if patch.tenant_id is not None:
+                row.tenant_id = patch.tenant_id
+            if patch.department_id is not None:
+                row.department_id = patch.department_id
             if patch.status is not None:
                 row.status = patch.status
             await session.flush()
@@ -287,6 +292,7 @@ def _knowledge_base_view(row: KnowledgeBase) -> KnowledgeBaseView:
         id=row.id,
         owner_id=row.owner_id,
         department_id=row.department_id,
+        tenant_id=row.tenant_id,
         name=row.name,
         normalized_name=row.normalized_name,
         description=row.description,

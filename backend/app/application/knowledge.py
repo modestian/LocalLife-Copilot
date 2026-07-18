@@ -25,6 +25,7 @@ class KnowledgeBaseInput:
     name: str
     embedding_model_version_id: UUID
     department_id: UUID | None = None
+    tenant_id: UUID | None = None
     description: str | None = None
     chunk_size: int = 500
     chunk_overlap: int = 80
@@ -36,6 +37,8 @@ class KnowledgeBasePatch:
     description: str | None = None
     chunk_size: int | None = None
     chunk_overlap: int | None = None
+    tenant_id: UUID | None = None
+    department_id: UUID | None = None
     status: str | None = None
 
 
@@ -48,6 +51,7 @@ class KnowledgeBaseView:
     status: str
     version: int
     department_id: UUID | None = None
+    tenant_id: UUID | None = None
     description: str | None = None
 
 

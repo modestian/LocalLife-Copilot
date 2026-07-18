@@ -38,15 +38,20 @@ JSON_TYPE = JSON().with_variant(mysql.JSON(), "mysql")
 class KnowledgeBase(TimestampMixin, VersionMixin, Base):
     __tablename__ = "knowledge_bases"
     __table_args__ = (
-        UniqueConstraint("department_id", "normalized_name", "status", name="uq_kb_name_status"),
+        UniqueConstraint("tenant_id", "normalized_name", "status", name="uq_kb_name_status"),
         CheckConstraint("chunk_size BETWEEN 100 AND 4000", name="chunk_size"),
         CheckConstraint("chunk_overlap < chunk_size", name="overlap"),
         CheckConstraint("status IN ('ACTIVE', 'ARCHIVED', 'DELETED')", name="status"),
-        Index("ix_kb_department_status", "department_id", "status", "created_at"),
+        Index("ix_kb_tenant_status", "tenant_id", "status", "created_at"),
         MYSQL_TABLE_OPTIONS,
     )
 
     id: Mapped[UUID] = mapped_column(UUIDBinary(), primary_key=True, default=uuid7)
+    tenant_id: Mapped[UUID | None] = mapped_column(
+        UUIDBinary(),
+        ForeignKey("departments.id", name="fk_kb_tenant", ondelete="SET NULL"),
+        nullable=True,
+    )
     department_id: Mapped[UUID | None] = mapped_column(
         UUIDBinary(),
         ForeignKey("departments.id", name="fk_kb_department", ondelete="SET NULL"),

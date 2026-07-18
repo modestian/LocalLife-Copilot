@@ -26,11 +26,12 @@ class InMemoryKnowledgeRepository:
         self.documents: dict[UUID, DocumentView] = {}
         self.versions: dict[UUID, list[DocumentVersionView]] = {}
 
-    async def create_knowledge_base(self, payload: KnowledgeBaseInput) -> KnowledgeBaseView:
+        async def create_knowledge_base(self, payload: KnowledgeBaseInput) -> KnowledgeBaseView:
         row = KnowledgeBaseView(
             id=uuid7(),
             owner_id=payload.owner_id,
             department_id=payload.department_id,
+            tenant_id=payload.tenant_id,
             name=payload.name.strip(),
             normalized_name=normalize_name(payload.name),
             description=payload.description,
@@ -46,7 +47,7 @@ class InMemoryKnowledgeRepository:
         rows = [row for row in self.knowledge_bases.values() if row.status != "DELETED"]
         return rows[offset : offset + limit]
 
-    async def update_knowledge_base(
+            async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
     ) -> KnowledgeBaseView:
         row = self._knowledge_base(knowledge_base_id)
@@ -57,7 +58,8 @@ class InMemoryKnowledgeRepository:
         updated = KnowledgeBaseView(
             id=row.id,
             owner_id=row.owner_id,
-            department_id=row.department_id,
+            department_id=patch.department_id if patch.department_id is not None else row.department_id,
+            tenant_id=patch.tenant_id if patch.tenant_id is not None else row.tenant_id,
             name=name,
             normalized_name=normalized_name,
             description=patch.description if patch.description is not None else row.description,
