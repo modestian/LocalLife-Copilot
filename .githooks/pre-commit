@@ -1,0 +1,21 @@
+#!/bin/sh
+set -eu
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root/backend"
+
+if [ -x "$repo_root/.venv/Scripts/python.exe" ]; then
+    run_python() { "$repo_root/.venv/Scripts/python.exe" "$@"; }
+elif [ -x "$repo_root/.venv/bin/python" ]; then
+    run_python() { "$repo_root/.venv/bin/python" "$@"; }
+elif command -v py >/dev/null 2>&1 && py -3.13 -c "import sys" >/dev/null 2>&1; then
+    run_python() { py -3.13 "$@"; }
+elif command -v python3.13 >/dev/null 2>&1; then
+    run_python() { python3.13 "$@"; }
+else
+    run_python() { python "$@"; }
+fi
+
+run_python -m ruff check .
+run_python -m ruff format --check .
+
