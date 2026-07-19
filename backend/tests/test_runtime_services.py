@@ -92,8 +92,14 @@ def test_api_lifespan_wires_authentication_and_authorization_services(monkeypatc
 
 def test_st102_runtime_routes_are_exposed() -> None:
     app = create_app(readiness_checks={}, settings=Settings())
+    # FastAPI 0.116 stores included routers as _IncludedRouter objects that
+    # lack ``.path`` / ``.methods`` attributes until the OpenAPI schema is
+    # generated.  Use the schema to obtain fully-resolved path/method pairs.
+    schema = app.openapi()
     operations = {
-        (route.path, method) for route in app.routes for method in getattr(route, "methods", set())
+        (path, method.upper())
+        for path, methods in schema.get("paths", {}).items()
+        for method in methods
     }
 
     expected = {
