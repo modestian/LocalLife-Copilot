@@ -184,8 +184,9 @@ git commit
 # 5. 检查最近一次提交
 git log -1 --stat
 
-# 6. 同步远程更新
-git pull --rebase
+# 6. 首次 Push 前同步最新 main
+git fetch origin
+git rebase origin/main
 
 # 7. 推送
 git push
@@ -746,6 +747,14 @@ git add <已解决的文件>
 git rebase --continue
 git push
 ```
+
+### 只有一个人开发仍出现 non-fast-forward
+
+Git 根据 Commit ID 和父子关系判断能否快进，与修改文档的人数无关。第一次 Push 后，如果本地执行 `git rebase origin/main`、`git commit --amend`、`git reset`、`cherry-pick`，或从另一 clone 重新提交，已经 Push 的 Commit 可能被重写为新的 Commit ID。此时远端保留旧历史，本地持有新历史，第二次普通 Push 就会被拒绝。
+
+已 Push 的任务分支默认使用 `git fetch origin` 后 `git merge origin/main` 同步主分支。只有尚未 Push 的提交才可直接 Rebase 后普通 Push；已经 Push 的个人独占分支若 Rebase，必须先确认远端没有他人或其他终端产生的新提交，随后按规范使用 `git push --force-with-lease`，不得使用 `git push --force`。
+
+完整图示、识别命令和两种恢复方式见 [Push 被远端拒绝](Git提交与推送示例.md#9-push-被远端拒绝)。
 
 ### 分支名写错
 
