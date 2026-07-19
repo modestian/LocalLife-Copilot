@@ -27,6 +27,7 @@ class FakeSession:
         self.scalar_result = scalar
         self.rows = rows or []
         self.statements: list[Any] = []
+        self.added: list[Any] = []
 
     async def __aenter__(self) -> "FakeSession":
         return self
@@ -46,10 +47,15 @@ class FakeSession:
         return ScalarRows(self.rows)
 
     async def flush(self) -> None:
+        for row in self.added:
+            if isinstance(row, AsyncTask) and row.id is None:
+                row.id = uuid7()
+            if isinstance(row, OutboxEvent) and row.event_id is None:
+                row.event_id = uuid7()
         return None
 
-    def add(self, _: object) -> None:
-        return None
+    def add(self, row: object) -> None:
+        self.added.append(row)
 
 
 class FakeSessionFactory:
@@ -80,6 +86,27 @@ def task_row(**overrides: Any) -> AsyncTask:
     }
     values.update(overrides)
     return AsyncTask(**values)
+
+
+@pytest.mark.asyncio
+async def test_task_and_dispatch_event_are_created_in_one_transaction() -> None:
+    session = FakeSession()
+    repository = SQLAlchemyTaskRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+    resource_id = uuid7()
+
+    task_id = await repository.create_with_outbox(
+        task_type="INGEST",
+        resource_type="DOCUMENT",
+        resource_id=resource_id,
+        event_type="knowledge.ingest",
+    )
+
+    task, event = session.added
+    assert isinstance(task, AsyncTask)
+    assert isinstance(event, OutboxEvent)
+    assert task.id == task_id
+    assert event.aggregate_id == task_id
+    assert event.payload_json == {"task_id": str(task_id)}
 
 
 @pytest.mark.asyncio

@@ -1,9 +1,11 @@
+import asyncio
 from uuid import UUID
 
 from celery import Celery
 from opensearchpy import OpenSearch
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import get_settings
@@ -11,6 +13,7 @@ from app.etl.adapters import LocalSourceStorage, OpenSearchProjection
 from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.etl.lifecycle import LifecycleRepository, TaskOperation, WorkerLifecycleService
 from app.infrastructure.db.repositories.lifecycle import SQLAlchemyLifecycleRepository
+from app.infrastructure.db.repositories.tasks import SQLAlchemyOutboxRepository
 
 settings = get_settings()
 
@@ -25,12 +28,51 @@ celery_app.conf.update(
     accept_content=["json"],
     result_serializer="json",
     timezone="UTC",
+    beat_schedule={
+        "publish-outbox-events": {
+            "task": "system.publish_outbox",
+            "schedule": 5.0,
+        }
+    },
 )
 
 
 @celery_app.task(name="system.ping")
 def ping() -> str:
     return _ping_impl()
+
+
+@celery_app.task(name="system.publish_outbox")
+def publish_outbox() -> dict[str, int]:
+    """Drain committed Outbox rows; failed dispatches remain eligible for retry."""
+    return asyncio.run(_publish_outbox())
+
+
+async def _publish_outbox() -> dict[str, int]:
+    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    repository = SQLAlchemyOutboxRepository(async_sessionmaker(engine, expire_on_commit=False))
+    published = 0
+    failed = 0
+    publisher_id = "celery-outbox-publisher"
+    try:
+        claims = await repository.claim_batch(publisher_id=publisher_id, limit=100)
+        for claim in claims:
+            try:
+                task_id = str(claim.payload["task_id"])
+                celery_app.send_task(claim.event_type, args=[task_id])
+            except Exception as exc:
+                failed += 1
+                await repository.mark_failed(
+                    claim.event_id,
+                    publisher_id=publisher_id,
+                    error_message=str(exc),
+                )
+            else:
+                if await repository.mark_published(claim.event_id, publisher_id=publisher_id):
+                    published += 1
+    finally:
+        await engine.dispose()
+    return {"published": published, "failed": failed}
 
 
 _lifecycle_service: WorkerLifecycleService | None = None

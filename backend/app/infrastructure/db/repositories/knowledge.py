@@ -29,6 +29,7 @@ class SQLAlchemyKnowledgeRepository:
     async def create_knowledge_base(self, payload: KnowledgeBaseInput) -> KnowledgeBaseView:
         async with self._session_factory() as session, session.begin():
             row = KnowledgeBase(
+                tenant_id=payload.tenant_id,
                 owner_id=payload.owner_id,
                 department_id=payload.department_id,
                 name=payload.name.strip(),
@@ -60,6 +61,10 @@ class SQLAlchemyKnowledgeRepository:
                 )
             ).all()
             return [_knowledge_base_view(row) for row in rows]
+
+    async def get_knowledge_base(self, knowledge_base_id: UUID) -> KnowledgeBaseView:
+        async with self._session_factory() as session:
+            return _knowledge_base_view(await _active_knowledge_base(session, knowledge_base_id))
 
     async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
@@ -151,6 +156,51 @@ class SQLAlchemyKnowledgeRepository:
                 )
             ).all()
             return [_document_view(row) for row in rows]
+
+    async def get_document(self, document_id: UUID) -> DocumentView:
+        async with self._session_factory() as session:
+            return _document_view(await _active_document(session, document_id))
+
+    async def get_document_knowledge_base_id(self, document_id: UUID) -> UUID:
+        async with self._session_factory() as session:
+            return (await _active_document(session, document_id)).knowledge_base_id
+
+    async def get_task_document_knowledge_base_id(self, document_id: UUID) -> UUID:
+        """Resolve task ownership even after its document was logically deleted."""
+        async with self._session_factory() as session:
+            knowledge_base_id = await session.scalar(
+                select(Document.knowledge_base_id).where(Document.id == document_id)
+            )
+            if knowledge_base_id is None:
+                raise DocumentNotFound("document not found")
+            return knowledge_base_id
+
+    async def list_document_versions(self, document_id: UUID) -> list[dict[str, object]]:
+        async with self._session_factory() as session:
+            await _active_document(session, document_id)
+            rows = (
+                await session.scalars(
+                    select(DocumentVersion)
+                    .where(DocumentVersion.document_id == document_id)
+                    .order_by(DocumentVersion.version_no.desc())
+                )
+            ).all()
+            return [
+                {
+                    "id": row.id,
+                    "version_no": row.version_no,
+                    "file_uri": row.file_uri,
+                    "file_sha256": row.file_sha256,
+                    "file_size": row.file_size,
+                    "parser_name": row.parser_name,
+                    "parser_version": row.parser_version,
+                    "cleaning_config": dict(row.cleaning_config_json),
+                    "splitter_config": dict(row.splitter_config_json),
+                    "is_current": row.is_current,
+                    "created_at": row.created_at,
+                }
+                for row in rows
+            ]
 
     async def update_document(self, document_id: UUID, patch: DocumentPatch) -> DocumentView:
         async with self._session_factory() as session, session.begin():
@@ -289,6 +339,7 @@ async def _mark_current_version(
 def _knowledge_base_view(row: KnowledgeBase) -> KnowledgeBaseView:
     return KnowledgeBaseView(
         id=row.id,
+        tenant_id=row.tenant_id,
         owner_id=row.owner_id,
         department_id=row.department_id,
         name=row.name,
