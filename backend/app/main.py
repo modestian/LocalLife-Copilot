@@ -13,21 +13,29 @@ from app.api.analytics import compare_router as analytics_compare_router
 from app.api.analytics import reviews_router as analytics_reviews_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
+from app.api.conversations import router as conversations_router
 from app.api.feedback import router as feedback_router
 from app.api.health import router as health_router
+from app.api.knowledge import router as knowledge_router
 from app.api.search import router as search_router
+from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
 from app.application.analytics import AnalyticsService
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
+from app.application.knowledge import KnowledgeService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
 from app.core.readiness import ReadinessCheck, build_readiness_checks
 from app.core.security import AccessTokenService, PasswordService
 from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
+from app.infrastructure.cache.conversations import RedisConversationMemory
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
 from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
+from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
+from app.infrastructure.db.repositories.knowledge import SQLAlchemyKnowledgeRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
+from app.infrastructure.db.repositories.tasks import SQLAlchemyTaskRepository
 from app.infrastructure.search.pipeline import HybridSearchService
 from app.infrastructure.search.retrieval import OpenSearchDualRetriever
 from app.infrastructure.search.service import HybridRecallService
@@ -62,13 +70,25 @@ def create_app(
             access_tokens,
             refresh_ttl=timedelta(days=app_settings.refresh_token_ttl_days),
         )
+        authorization_repository = SQLAlchemyAuthorizationRepository(session_factory)
+        app.state.authorization_repository = authorization_repository
         app.state.authorization_service = AuthorizationService(
-            SQLAlchemyAuthorizationRepository(session_factory),
+            authorization_repository,
             access_tokens,
         )
         # FeedbackService will be wired when SQLAlchemyFeedbackRepository is ready;
         # tests inject InMemoryFeedbackRepository via app.state.feedback_service.
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
+        knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
+        conversation_repository = SQLAlchemyConversationRepository(session_factory)
+        app.state.knowledge_repository = knowledge_repository
+        app.state.knowledge_service = KnowledgeService(knowledge_repository)
+        app.state.task_repository = SQLAlchemyTaskRepository(session_factory)
+        app.state.conversation_repository = conversation_repository
+        app.state.conversation_memory = RedisConversationMemory(
+            conversation_repository,
+            redis_client,
+        )
         opensearch_client = OpenSearch(app_settings.opensearch_url)
         embedding_provider = HttpEmbeddingProvider(
             app_settings.model_gateway_embedding_url,
@@ -122,9 +142,12 @@ def create_app(
     app.include_router(analytics_business_router, prefix=app_settings.api_v1_prefix)
     app.include_router(analytics_reviews_router, prefix=app_settings.api_v1_prefix)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(conversations_router, prefix=app_settings.api_v1_prefix)
     app.include_router(feedback_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     app.include_router(search_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(knowledge_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(tasks_router, prefix=app_settings.api_v1_prefix)
     return app
 
 

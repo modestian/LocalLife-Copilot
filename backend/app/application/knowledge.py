@@ -113,6 +113,8 @@ class KnowledgeRepository(Protocol):
         self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[KnowledgeBaseView]: ...
 
+    async def get_knowledge_base(self, knowledge_base_id: UUID) -> KnowledgeBaseView: ...
+
     async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
     ) -> KnowledgeBaseView: ...
@@ -124,6 +126,8 @@ class KnowledgeRepository(Protocol):
     async def list_documents(
         self, knowledge_base_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[DocumentView]: ...
+
+    async def get_document(self, document_id: UUID) -> DocumentView: ...
 
     async def update_document(self, document_id: UUID, patch: DocumentPatch) -> DocumentView: ...
 
@@ -154,6 +158,9 @@ class KnowledgeService:
             tenant_id, limit=_validate_limit(limit), offset=_validate_offset(offset)
         )
 
+    async def get_knowledge_base(self, knowledge_base_id: UUID) -> KnowledgeBaseView:
+        return await self._repository.get_knowledge_base(knowledge_base_id)
+
     async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
     ) -> KnowledgeBaseView:
@@ -178,6 +185,9 @@ class KnowledgeService:
         return await self._repository.list_documents(
             knowledge_base_id, limit=_validate_limit(limit), offset=_validate_offset(offset)
         )
+
+    async def get_document(self, document_id: UUID) -> DocumentView:
+        return await self._repository.get_document(document_id)
 
     async def update_document(self, document_id: UUID, patch: DocumentPatch) -> DocumentView:
         if patch.display_name is not None:

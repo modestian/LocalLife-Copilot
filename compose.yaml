@@ -195,6 +195,8 @@ services:
         "--loglevel=INFO",
         "--hostname=worker@%h",
         "--concurrency=1",
+        "--beat",
+        "--schedule=/tmp/celerybeat-schedule",
       ]
     environment: *api-environment
     networks: [backend]
