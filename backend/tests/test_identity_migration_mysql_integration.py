@@ -4,28 +4,13 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
 
-IDENTITY_TABLES = {
-    "departments",
-    "permissions",
-    "refresh_tokens",
-    "resource_grants",
-    "role_permissions",
-    "roles",
-    "user_roles",
-    "users",
-}
+from app.infrastructure.db import Base
+from app.infrastructure.db import models as db_models  # noqa: F401
 
-KNOWLEDGE_METADATA_TABLES = {
-    "chunks",
-    "document_versions",
-    "documents",
-    "knowledge_bases",
-}
-
-TASK_EVENT_TABLES = {"async_tasks", "outbox_events"}
-CONVERSATION_TABLES = {"conversations", "message_sources", "messages"}
+EXPECTED_TABLES = set(Base.metadata.tables)
 
 
 @pytest.mark.skipif(
@@ -35,33 +20,26 @@ CONVERSATION_TABLES = {"conversations", "message_sources", "messages"}
 def test_mysql_identity_migration_supports_downgrade_and_reupgrade() -> None:
     database_url = os.environ["MIGRATION_DATABASE_URL"]
     config = Config(str(Path(__file__).parents[1] / "alembic.ini"))
+    expected_revision = ScriptDirectory.from_config(config).get_current_head()
+    assert expected_revision is not None
     engine = create_engine(database_url, pool_pre_ping=True)
 
     try:
         command.upgrade(config, "head")
-        assert IDENTITY_TABLES <= set(inspect(engine).get_table_names())
-        assert KNOWLEDGE_METADATA_TABLES <= set(inspect(engine).get_table_names())
-        assert TASK_EVENT_TABLES <= set(inspect(engine).get_table_names())
-        assert CONVERSATION_TABLES <= set(inspect(engine).get_table_names())
+        assert EXPECTED_TABLES <= set(inspect(engine).get_table_names())
 
         command.downgrade(config, "20260715_0001")
         table_names = set(inspect(engine).get_table_names())
-        assert IDENTITY_TABLES.isdisjoint(table_names)
-        assert KNOWLEDGE_METADATA_TABLES.isdisjoint(table_names)
-        assert TASK_EVENT_TABLES.isdisjoint(table_names)
-        assert CONVERSATION_TABLES.isdisjoint(table_names)
+        assert EXPECTED_TABLES.isdisjoint(table_names)
 
         command.upgrade(config, "head")
         table_names = set(inspect(engine).get_table_names())
-        assert IDENTITY_TABLES <= table_names
-        assert KNOWLEDGE_METADATA_TABLES <= table_names
-        assert TASK_EVENT_TABLES <= table_names
-        assert CONVERSATION_TABLES <= table_names
+        assert EXPECTED_TABLES <= table_names
         with engine.connect() as connection:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260719_0006"
+        assert revision == expected_revision
     finally:
         # Leave the shared CI/local integration database at head even if an assertion fails.
         command.upgrade(config, "head")
