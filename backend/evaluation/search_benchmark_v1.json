@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "dataset_version": "tk-202-06-v1",
+  "description": "TK-202-06 固定检索评测集；语料与查询仅使用虚构商家，不含真实用户数据。",
+  "scope": {
+    "tenant_id": "0190c4d2-7f20-7b31-9f75-8f6cc8e2b201",
+    "knowledge_base_id": "0190c4d2-7f20-7b31-9f75-8f6cc8e2b202"
+  },
+  "documents": [
+    {"merchant_id":"eval-m01","content":"青禾咖啡馆环境安静，有四人桌和插座，适合小组讨论，人均消费五十五元。","category_ids":["咖啡馆"],"price_cent":5500},
+    {"merchant_id":"eval-m02","content":"云岚川菜馆主打麻辣水煮鱼和辣子鸡，包间可坐八人，人均消费八十八元。","category_ids":["川菜"],"price_cent":8800},
+    {"merchant_id":"eval-m03","content":"木棉甜品店供应低糖蛋糕和鲜果茶，临街座位适合拍照，人均消费四十二元。","category_ids":["甜品"],"price_cent":4200},
+    {"merchant_id":"eval-m04","content":"星河火锅店营业到凌晨两点，鸳鸯锅底和夜宵套餐充足，人均消费九十九元。","category_ids":["火锅"],"price_cent":9900},
+    {"merchant_id":"eval-m05","content":"竹里素食餐厅提供纯素套餐、菌菇汤和无蛋奶甜点，环境清雅，人均消费六十八元。","category_ids":["素食"],"price_cent":6800},
+    {"merchant_id":"eval-m06","content":"海风亲子餐厅有儿童座椅、绘本区和不辣儿童餐，适合带孩子聚餐，人均消费七十五元。","category_ids":["亲子餐厅"],"price_cent":7500},
+    {"merchant_id":"eval-m07","content":"巷口面馆供应清汤牛肉面，出餐快速，早上六点开始营业，人均消费二十八元。","category_ids":["面馆"],"price_cent":2800},
+    {"merchant_id":"eval-m08","content":"拾光西餐厅灯光柔和，有双人靠窗位和纪念日套餐，适合情侣约会，人均消费一百六十元。","category_ids":["西餐"],"price_cent":16000},
+    {"merchant_id":"eval-m09","content":"稻香粤菜馆供应早茶点心、虾饺和叉烧包，设有十人圆桌，人均消费八十二元。","category_ids":["粤菜"],"price_cent":8200},
+    {"merchant_id":"eval-m10","content":"山野烧烤店提供露台座位、羊肉串和精酿啤酒，适合朋友夜间聚会，人均消费九十元。","category_ids":["烧烤"],"price_cent":9000},
+    {"merchant_id":"eval-m11","content":"清波茶馆设有独立安静茶室，供应盖碗茶，可预约商务会谈，人均消费六十元。","category_ids":["茶馆"],"price_cent":6000},
+    {"merchant_id":"eval-m12","content":"北辰烘焙坊早晨现烤可颂和全麦面包，支持外带，七点开始营业，人均消费三十五元。","category_ids":["烘焙"],"price_cent":3500}
+  ],
+  "cases": [
+    {"id":"q01","query":"安静适合四个人讨论还有插座的咖啡馆","relevant_merchant_ids":["eval-m01"]},
+    {"id":"q02","query":"人均六十元以内的小组讨论咖啡店","relevant_merchant_ids":["eval-m01"]},
+    {"id":"q03","query":"想吃水煮鱼和辣子鸡的川菜馆","relevant_merchant_ids":["eval-m02"]},
+    {"id":"q04","query":"八个人聚餐有包间的麻辣川菜","relevant_merchant_ids":["eval-m02"]},
+    {"id":"q05","query":"低糖蛋糕鲜果茶适合拍照","relevant_merchant_ids":["eval-m03"]},
+    {"id":"q06","query":"凌晨还能吃鸳鸯锅的夜宵火锅","relevant_merchant_ids":["eval-m04"]},
+    {"id":"q07","query":"纯素无蛋奶甜点和菌菇汤","relevant_merchant_ids":["eval-m05"]},
+    {"id":"q08","query":"带小孩吃饭需要儿童座椅和绘本区","relevant_merchant_ids":["eval-m06"]},
+    {"id":"q09","query":"早上六点营业出餐快的牛肉面","relevant_merchant_ids":["eval-m07"]},
+    {"id":"q10","query":"情侣纪念日靠窗双人位西餐","relevant_merchant_ids":["eval-m08"]},
+    {"id":"q11","query":"十个人吃早茶虾饺叉烧包","relevant_merchant_ids":["eval-m09"]},
+    {"id":"q12","query":"露台烧烤羊肉串和精酿啤酒","relevant_merchant_ids":["eval-m10"]},
+    {"id":"q13","query":"安静独立茶室适合商务会谈","relevant_merchant_ids":["eval-m11"]},
+    {"id":"q14","query":"早晨七点买现烤可颂全麦面包","relevant_merchant_ids":["eval-m12"]},
+    {"id":"q15","query":"预算三十元左右的早餐","relevant_merchant_ids":["eval-m07","eval-m12"]},
+    {"id":"q16","query":"适合朋友夜间聚会的地方","relevant_merchant_ids":["eval-m04","eval-m10"]},
+    {"id":"q17","query":"环境清雅的人均七十元素食套餐","relevant_merchant_ids":["eval-m05"]},
+    {"id":"q18","query":"有十人圆桌的粤式点心店","relevant_merchant_ids":["eval-m09"]},
+    {"id":"q19","query":"人均四十元左右可以外带的早餐烘焙","relevant_merchant_ids":["eval-m12"]},
+    {"id":"q20","query":"有儿童餐且口味不辣的亲子聚餐","relevant_merchant_ids":["eval-m06"]}
+  ]
+}
