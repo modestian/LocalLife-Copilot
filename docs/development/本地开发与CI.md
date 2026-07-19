@@ -51,7 +51,7 @@ Nginx 是浏览器统一入口：
 
 本机后端开发与检查统一使用 Python 3.13.14；仓库根目录 `.python-version`、Docker 镜像和 CI 锁定该版本，后端包允许兼容的 Python 3.13 补丁版本。
 
-先安装后端开发依赖，确保 Python 3.13 环境中可以运行 Ruff、Pytest 和 pytest-cov：
+先确认 Hook 实际使用的 Python 3.13 解释器并安装后端开发依赖。Windows 上只要 `py -3.13` 可启动，Hook 就会优先使用它，即使当前已经激活 `.venv`：
 
 ```powershell
 cd backend
@@ -59,11 +59,15 @@ py -3.13 -m pip install -e ".[dev]"
 cd ..
 ```
 
+本机没有 `py`、但已激活 Python 3.13 虚拟环境时，把上述命令中的 `py -3.13` 替换为 `python`。
+
 首次检出仓库、重新创建 `.git` 目录或发现质量 Hook 缺失后，在仓库根目录安装：
 
 ```powershell
 py -3.13 scripts/install_git_hooks.py
 ```
+
+没有 `py` 时使用 `python scripts/install_git_hooks.py`。
 
 安装一次后，日常仍使用正常的 `git commit` 和 `git push`；`pre-commit`、`pre-push` 会自动执行对应检查，不需要每次额外输入 Hook 命令。完整的触发时序、检查范围、失败处理、解释器选择、Windows 临时目录处理和 Hook 更新方式见 [Git Hooks 自动质量门禁](Git协作规范.md#7-git-hooks-自动质量门禁)。不得使用 `--no-verify` 绕过质量门禁。
 

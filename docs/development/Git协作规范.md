@@ -252,10 +252,18 @@ Hook 有以下边界：
 
 ### 7.2 首次安装前准备
 
-后端开发和 Hook 统一使用 Python 3.13。Windows 推荐使用仓库约定的 `py -3.13`，安装 Hook 前先确认解释器和开发依赖可用：
+后端开发和 Hook 统一使用 Python 3.13。安装 Hook 前，先确认 Hook 实际会选择哪个解释器，并在同一个解释器中安装开发依赖：
 
 ```powershell
+Get-Command py -ErrorAction SilentlyContinue
+Get-Command python
 py -3.13 --version
+python --version
+```
+
+Windows 上只要 PATH 中的 `py -3.13` 能启动，当前 Hook 就会优先使用它；即使 PowerShell 提示符已经显示 `(.venv)`，Hook 也不会自动优先使用该虚拟环境。此时应把依赖安装到 `py -3.13` 对应的解释器：
+
+```powershell
 cd backend
 py -3.13 -m pip install -e ".[dev]"
 cd ..
@@ -268,14 +276,32 @@ py -3.13 -m ruff --version
 py -3.13 -m pytest --version
 ```
 
-Linux/macOS 可使用 `python3.13`；如果系统没有上述命令，Hook 最后会尝试 PATH 中的 `python`。无论使用哪个命令，都必须确认它实际指向 Python 3.13 且已安装后端开发依赖，避免在 Commit 或 Push 时才发现缺少 Ruff、Pytest 或 pytest-cov。
+如果本机没有 `py`，Hook 会继续寻找 `python3.13`，最后使用 PATH 中的 `python`。激活 `.venv` 后可使用以下命令安装和验证：
+
+```powershell
+cd backend
+python -m pip install -e ".[dev]"
+python -m ruff --version
+python -m pytest --version
+cd ..
+```
+
+无论使用哪个命令，都必须确认它实际指向 Python 3.13 且已安装后端开发依赖，避免在 Commit 时出现 `No module named ruff`，或在 Push 时才发现缺少 Pytest、pytest-cov 和项目运行依赖。
 
 ### 7.3 安装和确认 Hook
 
 每次新 clone 仓库、重新创建 `.git` 目录或发现 `.git/hooks` 中缺少质量 Hook 时，在仓库根目录执行一次。普通 linked worktree 通常共享主克隆的 Git 目录和 Hook，不需要重复安装：
 
+Windows 上有 `py` 时执行：
+
 ```powershell
 py -3.13 scripts/install_git_hooks.py
+```
+
+没有 `py`、但已激活 Python 3.13 虚拟环境时执行：
+
+```powershell
+python scripts/install_git_hooks.py
 ```
 
 成功时会输出两个安装位置：
@@ -413,17 +439,24 @@ git push
 
 如果只是依赖缺失、临时目录权限、网络或其他本机环境问题，且代码和暂存区没有变化，修复环境后直接重新执行 `git push`，不需要创建空 Commit。
 
-Windows 上若 Pytest 的 `tmp_path` 因默认临时目录权限失败，可先选择一个当前用户可写的专用临时目录，再重试原命令：
+Windows 上若输出包含以下错误，说明测试代码尚未执行完成，问题来自 Pytest 默认临时目录权限：
+
+```text
+PermissionError: [WinError 5] 拒绝访问：...\Temp\pytest-of-<username>
+```
+
+即使摘要同时显示数百个测试通过，只要结尾存在 `ERROR`，本次门禁仍然失败。不要重新创建空 Commit；先选择一个当前用户可写、专用于本项目的临时目录，再重试原测试或 Push：
 
 ```powershell
 $gitHookTemp = Join-Path $env:LOCALAPPDATA "LocalLifeCopilot\Temp"
 New-Item -ItemType Directory -Force $gitHookTemp | Out-Null
 $env:TEMP = $gitHookTemp
 $env:TMP = $gitHookTemp
+python -c "import tempfile; print(tempfile.gettempdir())"
 git push
 ```
 
-该设置只影响当前 PowerShell 会话。不要因为环境问题使用 `git push --no-verify`。
+打印结果应为刚设置的目录。`TEMP` 和 `TMP` 会被 `git push` 启动的 `pre-push` 继承，该设置只影响当前 PowerShell 会话。如果 Push 曾被拦截，本地 Commit 仍然存在；环境修复后直接重试 `git push` 或首次推送命令即可。不要再次 `git add`、不要创建空 Commit，也不要使用 `git push --no-verify`。
 
 ### 7.7 解释器选择规则
 
@@ -433,7 +466,7 @@ git push
 2. 否则 PATH 中存在 `python3.13` 时，使用 `python3.13`；
 3. 否则使用 PATH 中的 `python`。
 
-选择规则只验证解释器能启动，不会提前验证 Ruff、Pytest 等包是否齐全。因此建议按 7.2 节先安装开发依赖并检查工具版本。团队成员不应通过修改 PATH 刻意跳过某个可用的质量环境；虚拟环境和系统解释器均可使用，但必须是 Python 3.13 且检查结果一致。
+选择规则只验证解释器能启动，不会提前验证 Ruff、Pytest 等包是否齐全。特别注意：激活 `.venv` 只会让 `python` 指向虚拟环境，并不会让优先级更高的 `py -3.13` 消失。因此建议按 7.2 节先识别实际解释器、安装开发依赖并检查工具版本。虚拟环境和系统解释器均可使用，但必须是 Python 3.13 且检查结果一致。
 
 ### 7.8 Hook 与 CI 的关系
 
@@ -643,6 +676,7 @@ git status
 
 # 4. 同步最新 `main` 并推送
 git status
+git fetch origin
 git rebase origin/main
 # 重新运行必要测试
 git push -u origin feat/tk-201-01-etl-contracts
@@ -766,61 +800,8 @@ Push 前确认：
 
 ---
 
-## 14. 团队统一命令模板
+## 14. 提交与推送示例
 
-### 新任务首次开发与 Push
-
-```bash
-git switch main
-git pull --ff-only origin main
-git switch -c feat/tk-201-01-etl-contracts
-
-git status
-git add <文件或目录>
-git diff --cached
-git commit
-git log -1 --stat
-git push -u origin feat/tk-201-01-etl-contracts
-git status
-```
-
-### 同一任务后续提交
-
-```bash
-git status
-git add <文件或目录>
-git diff --cached
-git commit
-git log -1 --stat
-git pull --rebase
-# 重新运行必要测试
-git push
-git status
-```
-
-### 合并后清理分支
-
-```bash
-git switch main
-git pull --ff-only origin main
-git branch -d feat/tk-201-01-etl-contracts
-git push origin --delete feat/tk-201-01-etl-contracts
-git fetch --prune
-```
-
----
-
-## 15. 统一提交示例
-
-```text
-分支：feat/tk-201-01-etl-contracts
-
-Commit：
-feat：定义知识摄取记录与处理端口
-
-1. 定义 DocumentRecord、ChunkRecord 和清洗状态约束。
-2. 定义 Loader、Cleaner、Splitter 可替换处理端口。
-3. 补充记录校验与端口契约自动化测试。
-```
+首次开发、后续提交、纯文档任务、Hook 失败恢复、Push 排障、Pull Request 和分支清理的可复制命令统一维护在 [Git 提交与推送示例](Git提交与推送示例.md)。
 
 通过统一分支命名、Commit Message、Rebase、Push 和分支清理流程，可以保持项目历史清晰、修改内容可追溯，并降低多人协作成本。
