@@ -230,7 +230,230 @@ git add -A
 
 ---
 
-## 7. 使用 Vi 编写 Commit Message
+## 7. Git Hooks 自动质量门禁
+
+### 7.1 Hook 的作用和边界
+
+仓库通过以下受版本控制的脚本统一本地质量门禁：
+
+- `scripts/git_hooks/pre-commit`：创建 Commit 前检查后端 Ruff lint 和 Ruff 格式；
+- `scripts/git_hooks/pre-push`：Push 前再次执行 Ruff，并运行完整后端测试及 70% 覆盖率门禁；
+- `scripts/install_git_hooks.py`：把上述脚本安装到当前克隆的 `.git/hooks`。
+
+Hook 安装后，日常 Git 命令不变。开发者仍然执行“创建分支 → 修改代码 → `git add` → `git commit` → `git push`”，检查会在对应 Git 命令内部自动触发，不需要每次手动运行 Hook 脚本。
+
+Hook 有以下边界：
+
+- Hook 只负责检查，不会代替开发者创建分支、暂存文件、生成 Commit 或 Push；
+- 当前 Hook 检查整个 `backend`，不只检查暂存文件，因此其他未完成的后端改动也可能导致门禁失败；
+- 当前 Hook 不执行前端 ESLint、Vitest 和构建，涉及前端的任务仍需按[本地开发与 CI 基线](本地开发与CI.md#本地检查)手动检查，CI 会执行完整前端门禁；
+- Hook 不替代 CI，空 MySQL 库迁移、Compose 策略、镜像构建等仍由 CI 验证；
+- 不得使用 `--no-verify` 绕过 `pre-commit` 或 `pre-push`。
+
+### 7.2 首次安装前准备
+
+后端开发和 Hook 统一使用 Python 3.13。Windows 推荐使用仓库约定的 `py -3.13`，安装 Hook 前先确认解释器和开发依赖可用：
+
+```powershell
+py -3.13 --version
+cd backend
+py -3.13 -m pip install -e ".[dev]"
+cd ..
+```
+
+至少应能正常执行：
+
+```powershell
+py -3.13 -m ruff --version
+py -3.13 -m pytest --version
+```
+
+Linux/macOS 可使用 `python3.13`；如果系统没有上述命令，Hook 最后会尝试 PATH 中的 `python`。无论使用哪个命令，都必须确认它实际指向 Python 3.13 且已安装后端开发依赖，避免在 Commit 或 Push 时才发现缺少 Ruff、Pytest 或 pytest-cov。
+
+### 7.3 安装和确认 Hook
+
+每次新 clone 仓库、重新创建 `.git` 目录或发现 `.git/hooks` 中缺少质量 Hook 时，在仓库根目录执行一次。普通 linked worktree 通常共享主克隆的 Git 目录和 Hook，不需要重复安装：
+
+```powershell
+py -3.13 scripts/install_git_hooks.py
+```
+
+成功时会输出两个安装位置：
+
+```text
+Installed pre-commit: <repository>/.git/hooks/pre-commit
+Installed pre-push: <repository>/.git/hooks/pre-push
+```
+
+可以用 Git 解析实际 Hook 路径并确认文件存在：
+
+```powershell
+git rev-parse --path-format=absolute --git-path hooks/pre-commit
+git rev-parse --path-format=absolute --git-path hooks/pre-push
+```
+
+`.git/hooks` 不进入版本控制，因此仅在一台电脑安装不会自动同步到其他电脑。
+
+安装器不会静默覆盖内容不同的现有 Hook。如果出现 `Refusing to overwrite existing hook`：
+
+1. 比较 `.git/hooks/<hook-name>` 和 `scripts/git_hooks/<hook-name>`；
+2. 先备份并确认现有 Hook 是否含个人或其他工具逻辑；
+3. 有自定义逻辑时手动合并，保证仓库质量检查仍会执行；
+4. 确认旧文件只是上一版仓库 Hook 时，移走旧文件后重新运行安装器。
+
+从远端拉取到 Hook 脚本更新后，也应重新比较并同步本地 `.git/hooks`，不要假设已安装的副本会自动更新。
+
+### 7.4 日常命令之间会发生什么
+
+完整时序如下：
+
+```text
+git add <本任务文件>
+  └─ 只更新暂存区，不触发当前两个 Hook
+
+git commit
+  ├─ 自动执行 pre-commit
+  │   ├─ Ruff lint：ruff check .
+  │   └─ Ruff 格式检查：ruff format --check .
+  ├─ 检查通过：创建 Commit
+  └─ 检查失败：取消 Commit，暂存区和工作区保留，修复后重新提交
+
+git push
+  ├─ 自动执行 pre-push
+  │   ├─ Ruff lint：ruff check .
+  │   ├─ Ruff 格式检查：ruff format --check .
+  │   └─ 完整 Pytest + 覆盖率：pytest --cov=app --cov-report=term-missing --cov-fail-under=70
+  ├─ 检查通过：向远端发送 Commit
+  └─ 检查失败：取消 Push，本地 Commit 保留，修复后重新推送
+```
+
+常用 Git 命令与当前仓库 Hook 的关系：
+
+| 命令 | 是否触发当前 Hook | 说明 |
+| --- | :---: | --- |
+| `git switch` / `git branch` | 否 | 只创建或切换分支，仍需开发者主动从最新 `main` 建分支 |
+| `git pull` / `git fetch` | 否 | 只同步远端；若拉取到 Hook 脚本更新，需按 7.3 节同步本地副本 |
+| `git add` | 否 | 只更新暂存区，提交前仍要主动检查 `git diff --cached` |
+| `git commit` | 是 | 在 Commit 写入历史前触发 `pre-commit` |
+| `git push` | 是 | 在对象发送到远端前触发 `pre-push` |
+
+因此，正常开发不需要增加新的日常命令：
+
+```powershell
+git switch main
+git pull --ff-only origin main
+git switch -c feat/tk-xxx-xx-description
+
+# 修改代码
+
+git status
+git add <本任务文件>
+git diff --cached
+git commit
+git push -u origin feat/tk-xxx-xx-description
+```
+
+同一分支第二次及后续 Push 通常只需：
+
+```powershell
+git push
+```
+
+### 7.5 pre-commit 失败后的处理
+
+常见输出包括 lint 错误、导入顺序错误或 `Would reformat`。可以在 `backend` 目录中复现和修复：
+
+```powershell
+cd backend
+py -3.13 -m ruff check .
+py -3.13 -m ruff format --check .
+```
+
+确认是安全的机械修复后，可执行：
+
+```powershell
+py -3.13 -m ruff check . --fix
+py -3.13 -m ruff format .
+```
+
+然后检查格式化是否触及其他任务文件，只重新暂存本任务需要提交的内容：
+
+```powershell
+cd ..
+git status
+git diff
+git add <修复后的本任务文件>
+git diff --cached
+git commit
+```
+
+Hook 失败不会创建“半个 Commit”。如果提交日志中没有新记录，修复后重新执行 `git commit` 即可。
+
+### 7.6 pre-push 失败后的处理
+
+Push 被拦截后，本地 Commit 不会丢失，远端也不会收到不完整提交。先根据输出判断失败类型。
+
+代码或测试失败时，在 `backend` 目录复现：
+
+```powershell
+cd backend
+py -3.13 -m ruff check .
+py -3.13 -m ruff format --check .
+py -3.13 -m pytest --cov=app --cov-report=term-missing --cov-fail-under=70
+```
+
+如果修复产生代码变化，需要创建新的 Commit，然后再次 Push：
+
+```powershell
+cd ..
+git add <修复文件>
+git commit
+git push
+```
+
+如果只是依赖缺失、临时目录权限、网络或其他本机环境问题，且代码和暂存区没有变化，修复环境后直接重新执行 `git push`，不需要创建空 Commit。
+
+Windows 上若 Pytest 的 `tmp_path` 因默认临时目录权限失败，可先选择一个当前用户可写的专用临时目录，再重试原命令：
+
+```powershell
+$gitHookTemp = Join-Path $env:LOCALAPPDATA "LocalLifeCopilot\Temp"
+New-Item -ItemType Directory -Force $gitHookTemp | Out-Null
+$env:TEMP = $gitHookTemp
+$env:TMP = $gitHookTemp
+git push
+```
+
+该设置只影响当前 PowerShell 会话。不要因为环境问题使用 `git push --no-verify`。
+
+### 7.7 解释器选择规则
+
+两个 Hook 使用相同的解释器选择顺序：
+
+1. PATH 中存在 `py` 且 `py -3.13` 可启动时，使用 `py -3.13`；
+2. 否则 PATH 中存在 `python3.13` 时，使用 `python3.13`；
+3. 否则使用 PATH 中的 `python`。
+
+选择规则只验证解释器能启动，不会提前验证 Ruff、Pytest 等包是否齐全。因此建议按 7.2 节先安装开发依赖并检查工具版本。团队成员不应通过修改 PATH 刻意跳过某个可用的质量环境；虚拟环境和系统解释器均可使用，但必须是 Python 3.13 且检查结果一致。
+
+### 7.8 Hook 与 CI 的关系
+
+Hook 是本地快速反馈，CI 是远端最终门禁：
+
+| 检查项 | pre-commit | pre-push | CI |
+| --- | :---: | :---: | :---: |
+| 后端 Ruff lint | 是 | 是 | 是 |
+| 后端 Ruff 格式检查 | 是 | 是 | 是 |
+| 后端完整 Pytest | 否 | 是 | 是 |
+| 后端覆盖率 ≥ 70% | 否 | 是 | 是 |
+| 空 MySQL 库 Alembic 迁移 | 否 | 否 | 是 |
+| 前端 ESLint、Vitest、生产构建 | 否 | 否 | 是 |
+| Compose 策略和镜像构建 | 否 | 否 | 是 |
+
+Push 成功只表示本地 `pre-push` 通过，不代表 Pull Request 的全部 CI 已通过。创建 PR 后仍需等待并检查远端质量门禁。
+
+---
+
+## 8. 使用 Vi 编写 Commit Message
 
 首次使用前可配置编辑器：
 
@@ -260,7 +483,7 @@ git commit
 
 ---
 
-## 8. Rebase 使用规范
+## 9. Rebase 使用规范
 
 `git pull --rebase` 会先获取远程最新提交，再把本地尚未推送的提交依次放到最新提交之后，使提交历史更加清晰。
 
@@ -319,7 +542,7 @@ git push --force
 
 ---
 
-## 9. Push、合并与分支清理
+## 10. Push、合并与分支清理
 
 Push 只负责把本地提交上传到远程，不会自动完成合并，也不会自动删除分支。
 
@@ -365,7 +588,7 @@ git fetch --prune
 
 ---
 
-## 10. 多个任务同时存在时
+## 11. 多个任务同时存在时
 
 如果工作区同时包含多个相对独立的任务，不要使用 `git add .` 将它们混入同一个 Commit。
 
@@ -450,7 +673,7 @@ git fetch --prune
 
 ---
 
-## 11. 常见问题
+## 12. 常见问题
 
 ### Commit Message 写错
 
@@ -519,7 +742,7 @@ git status
 
 ---
 
-## 12. 提交与 Push 检查清单
+## 13. 提交与 Push 检查清单
 
 提交前确认：
 
@@ -543,7 +766,7 @@ Push 前确认：
 
 ---
 
-## 13. 团队统一命令模板
+## 14. 团队统一命令模板
 
 ### 新任务首次开发与 Push
 
@@ -587,7 +810,7 @@ git fetch --prune
 
 ---
 
-## 14. 统一提交示例
+## 15. 统一提交示例
 
 ```text
 分支：feat/tk-201-01-etl-contracts
