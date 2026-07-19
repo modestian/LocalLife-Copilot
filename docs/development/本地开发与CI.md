@@ -51,6 +51,16 @@ Nginx 是浏览器统一入口：
 
 本机后端开发与检查统一使用 Python 3.13.14；仓库根目录 `.python-version`、Docker 镜像和 CI 锁定该版本，后端包允许兼容的 Python 3.13 补丁版本。
 
+首次检出仓库或重新创建 `.git` 目录后，在仓库根目录安装质量检查 Hook：
+
+```powershell
+py -3.13 scripts/install_git_hooks.py
+```
+
+- `pre-commit` 在创建提交前执行后端 Ruff lint 和格式检查，失败时阻止提交。
+- `pre-push` 在推送前再次执行 Ruff、完整后端测试和 70% 覆盖率门禁，失败时阻止推送。
+- Hook 不替代 CI；空 MySQL 库迁移仍由 CI 执行。不得使用 `--no-verify` 绕过质量门禁。
+
 后端：
 
 ```powershell
