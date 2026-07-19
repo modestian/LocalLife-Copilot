@@ -57,9 +57,7 @@ class RedisConversationMemory:
 
         loader = getattr(self._repository, "list_recent_messages", None)
         if loader is not None:
-            messages = await loader(
-                conversation_id, owner_user_id, limit=self._window_size
-            )
+            messages = await loader(conversation_id, owner_user_id, limit=self._window_size)
         else:
             messages = await self._repository.list_messages(
                 conversation_id, owner_user_id, limit=self._window_size
@@ -173,9 +171,7 @@ def _message_from_dict(value: dict[str, object]) -> MessageView:
                 content_snapshot=str(source["content_snapshot"]),
                 score=float(str(source["score"])) if source.get("score") is not None else None,
                 raw_score=(
-                    float(str(source["raw_score"]))
-                    if source.get("raw_score") is not None
-                    else None
+                    float(str(source["raw_score"])) if source.get("raw_score") is not None else None
                 ),
             )
             for source in value.get("sources", [])  # type: ignore[union-attr]

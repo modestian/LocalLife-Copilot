@@ -25,6 +25,7 @@ KNOWLEDGE_METADATA_TABLES = {
 }
 
 TASK_EVENT_TABLES = {"async_tasks", "outbox_events"}
+CONVERSATION_TABLES = {"conversations", "message_sources", "messages"}
 
 
 @pytest.mark.skipif(
@@ -41,23 +42,26 @@ def test_mysql_identity_migration_supports_downgrade_and_reupgrade() -> None:
         assert IDENTITY_TABLES <= set(inspect(engine).get_table_names())
         assert KNOWLEDGE_METADATA_TABLES <= set(inspect(engine).get_table_names())
         assert TASK_EVENT_TABLES <= set(inspect(engine).get_table_names())
+        assert CONVERSATION_TABLES <= set(inspect(engine).get_table_names())
 
         command.downgrade(config, "20260715_0001")
         table_names = set(inspect(engine).get_table_names())
         assert IDENTITY_TABLES.isdisjoint(table_names)
         assert KNOWLEDGE_METADATA_TABLES.isdisjoint(table_names)
         assert TASK_EVENT_TABLES.isdisjoint(table_names)
+        assert CONVERSATION_TABLES.isdisjoint(table_names)
 
         command.upgrade(config, "head")
         table_names = set(inspect(engine).get_table_names())
         assert IDENTITY_TABLES <= table_names
         assert KNOWLEDGE_METADATA_TABLES <= table_names
         assert TASK_EVENT_TABLES <= table_names
+        assert CONVERSATION_TABLES <= table_names
         with engine.connect() as connection:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260718_0005"
+        assert revision == "20260719_0006"
     finally:
         # Leave the shared CI/local integration database at head even if an assertion fails.
         command.upgrade(config, "head")

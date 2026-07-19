@@ -31,9 +31,7 @@ def timestamp_column(name: str, *, update: bool = False) -> sa.Column:
     default = "CURRENT_TIMESTAMP(6)"
     if update:
         default += " ON UPDATE CURRENT_TIMESTAMP(6)"
-    return sa.Column(
-        name, mysql.DATETIME(fsp=6), nullable=False, server_default=sa.text(default)
-    )
+    return sa.Column(name, mysql.DATETIME(fsp=6), nullable=False, server_default=sa.text(default))
 
 
 def upgrade() -> None:
@@ -51,9 +49,7 @@ def upgrade() -> None:
         timestamp_column("updated_at", update=True),
         sa.Column("deleted_at", mysql.DATETIME(fsp=6), nullable=True),
         sa.PrimaryKeyConstraint("id", name="pk_conversations"),
-        sa.ForeignKeyConstraint(
-            ["owner_user_id"], ["users.id"], name="fk_conversations_owner"
-        ),
+        sa.ForeignKeyConstraint(["owner_user_id"], ["users.id"], name="fk_conversations_owner"),
         sa.CheckConstraint(
             "status IN ('ACTIVE', 'ARCHIVED', 'DELETED')",
             name=op.f("ck_conversations_status"),
@@ -90,9 +86,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["conversation_id"], ["conversations.id"], name="fk_messages_conversation"
         ),
-        sa.ForeignKeyConstraint(
-            ["parent_message_id"], ["messages.id"], name="fk_messages_parent"
-        ),
+        sa.ForeignKeyConstraint(["parent_message_id"], ["messages.id"], name="fk_messages_parent"),
         sa.UniqueConstraint("conversation_id", "sequence_no", name="uq_messages_sequence"),
         sa.UniqueConstraint("conversation_id", "request_id", name="uq_messages_request"),
         sa.CheckConstraint(
@@ -122,9 +116,7 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["message_id"], ["messages.id"], name="fk_message_sources_message", ondelete="CASCADE"
         ),
-        sa.ForeignKeyConstraint(
-            ["chunk_id"], ["chunks.id"], name="fk_message_sources_chunk"
-        ),
+        sa.ForeignKeyConstraint(["chunk_id"], ["chunks.id"], name="fk_message_sources_chunk"),
         sa.UniqueConstraint("message_id", "rank_no", name="uq_message_sources_rank"),
         sa.CheckConstraint("rank_no > 0", name=op.f("ck_message_sources_rank_no")),
         **TABLE_OPTIONS,
