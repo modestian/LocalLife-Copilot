@@ -1,6 +1,12 @@
 """Database model registry imported by Alembic."""
 
 from app.infrastructure.db.models.conversations import Conversation, Message, MessageSource
+from app.infrastructure.db.models.feedback import (
+    Dataset,
+    DatasetItem,
+    Feedback,
+    FeedbackAudit,
+)
 from app.infrastructure.db.models.identity import (
     Department,
     Permission,
@@ -19,9 +25,13 @@ __all__ = [
     "AsyncTask",
     "Chunk",
     "Conversation",
+    "Dataset",
+    "DatasetItem",
     "Department",
     "Document",
     "DocumentVersion",
+    "Feedback",
+    "FeedbackAudit",
     "KnowledgeBase",
     "Message",
     "MessageSource",
