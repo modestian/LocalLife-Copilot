@@ -27,10 +27,13 @@ def test_identity_metadata_contains_required_tables() -> None:
     assert set(Base.metadata.tables) == {
         "async_tasks",
         "chunks",
+        "conversations",
         "departments",
         "document_versions",
         "documents",
         "knowledge_bases",
+        "message_sources",
+        "messages",
         "outbox_events",
         "permissions",
         "refresh_tokens",

@@ -1,5 +1,6 @@
 """Database model registry imported by Alembic."""
 
+from app.infrastructure.db.models.conversations import Conversation, Message, MessageSource
 from app.infrastructure.db.models.identity import (
     Department,
     Permission,
@@ -17,10 +18,13 @@ from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 __all__ = [
     "AsyncTask",
     "Chunk",
+    "Conversation",
     "Department",
     "Document",
     "DocumentVersion",
     "KnowledgeBase",
+    "Message",
+    "MessageSource",
     "OutboxEvent",
     "Permission",
     "RefreshToken",
