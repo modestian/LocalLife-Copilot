@@ -206,6 +206,8 @@ async def test_outbox_claim_uses_skip_locked_and_assigns_publisher_lease() -> No
     assert event.locked_by == "publisher-a"
     sql = str(session.statements[0].compile(dialect=mysql.dialect()))
     assert "FOR UPDATE SKIP LOCKED" in sql
+    assert "outbox_events.published_at IS NULL" in sql
+    assert "outbox_events.locked_until IS NULL" in sql
 
 
 @pytest.mark.asyncio
@@ -239,6 +241,17 @@ async def test_outbox_failure_releases_lease_and_success_marks_published() -> No
     assert await repository.mark_published(event.event_id, publisher_id="publisher-b")
     assert event.published_at is not None
     assert event.last_error is None
+
+
+@pytest.mark.asyncio
+async def test_published_outbox_events_are_excluded_from_future_claims() -> None:
+    session = FakeSession(rows=[])
+    repository = SQLAlchemyOutboxRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    assert await repository.claim_batch(publisher_id="publisher-next") == []
+
+    sql = str(session.statements[0].compile(dialect=mysql.dialect()))
+    assert "outbox_events.published_at IS NULL" in sql
 
 
 @pytest.mark.asyncio
