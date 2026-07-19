@@ -6,6 +6,7 @@ from app.application.reply_generator import (
     ReplyGenerator,
     check_compliance,
 )
+from app.core.ids import uuid7
 
 # ---------------------------------------------------------------------------
 # Compliance checker tests
@@ -198,6 +199,8 @@ def _create_test_client() -> TestClient:
     from fastapi import FastAPI
 
     from app.api.analytics import reviews_router as analytics_reviews_router
+    from app.api.dependencies.authorization import get_current_principal
+    from app.application.authorization import AuthorizationPrincipal, RoleInfo
     from app.core.api import install_api_contract
     from app.core.config import get_settings
 
@@ -206,6 +209,16 @@ def _create_test_client() -> TestClient:
     app.state.settings = settings
     install_api_contract(app, settings)
     app.include_router(analytics_reviews_router, prefix=settings.api_v1_prefix)
+    app.dependency_overrides[get_current_principal] = lambda: AuthorizationPrincipal(
+        user_id=uuid7(),
+        username="reply-test-admin",
+        display_name="Reply test admin",
+        email=None,
+        department_id=None,
+        roles=(RoleInfo("PLATFORM_ADMIN", "Platform admin"),),
+        permissions=(),
+        resource_grants=(),
+    )
     return TestClient(app)
 
 
