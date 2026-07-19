@@ -123,6 +123,11 @@ class OpenSearchProjection:
             "valid_from",
             "valid_to",
             "resource_scope",
+            "source_type",
+            "source_location",
+            "category_ids",
+            "price_cent",
+            "location",
         ):
             if (value := chunk.metadata.get(field)) is not None:
                 source[field] = value

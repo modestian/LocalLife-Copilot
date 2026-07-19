@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.infrastructure.search.retrieval import (
+    BusinessSearchFilters,
     OpenSearchDualRetriever,
     SearchBackendError,
     TrustedSearchScope,
@@ -98,6 +99,36 @@ def test_dual_retriever_submits_bm25_and_knn_with_the_same_mandatory_filter() ->
     assert result.bm25[0].document_id == "version:0"
     assert result.bm25[0].score == 4.2
     assert result.vector[0].source["content"] == "咖啡"
+
+
+def test_business_filters_are_identical_on_both_recall_paths_and_cannot_replace_scope() -> None:
+    client = MagicMock()
+    client.msearch.return_value = {"responses": [{"hits": {"hits": []}}, {"hits": {"hits": []}}]}
+
+    OpenSearchDualRetriever(client, index="chunks-read").recall(
+        "coffee",
+        [0.1],
+        trusted_scope(),
+        filters=BusinessSearchFilters(
+            categories=("cafe",),
+            price_cent_lte=6000,
+            distance_meter_lte=3000,
+            open_now=True,
+            document_types=("review",),
+        ),
+        now=NOW,
+    )
+
+    body = client.msearch.call_args.kwargs["body"]
+    bm25_filter = body[1]["query"]["bool"]["filter"][0]
+    vector_filter = body[3]["query"]["knn"]["content_vector"]["filter"]
+    assert bm25_filter == vector_filter
+    clauses = bm25_filter["bool"]["filter"]
+    assert clauses[0] == mandatory_search_filter(trusted_scope(), now=NOW)
+    assert {"terms": {"category_ids": ["cafe"]}} in clauses
+    assert {"range": {"price_cent": {"lte": 6000}}} in clauses
+    assert {"range": {"metadata.distance_meter": {"lte": 3000}}} in clauses
+    assert {"terms": {"source_type": ["REVIEW", "review"]}} in clauses
 
 
 def test_dual_retriever_does_not_return_partial_results_when_one_path_fails() -> None:

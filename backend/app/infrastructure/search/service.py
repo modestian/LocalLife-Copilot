@@ -4,6 +4,7 @@ from datetime import datetime
 
 from app.etl.embeddings import BatchedEmbedder
 from app.infrastructure.search.retrieval import (
+    BusinessSearchFilters,
     DualRecallResult,
     OpenSearchDualRetriever,
     TrustedSearchScope,
@@ -24,15 +25,14 @@ class HybridRecallService:
         *,
         top_n: int = 50,
         now: datetime | None = None,
+        filters: BusinessSearchFilters | None = None,
     ) -> DualRecallResult:
         normalized_query = query.strip()
         if not normalized_query:
             raise ValueError("search query must not be blank")
         vector = self._embedder.embed([normalized_query])[0]
+        if filters is None:
+            return self._retriever.recall(normalized_query, vector, scope, top_n=top_n, now=now)
         return self._retriever.recall(
-            normalized_query,
-            vector,
-            scope,
-            top_n=top_n,
-            now=now,
+            normalized_query, vector, scope, top_n=top_n, now=now, filters=filters
         )

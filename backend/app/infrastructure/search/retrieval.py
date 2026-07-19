@@ -32,6 +32,17 @@ class TrustedSearchScope:
 
 
 @dataclass(frozen=True, slots=True)
+class BusinessSearchFilters:
+    """Validated, non-security filters accepted by the public search contract."""
+
+    categories: tuple[str, ...] = ()
+    price_cent_lte: int | None = None
+    distance_meter_lte: int | None = None
+    open_now: bool | None = None
+    document_types: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class RecallHit:
     document_id: str
     score: float
@@ -61,6 +72,7 @@ class OpenSearchDualRetriever:
         *,
         top_n: int = 50,
         now: datetime | None = None,
+        filters: BusinessSearchFilters | None = None,
     ) -> DualRecallResult:
         normalized_query = query.strip()
         if not normalized_query:
@@ -69,11 +81,12 @@ class OpenSearchDualRetriever:
             raise ValueError("top_n must be greater than zero")
         vector = _validated_vector(query_vector)
         mandatory_filter = mandatory_search_filter(scope, now=now)
+        effective_filter = combined_search_filter(mandatory_filter, filters)
         body = [
             {},
-            _bm25_body(normalized_query, mandatory_filter, top_n),
+            _bm25_body(normalized_query, effective_filter, top_n),
             {},
-            _knn_body(vector, mandatory_filter, top_n),
+            _knn_body(vector, effective_filter, top_n),
         ]
 
         try:
@@ -122,6 +135,31 @@ def mandatory_search_filter(
         ]
     )
     return {"bool": {"filter": filters}}
+
+
+def combined_search_filter(
+    mandatory_filter: Mapping[str, Any], filters: BusinessSearchFilters | None
+) -> dict[str, Any]:
+    """Append request filters without ever replacing the mandatory security filter."""
+    clauses: list[dict[str, Any]] = [dict(mandatory_filter)]
+    if filters is None:
+        return {"bool": {"filter": clauses}}
+    if filters.categories:
+        clauses.append({"terms": {"category_ids": list(filters.categories)}})
+    if filters.price_cent_lte is not None:
+        clauses.append({"range": {"price_cent": {"lte": filters.price_cent_lte}}})
+    if filters.distance_meter_lte is not None:
+        clauses.append({"range": {"metadata.distance_meter": {"lte": filters.distance_meter_lte}}})
+    # The lifecycle filter always excludes closed businesses. A request for
+    # explicitly closed businesses therefore fails closed instead of weakening it.
+    if filters.open_now is False:
+        clauses.append({"match_none": {}})
+    if filters.document_types:
+        values = sorted(
+            {variant for value in filters.document_types for variant in (value, value.upper())}
+        )
+        clauses.append({"terms": {"source_type": values}})
+    return {"bool": {"filter": clauses}}
 
 
 def _bm25_body(query: str, mandatory_filter: Mapping[str, Any], top_n: int) -> dict[str, Any]:
