@@ -60,6 +60,8 @@ class TaskView:
     error_code: str | None
     error_message: str | None
     result: dict[str, object] | None
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass(frozen=True, slots=True)

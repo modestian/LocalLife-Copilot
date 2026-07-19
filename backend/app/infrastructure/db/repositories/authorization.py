@@ -10,6 +10,7 @@ from app.application.authorization import (
     ResourceType,
     RoleInfo,
 )
+from app.core.ids import uuid7
 from app.infrastructure.db.models.identity import (
     Permission,
     ResourceGrant,
@@ -122,3 +123,35 @@ class SQLAlchemyAuthorizationRepository:
                 permissions=permissions,
                 resource_grants=grants,
             )
+
+    async def grant_user_resource(
+        self,
+        *,
+        user_id: UUID,
+        resource_type: ResourceType,
+        resource_id: UUID,
+        actions: tuple[str, ...] = ("READ", "UPDATE", "DELETE"),
+    ) -> None:
+        async with self._session_factory() as session, session.begin():
+            for action in actions:
+                normalized_action = action.strip().upper()
+                existing = await session.scalar(
+                    select(ResourceGrant.id).where(
+                        ResourceGrant.subject_type == "USER",
+                        ResourceGrant.subject_id == user_id,
+                        ResourceGrant.resource_type == resource_type.value,
+                        ResourceGrant.resource_id == resource_id,
+                        ResourceGrant.action == normalized_action,
+                    )
+                )
+                if existing is None:
+                    session.add(
+                        ResourceGrant(
+                            id=uuid7(),
+                            subject_type="USER",
+                            subject_id=user_id,
+                            resource_type=resource_type.value,
+                            resource_id=resource_id,
+                            action=normalized_action,
+                        )
+                    )

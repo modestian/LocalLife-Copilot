@@ -1,7 +1,7 @@
 from collections import defaultdict
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.conversations import (
@@ -190,6 +190,49 @@ class SQLAlchemyConversationRepository:
             row = await _owned_conversation(session, conversation_id, owner_user_id, lock=True)
             row.status = ConversationStatus.DELETED.value
             row.deleted_at = utc_now()
+
+    async def update_settings(
+        self, conversation_id: UUID, owner_user_id: UUID, settings: dict[str, object]
+    ) -> ConversationView:
+        async with self._session_factory() as session, session.begin():
+            row = await _owned_conversation(session, conversation_id, owner_user_id, lock=True)
+            row.settings_json = {**dict(row.settings_json), **settings}
+            row.updated_at = utc_now()
+            await session.flush()
+            return _conversation_view(row)
+
+    async def truncate(
+        self, conversation_id: UUID, owner_user_id: UUID, message_id: UUID
+    ) -> ConversationView:
+        async with self._session_factory() as session, session.begin():
+            conversation = await _owned_conversation(
+                session, conversation_id, owner_user_id, lock=True
+            )
+            target = await session.scalar(
+                select(Message).where(
+                    Message.id == message_id,
+                    Message.conversation_id == conversation_id,
+                )
+            )
+            if target is None:
+                raise MessageNotFound("truncate target not found in conversation")
+            later_ids = list(
+                await session.scalars(
+                    select(Message.id).where(
+                        Message.conversation_id == conversation_id,
+                        Message.sequence_no > target.sequence_no,
+                    )
+                )
+            )
+            if later_ids:
+                await session.execute(
+                    delete(MessageSource).where(MessageSource.message_id.in_(later_ids))
+                )
+                await session.execute(delete(Message).where(Message.id.in_(later_ids)))
+            conversation.current_branch_message_id = target.id
+            conversation.updated_at = utc_now()
+            await session.flush()
+            return _conversation_view(conversation)
 
 
 async def _owned_conversation(

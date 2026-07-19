@@ -6,6 +6,10 @@ from app import init_runtime
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
 from app.core.config import Settings
+from app.infrastructure.cache.conversations import RedisConversationMemory
+from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
+from app.infrastructure.db.repositories.knowledge import SQLAlchemyKnowledgeRepository
+from app.infrastructure.db.repositories.tasks import SQLAlchemyTaskRepository
 from app.main import create_app
 from app.model_gateway import app as model_gateway_app
 from app.worker import ping
@@ -76,7 +80,37 @@ def test_api_lifespan_wires_authentication_and_authorization_services(monkeypatc
     with TestClient(app):
         assert isinstance(app.state.auth_service, AuthService)
         assert isinstance(app.state.authorization_service, AuthorizationService)
+        assert isinstance(app.state.knowledge_repository, SQLAlchemyKnowledgeRepository)
+        assert isinstance(app.state.task_repository, SQLAlchemyTaskRepository)
+        assert isinstance(app.state.conversation_repository, SQLAlchemyConversationRepository)
+        assert isinstance(app.state.conversation_memory, RedisConversationMemory)
 
     engine.dispose.assert_awaited_once()
     redis_client.aclose.assert_awaited_once()
     opensearch_client.close.assert_called_once()
+
+
+def test_st102_runtime_routes_are_exposed() -> None:
+    app = create_app(readiness_checks={}, settings=Settings())
+    operations = {
+        (route.path, method) for route in app.routes for method in getattr(route, "methods", set())
+    }
+
+    expected = {
+        ("/api/v1/knowledge-bases", "POST"),
+        ("/api/v1/knowledge-bases", "GET"),
+        ("/api/v1/knowledge-bases/{knowledge_base_id}", "PATCH"),
+        ("/api/v1/knowledge-bases/{knowledge_base_id}", "DELETE"),
+        ("/api/v1/knowledge-bases/{knowledge_base_id}/documents", "GET"),
+        ("/api/v1/knowledge-bases/{knowledge_base_id}/documents:upload", "POST"),
+        ("/api/v1/documents/{document_id}/rollback", "POST"),
+        ("/api/v1/documents/{document_id}/reindex", "POST"),
+        ("/api/v1/tasks/{task_id}", "GET"),
+        ("/api/v1/tasks/{task_id}/cancel", "POST"),
+        ("/api/v1/tasks/{task_id}/retry", "POST"),
+        ("/api/v1/conversations", "POST"),
+        ("/api/v1/conversations/{conversation_id}/messages", "GET"),
+        ("/api/v1/conversations/{conversation_id}/truncate", "POST"),
+    }
+
+    assert expected <= operations

@@ -1,7 +1,11 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from app import worker
+from app.application.tasks import OutboxClaim
 from app.core.config import Settings
+from app.core.ids import uuid7
 from app.infrastructure.db.repositories.lifecycle import SQLAlchemyLifecycleRepository
 
 
@@ -26,3 +30,40 @@ def test_default_worker_lazily_wires_sqlalchemy_lifecycle_repository(monkeypatch
     )
     repository = configured.call_args.args[0]
     assert isinstance(repository, SQLAlchemyLifecycleRepository)
+
+
+@pytest.mark.asyncio
+async def test_outbox_publisher_marks_success_and_releases_failures_for_retry(monkeypatch) -> None:
+    successful = OutboxClaim(uuid7(), "ASYNC_TASK", uuid7(), "knowledge.ingest", 1, {})
+    successful.payload["task_id"] = str(successful.aggregate_id)
+    failed = OutboxClaim(uuid7(), "ASYNC_TASK", uuid7(), "knowledge.rebuild", 1, {})
+    failed.payload["task_id"] = str(failed.aggregate_id)
+    repository = MagicMock()
+    repository.claim_batch = AsyncMock(return_value=[successful, failed])
+    repository.mark_published = AsyncMock(return_value=True)
+    repository.mark_failed = AsyncMock(return_value=True)
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+
+    monkeypatch.setattr(worker, "create_async_engine", MagicMock(return_value=engine))
+    monkeypatch.setattr(worker, "async_sessionmaker", MagicMock())
+    monkeypatch.setattr(worker, "SQLAlchemyOutboxRepository", MagicMock(return_value=repository))
+
+    def send_task(name: str, *, args: list[str]) -> None:
+        if name == "knowledge.rebuild":
+            raise ConnectionError("broker unavailable")
+
+    monkeypatch.setattr(worker.celery_app, "send_task", send_task)
+
+    result = await worker._publish_outbox()
+
+    assert result == {"published": 1, "failed": 1}
+    repository.mark_published.assert_awaited_once_with(
+        successful.event_id, publisher_id="celery-outbox-publisher"
+    )
+    repository.mark_failed.assert_awaited_once_with(
+        failed.event_id,
+        publisher_id="celery-outbox-publisher",
+        error_message="broker unavailable",
+    )
+    engine.dispose.assert_awaited_once()

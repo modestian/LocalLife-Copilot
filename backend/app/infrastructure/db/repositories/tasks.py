@@ -16,6 +16,7 @@ from app.application.tasks import (
     validate_progress,
 )
 from app.infrastructure.db.base import utc_now
+from app.infrastructure.db.models.knowledge import Document, KnowledgeBase
 from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 
 
@@ -43,6 +44,108 @@ class SQLAlchemyTaskRepository:
             session.add(row)
             await session.flush()
             return row.id
+
+    async def create_with_outbox(
+        self,
+        *,
+        task_type: str,
+        resource_type: str,
+        resource_id: UUID,
+        event_type: str,
+        payload: dict[str, object] | None = None,
+        max_attempts: int = 3,
+    ) -> UUID:
+        """Persist a task and its dispatch event in one MySQL transaction."""
+        if max_attempts <= 0:
+            raise ValueError("max_attempts must be positive")
+        async with self._session_factory() as session, session.begin():
+            task = AsyncTask(
+                task_type=_required(task_type, "task_type"),
+                resource_type=_required(resource_type, "resource_type"),
+                resource_id=resource_id,
+                max_attempts=max_attempts,
+            )
+            session.add(task)
+            await session.flush()
+            session.add(
+                OutboxEvent(
+                    aggregate_type="ASYNC_TASK",
+                    aggregate_id=task.id,
+                    event_type=_required(event_type, "event_type"),
+                    event_version=1,
+                    payload_json={"task_id": str(task.id), **dict(payload or {})},
+                )
+            )
+            await session.flush()
+            return task.id
+
+    async def delete_document_with_outbox(self, document_id: UUID) -> UUID | None:
+        """Hide a document and enqueue projection deletion atomically."""
+        async with self._session_factory() as session, session.begin():
+            document = await session.scalar(
+                select(Document)
+                .where(
+                    Document.id == document_id,
+                    Document.deleted_at.is_(None),
+                    Document.status != "DELETED",
+                )
+                .with_for_update()
+            )
+            if document is None:
+                return None
+            task_id = await _append_task_and_outbox(
+                session,
+                task_type="DELETE",
+                resource_type="DOCUMENT",
+                resource_id=document.id,
+                event_type="knowledge.delete",
+            )
+            document.status = "DELETED"
+            document.deleted_at = utc_now()
+            return task_id
+
+    async def delete_knowledge_base_with_outbox(self, knowledge_base_id: UUID) -> list[UUID] | None:
+        """Hide a knowledge base and enqueue every projection deletion atomically."""
+        async with self._session_factory() as session, session.begin():
+            knowledge_base = await session.scalar(
+                select(KnowledgeBase)
+                .where(
+                    KnowledgeBase.id == knowledge_base_id,
+                    KnowledgeBase.deleted_at.is_(None),
+                    KnowledgeBase.status != "DELETED",
+                )
+                .with_for_update()
+            )
+            if knowledge_base is None:
+                return None
+            documents = (
+                await session.scalars(
+                    select(Document)
+                    .where(
+                        Document.knowledge_base_id == knowledge_base_id,
+                        Document.deleted_at.is_(None),
+                        Document.status != "DELETED",
+                    )
+                    .with_for_update()
+                )
+            ).all()
+            task_ids: list[UUID] = []
+            now = utc_now()
+            for document in documents:
+                task_ids.append(
+                    await _append_task_and_outbox(
+                        session,
+                        task_type="DELETE",
+                        resource_type="DOCUMENT",
+                        resource_id=document.id,
+                        event_type="knowledge.delete",
+                    )
+                )
+                document.status = "DELETED"
+                document.deleted_at = now
+            knowledge_base.status = "DELETED"
+            knowledge_base.deleted_at = now
+            return task_ids
 
     async def get(self, task_id: UUID) -> TaskView | None:
         async with self._session_factory() as session:
@@ -151,6 +254,29 @@ class SQLAlchemyTaskRepository:
             row.error_code = None
             row.error_message = None
             _release_task(row)
+            return True
+
+    async def retry_with_outbox(self, task_id: UUID, *, event_type: str) -> bool:
+        async with self._session_factory() as session, session.begin():
+            row = await _locked_task(session, task_id)
+            if row is None or not can_retry(
+                TaskStatus(row.status), row.attempt_count, row.max_attempts
+            ):
+                return False
+            row.status = TaskStatus.PENDING.value
+            row.stage = TaskStage.QUEUED.value
+            row.error_code = None
+            row.error_message = None
+            _release_task(row)
+            session.add(
+                OutboxEvent(
+                    aggregate_type="ASYNC_TASK",
+                    aggregate_id=row.id,
+                    event_type=_required(event_type, "event_type"),
+                    event_version=row.attempt_count + 1,
+                    payload_json={"task_id": str(row.id)},
+                )
+            )
             return True
 
     async def succeed(self, task_id: UUID, *, worker_id: str, result: dict[str, object]) -> bool:
@@ -343,7 +469,39 @@ def _task_view(row: AsyncTask) -> TaskView:
         error_code=row.error_code,
         error_message=row.error_message,
         result=None if row.result_json is None else dict(row.result_json),
+        created_at=row.created_at,
+        updated_at=row.updated_at,
     )
+
+
+async def _append_task_and_outbox(
+    session: AsyncSession,
+    *,
+    task_type: str,
+    resource_type: str,
+    resource_id: UUID,
+    event_type: str,
+    max_attempts: int = 3,
+) -> UUID:
+    task = AsyncTask(
+        task_type=task_type,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        max_attempts=max_attempts,
+    )
+    session.add(task)
+    await session.flush()
+    session.add(
+        OutboxEvent(
+            aggregate_type="ASYNC_TASK",
+            aggregate_id=task.id,
+            event_type=event_type,
+            event_version=1,
+            payload_json={"task_id": str(task.id)},
+        )
+    )
+    await session.flush()
+    return task.id
 
 
 def _validate_lease(lease_seconds: int) -> None:
