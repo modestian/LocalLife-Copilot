@@ -25,6 +25,13 @@ export interface SearchScoreDetail {
   rerank?: number | null
 }
 
+export interface SearchMatchExplanation {
+  recall_sources: Array<'bm25' | 'vector'>
+  keyword_matched: boolean
+  semantic_matched: boolean
+  reranked: boolean
+}
+
 export interface SearchHit {
   chunk_id: string
   document_id: string
@@ -34,10 +41,14 @@ export interface SearchHit {
   source_url: string
   score: number
   score_detail: SearchScoreDetail
+  match_explanation: SearchMatchExplanation
 }
 
 export interface SearchResponse {
   items: SearchHit[]
   total?: number
   took_ms?: number
+  fallback: boolean
+  fallback_reason?: string | null
+  applied_filters: SearchFilters
 }

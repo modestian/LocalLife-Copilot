@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     model_gateway_embedding_url: str = "http://model-gateway:8001/v1/embeddings"
     dependency_timeout_seconds: float = 2.0
+    search_minimum_score: float = 0.2
     jwt_secret_key: SecretStr = SecretStr("development-only-change-this-jwt-secret-key")
     jwt_issuer: str = "local-life-copilot"
     jwt_audience: str = "local-life-copilot-api"
@@ -115,6 +116,13 @@ class Settings(BaseSettings):
         if not (normalized := value.strip()):
             raise ValueError("embedding_model must not be blank")
         return normalized
+
+    @field_validator("search_minimum_score")
+    @classmethod
+    def validate_search_minimum_score(cls, value: float) -> float:
+        if not 0 <= value <= 1:
+            raise ValueError("search_minimum_score must be between 0 and 1")
+        return value
 
     @field_validator("jwt_issuer", "jwt_audience")
     @classmethod
