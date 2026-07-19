@@ -362,6 +362,8 @@ def _create_test_client(records: list[FakeReviewAnalysis]) -> TestClient:
     from app.api.analytics import (
         router as analytics_router,
     )
+    from app.api.dependencies.authorization import get_current_principal
+    from app.application.authorization import AuthorizationPrincipal, RoleInfo
     from app.core.api import install_api_contract
     from app.core.config import get_settings
 
@@ -377,6 +379,16 @@ def _create_test_client(records: list[FakeReviewAnalysis]) -> TestClient:
     repo = InMemoryAnalyticsRepository(records)
     service = AnalyticsService(repo)
     app.dependency_overrides[get_analytics_service] = lambda: service
+    app.dependency_overrides[get_current_principal] = lambda: AuthorizationPrincipal(
+        user_id=uuid7(),
+        username="governance-test-admin",
+        display_name="Governance test admin",
+        email=None,
+        department_id=None,
+        roles=(RoleInfo("PLATFORM_ADMIN", "Platform admin"),),
+        permissions=(),
+        resource_grants=(),
+    )
 
     return TestClient(app)
 

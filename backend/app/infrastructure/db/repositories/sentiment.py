@@ -11,6 +11,7 @@ from uuid import UUID
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.application.authorization import AuthorizationPrincipal, ResourceType
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
 
 
@@ -35,8 +36,30 @@ class SentimentAnalysisRecord:
 class SQLAlchemySentimentRepository:
     """Async CRUD for ReviewAnalysis persistence."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        principal: AuthorizationPrincipal | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._principal = principal
+
+    def scoped(self, principal: AuthorizationPrincipal) -> "SQLAlchemySentimentRepository":
+        """Create a request-scoped repository with mandatory merchant grants."""
+        return type(self)(self._session_factory, principal=principal)
+
+    def _authorize_merchant(self, merchant_id: str, action: str = "READ") -> None:
+        if self._principal is not None:
+            self._principal.require_resource_access(
+                ResourceType.MERCHANT,
+                UUID(merchant_id),
+                action,
+            )
+
+    def _authorize_merchants(self, merchant_ids: Sequence[str], action: str = "READ") -> None:
+        for merchant_id in merchant_ids:
+            self._authorize_merchant(merchant_id, action)
 
     async def batch_save(
         self,
@@ -51,6 +74,8 @@ class SQLAlchemySentimentRepository:
         """
         if not records:
             return []
+        if merchant_id is not None:
+            self._authorize_merchant(merchant_id, "CREATE")
 
         ids: list[UUID] = []
         async with self._session_factory() as session, session.begin():
@@ -79,6 +104,7 @@ class SQLAlchemySentimentRepository:
         offset: int = 0,
     ) -> list[ReviewAnalysis]:
         """Query analysis results for a merchant, optionally filtered by sentiment."""
+        self._authorize_merchant(merchant_id)
         async with self._session_factory() as session:
             stmt = select(ReviewAnalysis).where(ReviewAnalysis.merchant_id == merchant_id)
             if sentiment:
@@ -117,6 +143,7 @@ class SQLAlchemySentimentRepository:
             List of dicts, each with keys ``period``, ``positive``,
             ``neutral``, ``negative``.
         """
+        self._authorize_merchant(merchant_id)
         fmt = self._GRANULARITY_FORMATS.get(granularity, "%Y-%m-%d")
 
         sql = text(
@@ -161,6 +188,7 @@ class SQLAlchemySentimentRepository:
         Returns:
             List of ``{"reason": str, "count": int}`` sorted by count descending.
         """
+        self._authorize_merchant(merchant_id)
         async with self._session_factory() as session:
             stmt = select(ReviewAnalysis.negative_reasons).where(
                 ReviewAnalysis.merchant_id == merchant_id,
@@ -201,6 +229,7 @@ class SQLAlchemySentimentRepository:
             ``negative``, ``total``, ``positive_rate`` sorted by
             ``positive_rate`` descending.
         """
+        self._authorize_merchant(merchant_id)
         async with self._session_factory() as session:
             stmt = select(ReviewAnalysis.aspect_labels, ReviewAnalysis.sentiment).where(
                 ReviewAnalysis.merchant_id == merchant_id
@@ -322,6 +351,7 @@ class SQLAlchemySentimentRepository:
         """
         if not merchant_ids:
             return {}
+        self._authorize_merchants(merchant_ids)
 
         placeholders = ", ".join(f":mid{i}" for i in range(len(merchant_ids)))
         sql = text(
@@ -395,6 +425,7 @@ class SQLAlchemySentimentRepository:
         The ``negative_reason`` filter is applied in Python after the SQL
         query, because the column stores a JSON array.
         """
+        self._authorize_merchant(merchant_id)
         async with self._session_factory() as session:
             stmt = select(ReviewAnalysis).where(
                 ReviewAnalysis.merchant_id == merchant_id,

@@ -58,6 +58,14 @@ def require_resource_access(
     path_parameter: str = "resource_id",
 ) -> Callable[..., AuthorizationPrincipal]:
     async def dependency(request: Request, principal: CurrentPrincipal) -> AuthorizationPrincipal:
+        try:
+            principal.require_permission(_resource_type_value(resource_type), action)
+        except RolePermissionDenied as exc:
+            raise AppError(403, "FORBIDDEN", "没有执行此操作的角色权限") from exc
+
+        if principal.is_platform_admin:
+            return principal
+
         raw_resource_id = request.path_params.get(path_parameter)
         try:
             resource_id = UUID(str(raw_resource_id))
@@ -77,6 +85,47 @@ def require_resource_access(
         return principal
 
     return dependency
+
+
+def require_query_resource_access(
+    resource_type: ResourceType | str,
+    action: str,
+    *,
+    query_parameter: str,
+) -> Callable[..., AuthorizationPrincipal]:
+    """Authorize all UUIDs supplied through a repeated query parameter."""
+
+    async def dependency(request: Request, principal: CurrentPrincipal) -> AuthorizationPrincipal:
+        try:
+            principal.require_permission(_resource_type_value(resource_type), action)
+        except RolePermissionDenied as exc:
+            raise AppError(403, "FORBIDDEN", "没有执行此操作的角色权限") from exc
+
+        if principal.is_platform_admin:
+            return principal
+
+        try:
+            resource_ids = [UUID(value) for value in request.query_params.getlist(query_parameter)]
+        except ValueError as exc:
+            raise AppError(
+                422,
+                "VALIDATION_ERROR",
+                "资源 ID 格式无效",
+                [{"field": f"query.{query_parameter}", "reason": "uuid_parsing"}],
+            ) from exc
+
+        try:
+            for resource_id in resource_ids:
+                principal.require_resource_access(resource_type, resource_id, action)
+        except ResourceScopeDenied as exc:
+            raise AppError(404, "NOT_FOUND", "资源不存在或无访问权限") from exc
+        return principal
+
+    return dependency
+
+
+def _resource_type_value(resource_type: ResourceType | str) -> str:
+    return resource_type.value if isinstance(resource_type, ResourceType) else resource_type
 
 
 def _authentication_error(code: str, message: str) -> AppError:

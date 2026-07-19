@@ -273,6 +273,104 @@ def test_users_me_and_authorization_dependencies(
     assert hidden.status_code == 404
 
 
+def test_real_merchant_endpoints_enforce_rbac_and_resource_scope() -> None:
+    from app.api.analytics import get_analytics_service
+
+    class StubAnalyticsService:
+        async def get_sentiment_trend(self, *args, **kwargs) -> list[dict]:
+            return []
+
+        async def compare_merchants(self, merchant_ids, **kwargs) -> dict:
+            return {
+                "merchants": merchant_ids,
+                "summary": [],
+                "aspect_comparison": [],
+                "negative_reason_comparison": [],
+            }
+
+    access_tokens = _access_tokens()
+    allowed_merchant = uuid7()
+    hidden_merchant = uuid7()
+    allowed = AuthorizationPrincipal(
+        user_id=uuid7(),
+        username="merchant-reader",
+        display_name="Merchant reader",
+        email=None,
+        department_id=None,
+        roles=(RoleInfo("MERCHANT_READER", "Merchant reader"),),
+        permissions=(PermissionRule("merchant.read", "MERCHANT", "READ"),),
+        resource_grants=(ResourceGrantRule(ResourceType.MERCHANT, allowed_merchant, "READ"),),
+    )
+    no_permission = AuthorizationPrincipal(
+        user_id=uuid7(),
+        username="ordinary-user",
+        display_name="Ordinary user",
+        email=None,
+        department_id=None,
+        roles=(RoleInfo("USER", "User"),),
+        permissions=(),
+        resource_grants=(),
+    )
+    service = AuthorizationService(
+        InMemoryAuthorizationRepository([allowed, no_permission]),
+        access_tokens,
+    )
+    app = create_app(readiness_checks={}, settings=Settings())
+    app.dependency_overrides[get_authorization_service] = lambda: service
+    app.dependency_overrides[get_analytics_service] = lambda: StubAnalyticsService()
+
+    allowed_headers = {"Authorization": f"Bearer {access_tokens.issue(allowed.user_id).value}"}
+    denied_headers = {"Authorization": f"Bearer {access_tokens.issue(no_permission.user_id).value}"}
+
+    with TestClient(app) as client:
+        unauthenticated = client.get(
+            f"/api/v1/merchants/{allowed_merchant}/analytics/sentiment-trend"
+        )
+        forbidden = client.get(
+            f"/api/v1/merchants/{allowed_merchant}/analytics/sentiment-trend",
+            headers=denied_headers,
+        )
+        hidden = client.get(
+            f"/api/v1/merchants/{hidden_merchant}/analytics/sentiment-trend",
+            headers=allowed_headers,
+        )
+        visible = client.get(
+            f"/api/v1/merchants/{allowed_merchant}/analytics/sentiment-trend",
+            headers=allowed_headers,
+        )
+        mixed_comparison = client.get(
+            "/api/v1/analytics/compare",
+            params=[
+                ("merchant_ids", str(allowed_merchant)),
+                ("merchant_ids", str(hidden_merchant)),
+            ],
+            headers=allowed_headers,
+        )
+
+    assert unauthenticated.status_code == 401
+    assert forbidden.status_code == 403
+    assert hidden.status_code == 404
+    assert visible.status_code == 200
+    assert mixed_comparison.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_scoped_sentiment_repository_rejects_horizontal_access_before_query(
+    scoped_principal: AuthorizationPrincipal,
+) -> None:
+    from unittest.mock import MagicMock
+
+    from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
+
+    repository = SQLAlchemySentimentRepository(  # type: ignore[arg-type]
+        MagicMock(),
+        principal=scoped_principal,
+    )
+
+    with pytest.raises(AuthorizationDenied, match="resource scope denied"):
+        await repository.get_sentiment_trend(str(uuid7()))
+
+
 def _access_tokens() -> AccessTokenService:
     return AccessTokenService(
         secret_key="authorization-test-secret-at-least-32-bytes",
