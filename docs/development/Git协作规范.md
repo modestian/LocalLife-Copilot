@@ -642,7 +642,7 @@ git log -1 --stat
 git status
 
 # 4. 同步最新 `main` 并推送
-git fetch origin
+git status
 git rebase origin/main
 # 重新运行必要测试
 git push -u origin feat/tk-201-01-etl-contracts
