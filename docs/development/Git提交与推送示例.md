@@ -125,7 +125,7 @@ git rev-list --left-right --count '@{upstream}'...HEAD
 
 ## 3. 同一任务分支后续提交
 
-分支已经建立远端跟踪关系后：
+分支已经建立远端跟踪关系后，先确认该分支是否已经 Push。下面使用 Merge 同步最新 `main`，不会改写已经存在于远端的任务提交，因此后续可以普通 Push：
 
 ```powershell
 git status
@@ -137,13 +137,15 @@ git commit
 git log -1 --stat
 
 git fetch origin
-git rebase origin/main
+git merge origin/main
 # 重新运行必要测试
 git push
 git status
 ```
 
-只由自己维护且尚未 Push 的提交适合 Rebase。已经与他人共享的分支不要擅自改写历史。
+如果 `origin/main` 没有新提交，`git merge origin/main` 会提示 `Already up to date`，不会额外产生 Merge Commit。
+
+只由自己维护且尚未 Push 的提交适合直接 Rebase。任务分支已经 Push 后，再执行 `git rebase origin/main` 会重写该分支已有提交的 Commit ID；即使只有一个人开发、文件内容相同，普通 `git push` 也会因 non-fast-forward 被拒绝。
 
 ## 4. 纯文档任务示例
 
@@ -275,22 +277,67 @@ git diff --cached
 
 ## 9. Push 被远端拒绝
 
-先同步并检查是否存在远端更新：
+### 9.1 只有一个人为什么也会 non-fast-forward
+
+是否冲突由 Commit 历史决定，与开发人数无关。典型过程：
+
+```text
+第一次 Push：
+origin/docs/example  A---B
+local                A---B
+
+本地 Rebase 到更新后的 main：
+origin/docs/example  A---B
+local                A---M---B'
+```
+
+`B'` 可能和 `B` 修改相同文件、内容也相同，但 Rebase 已经创建了新的 Commit ID。远端仍保留旧的 `B`，因此普通 Push 无法快进，会被拒绝。
+
+以下操作即使只有一个人也可能造成分叉：
+
+- 第一次 Push 后对任务分支执行 `git rebase origin/main`；
+- 对已经 Push 的 Commit 执行 `git commit --amend`；
+- 使用 `git reset`、`cherry-pick` 或重新创建同名本地分支；
+- 在另一台电脑、另一个 clone 或 GitHub 网页端继续提交；
+- 本地和远端分别创建内容相同、但 Commit ID 不同的提交。
+
+可以用以下命令确认分叉情况：
 
 ```powershell
 git fetch origin
-git status
+git status --short --branch
+git rev-list --left-right --count '@{upstream}'...HEAD
+git log --left-right --graph --oneline HEAD...'@{upstream}'
 ```
 
-个人任务分支可以根据实际情况执行：
+输出的两个数字分别表示仅远端存在和仅本地存在的提交数。只要两边都大于 0，就说明历史已经分叉。
+
+### 9.2 尚未改写历史时的安全同步
+
+已 Push 的分支默认使用 Merge 同步 `main`：
 
 ```powershell
-git rebase origin/main
-# 解决冲突并重新运行必要测试
+git fetch origin
+git merge origin/main
+# 解决可能的冲突并重新运行必要测试
 git push
 ```
 
-不要直接使用 `git push --force`。只有确认分支由自己独占、且 Rebase 改写了已经 Push 的提交时，才使用 `git push --force-with-lease`。
+### 9.3 已经 Rebase 了已 Push 的个人分支
+
+先停止重复执行 `git pull` 或普通 `git push`，检查远端是否只有自己的旧提交：
+
+```powershell
+git fetch origin
+git log --left-right --graph --oneline HEAD...'@{upstream}'
+```
+
+处理方式二选一：
+
+1. 希望保留双方历史、不改写远端时，Merge 远端任务分支，解决冲突、提交 Merge Commit 后普通 Push；
+2. 确认分支完全由自己独占、远端没有需要保留的新提交，并且团队允许改写该个人分支时，才使用 `git push --force-with-lease` 更新远端。
+
+不要使用 `git push --force`。不确定远端提交来源时，选择 Merge 或先与团队确认。
 
 ## 10. Push 后创建 Pull Request
 
