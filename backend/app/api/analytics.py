@@ -7,15 +7,49 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
+from app.api.dependencies.authorization import (
+    CurrentPrincipal,
+    require_permission,
+    require_query_resource_access,
+    require_resource_access,
+)
 from app.application.analytics import AnalyticsService
+from app.application.authorization import ResourceType
 from app.application.reply_generator import ReplyGenerator
 from app.core.api import success_response
 from app.core.errors import AppError
 
-router = APIRouter(prefix="/merchants/{merchant_id}/analytics", tags=["analytics"])
-compare_router = APIRouter(prefix="/analytics", tags=["analytics"])
-business_router = APIRouter(prefix="/merchants/{merchant_id}", tags=["analytics"])
-reviews_router = APIRouter(prefix="/reviews", tags=["analytics"])
+merchant_read_dependency = require_resource_access(
+    ResourceType.MERCHANT,
+    "READ",
+    path_parameter="merchant_id",
+)
+merchant_compare_dependency = require_query_resource_access(
+    ResourceType.MERCHANT,
+    "READ",
+    query_parameter="merchant_ids",
+)
+
+router = APIRouter(
+    prefix="/merchants/{merchant_id}/analytics",
+    tags=["analytics"],
+    dependencies=[Depends(merchant_read_dependency)],
+)
+compare_router = APIRouter(
+    prefix="/analytics",
+    tags=["analytics"],
+    dependencies=[Depends(merchant_compare_dependency)],
+)
+business_router = APIRouter(
+    prefix="/merchants/{merchant_id}",
+    tags=["analytics"],
+    dependencies=[Depends(merchant_read_dependency)],
+)
+reviews_router = APIRouter(
+    prefix="/reviews",
+    tags=["analytics"],
+    dependencies=[Depends(require_permission("MERCHANT", "READ"))],
+)
 
 
 # ---------------------------------------------------------------------------
@@ -175,8 +209,8 @@ _MerchantIdsParam = Annotated[list[str], Query(min_length=2, max_length=4)]
 # ---------------------------------------------------------------------------
 
 
-def get_analytics_service(request: Request) -> AnalyticsService:
-    return request.app.state.analytics_service
+def get_analytics_service(request: Request, principal: CurrentPrincipal) -> AnalyticsService:
+    return AnalyticsService(request.app.state.sentiment_repo.scoped(principal))
 
 
 AnalyticsServiceDependency = Annotated[AnalyticsService, Depends(get_analytics_service)]
