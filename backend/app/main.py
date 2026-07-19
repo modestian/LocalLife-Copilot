@@ -13,6 +13,7 @@ from app.api.analytics import compare_router as analytics_compare_router
 from app.api.analytics import reviews_router as analytics_reviews_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
+from app.api.datasets import router as datasets_router
 from app.api.feedback import router as feedback_router
 from app.api.health import router as health_router
 from app.api.search import router as search_router
@@ -122,6 +123,7 @@ def create_app(
     app.include_router(analytics_business_router, prefix=app_settings.api_v1_prefix)
     app.include_router(analytics_reviews_router, prefix=app_settings.api_v1_prefix)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(datasets_router, prefix=app_settings.api_v1_prefix)
     app.include_router(feedback_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     app.include_router(search_router, prefix=app_settings.api_v1_prefix)
