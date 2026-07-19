@@ -14,6 +14,7 @@ from app.api.analytics import reviews_router as analytics_reviews_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
+from app.api.search import router as search_router
 from app.api.users import router as users_router
 from app.application.analytics import AnalyticsService
 from app.application.auth import AuthService
@@ -22,9 +23,13 @@ from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
 from app.core.readiness import ReadinessCheck, build_readiness_checks
 from app.core.security import AccessTokenService, PasswordService
+from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
 from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
+from app.infrastructure.search.pipeline import HybridSearchService
+from app.infrastructure.search.retrieval import OpenSearchDualRetriever
+from app.infrastructure.search.service import HybridRecallService
 
 
 def create_app(
@@ -62,6 +67,25 @@ def create_app(
         )
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         opensearch_client = OpenSearch(app_settings.opensearch_url)
+        embedding_provider = HttpEmbeddingProvider(
+            app_settings.model_gateway_embedding_url,
+            model=app_settings.embedding_model,
+            timeout_seconds=app_settings.dependency_timeout_seconds,
+        )
+        embedder = BatchedEmbedder(
+            embedding_provider,
+            dimension=app_settings.embedding_dimension,
+            batch_size=app_settings.embedding_batch_size,
+        )
+        app.state.search_service = HybridSearchService(
+            HybridRecallService(
+                embedder,
+                OpenSearchDualRetriever(
+                    opensearch_client,
+                    index=app_settings.opensearch_read_alias,
+                ),
+            )
+        )
         app.state.readiness_checks = build_readiness_checks(
             engine,
             redis_client,
@@ -96,6 +120,7 @@ def create_app(
     app.include_router(analytics_reviews_router, prefix=app_settings.api_v1_prefix)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(search_router, prefix=app_settings.api_v1_prefix)
     return app
 
 
