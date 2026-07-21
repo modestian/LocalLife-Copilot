@@ -19,10 +19,12 @@ from app.api.datasets import router as datasets_router
 from app.api.feedback import router as feedback_router
 from app.api.health import router as health_router
 from app.api.knowledge import router as knowledge_router
+from app.api.observability import audit_router, metrics_router
 from app.api.search import router as search_router
 from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
 from app.application.analytics import AnalyticsService
+from app.application.audit import AuditQueryService
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
 from app.application.content_safety import ContentSafetyService
@@ -31,10 +33,12 @@ from app.application.feedback import FeedbackService
 from app.application.knowledge import KnowledgeService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
+from app.core.observability import MetricsRegistry, configure_json_logging
 from app.core.readiness import ReadinessCheck, build_readiness_checks
 from app.core.security import AccessTokenService, PasswordService
 from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.infrastructure.cache.conversations import RedisConversationMemory
+from app.infrastructure.db.repositories.audit import SQLAlchemyAuditRepository
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
 from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
 from app.infrastructure.db.repositories.content_safety import SQLAlchemyContentSafetyRepository
@@ -54,6 +58,7 @@ def create_app(
     settings: Settings | None = None,
 ) -> FastAPI:
     app_settings = settings or get_settings()
+    configure_json_logging(app_settings.log_level)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -92,6 +97,7 @@ def create_app(
         app.state.content_safety_service = ContentSafetyService(
             SQLAlchemyContentSafetyRepository(session_factory)
         )
+        app.state.audit_service = AuditQueryService(SQLAlchemyAuditRepository(session_factory))
 
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
@@ -143,6 +149,7 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = app_settings
+    app.state.metrics_registry = MetricsRegistry()
     install_api_contract(app, app_settings)
     app.add_middleware(
         CORSMiddleware,
@@ -159,12 +166,14 @@ def create_app(
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
     app.include_router(conversations_router, prefix=app_settings.api_v1_prefix)
     app.include_router(content_safety_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(audit_router, prefix=app_settings.api_v1_prefix)
     app.include_router(datasets_router, prefix=app_settings.api_v1_prefix)
     app.include_router(feedback_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     app.include_router(search_router, prefix=app_settings.api_v1_prefix)
     app.include_router(knowledge_router, prefix=app_settings.api_v1_prefix)
     app.include_router(tasks_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(metrics_router)
     return app
 
 

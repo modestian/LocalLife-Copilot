@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -11,6 +12,7 @@ from starlette.responses import Response
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.ids import uuid7
+from app.core.observability import bind_log_context, reset_log_context
 
 logger = logging.getLogger(__name__)
 
@@ -85,24 +87,61 @@ def _accepted_request_id(value: str | None, max_length: int) -> str | None:
 def install_api_contract(app: FastAPI, settings: Settings) -> None:
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next: RequestHandler) -> Response:
+        started_at = time.perf_counter()
         supplied = request.headers.get(settings.request_id_header)
         request.state.request_id = _accepted_request_id(
             supplied, settings.request_id_max_length
         ) or str(uuid7())
+        context_tokens = bind_log_context(request_id=request.state.request_id)
         try:
-            response = await call_next(request)
-        except Exception:
-            logger.exception(
-                "Unhandled request error", extra={"request_id": request.state.request_id}
+            try:
+                response = await call_next(request)
+            except Exception:
+                logger.exception(
+                    "Unhandled request error", extra={"request_id": request.state.request_id}
+                )
+                response = error_response(
+                    request,
+                    status_code=500,
+                    code="INTERNAL_ERROR",
+                    message="服务内部错误",
+                )
+            latency_ms = round((time.perf_counter() - started_at) * 1000, 3)
+            route = request.scope.get("route")
+            route_path = getattr(route, "path", "__unmatched__")
+            registry = getattr(request.app.state, "metrics_registry", None)
+            if registry is not None:
+                registry.observe_request(
+                    request.method, route_path, response.status_code, latency_ms
+                )
+            user_id = getattr(request.state, "user_id", None)
+            conversation_id = getattr(request.state, "conversation_id", None)
+            if conversation_id is None:
+                conversation_id = request.path_params.get("conversation_id")
+            if response.status_code >= 500:
+                log_method = logger.error
+            elif response.status_code >= 400:
+                log_method = logger.warning
+            else:
+                log_method = logger.info
+            log_method(
+                "HTTP request completed",
+                extra={
+                    "request_id": request.state.request_id,
+                    "user_id": user_id,
+                    "conversation_id": conversation_id,
+                    "latency_ms": latency_ms,
+                    "details": {
+                        "method": request.method,
+                        "route": route_path,
+                        "status_code": response.status_code,
+                    },
+                },
             )
-            response = error_response(
-                request,
-                status_code=500,
-                code="INTERNAL_ERROR",
-                message="服务内部错误",
-            )
-        response.headers[settings.request_id_header] = request.state.request_id
-        return response
+            response.headers[settings.request_id_header] = request.state.request_id
+            return response
+        finally:
+            reset_log_context(context_tokens)
 
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:

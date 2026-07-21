@@ -106,6 +106,8 @@ async def check_content(
     principal: CurrentPrincipal,
     service: ContentSafetyDependency,
 ) -> dict[str, Any]:
+    if body.conversation_id is not None:
+        request.state.conversation_id = str(body.conversation_id)
     result = await service.check(
         content=body.content,
         direction=body.direction,

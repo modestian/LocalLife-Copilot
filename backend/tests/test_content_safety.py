@@ -287,4 +287,5 @@ def test_content_safety_tables_and_constraints_are_registered() -> None:
     assert {index.name for index in AuditLog.__table__.indexes} == {
         "ix_audit_logs_actor_created",
         "ix_audit_logs_resource_created",
+        "ix_audit_logs_result_created",
     }
