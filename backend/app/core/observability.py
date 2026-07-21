@@ -19,12 +19,20 @@ _SENSITIVE_KEY = re.compile(
     re.IGNORECASE,
 )
 _SENSITIVE_ASSIGNMENT = re.compile(
-    r"(?i)\b(password|passwd|authorization|access_?token|refresh_?token|token|"
-    r"api[_-]?key|secret|private_?key)\s*[:=]\s*[^\s,;]+"
+    r"(?i)(?:[\"']?)(password|passwd|authorization|access_?token|refresh_?token|token|"
+    r"api[_-]?key|secret|private_?key)(?:[\"']?)\s*[:=]\s*"
+    r"(?:bearer\s+[A-Za-z0-9._~+/=-]+|\"[^\"]*\"|'[^']*'|[^\s,;}\]]+)"
 )
 _BEARER = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
 _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
 _OPENAI_KEY = re.compile(r"\bsk-[A-Za-z0-9_-]{12,}\b")
+_AWS_ACCESS_KEY = re.compile(r"\bAKIA[0-9A-Z]{16}\b")
+_URL_CREDENTIAL = re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://[^:/@\s]+:)[^@\s/]+(@)")
+_PEM_PRIVATE_KEY = re.compile(
+    r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----.*?"
+    r"-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----",
+    re.DOTALL,
+)
 
 
 def redact_text(value: object) -> str:
@@ -32,7 +40,10 @@ def redact_text(value: object) -> str:
     text = _SENSITIVE_ASSIGNMENT.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
     text = _BEARER.sub("Bearer [REDACTED]", text)
     text = _JWT.sub("[REDACTED_JWT]", text)
-    return _OPENAI_KEY.sub("[REDACTED_KEY]", text)
+    text = _OPENAI_KEY.sub("[REDACTED_KEY]", text)
+    text = _AWS_ACCESS_KEY.sub("[REDACTED_KEY]", text)
+    text = _URL_CREDENTIAL.sub(r"\1[REDACTED]\2", text)
+    return _PEM_PRIVATE_KEY.sub("[REDACTED_PRIVATE_KEY]", text)
 
 
 def redact_sensitive_data(value: Any, *, key: str | None = None) -> Any:
@@ -48,7 +59,11 @@ def redact_sensitive_data(value: Any, *, key: str | None = None) -> Any:
         return [redact_sensitive_data(item) for item in value]
     if isinstance(value, str):
         return redact_text(value)
-    return value
+    if isinstance(value, bytes | bytearray | memoryview):
+        return redact_text(bytes(value).decode("utf-8", errors="replace"))
+    if value is None or isinstance(value, bool | int | float):
+        return value
+    return redact_text(value)
 
 
 class JsonLogFormatter(logging.Formatter):
