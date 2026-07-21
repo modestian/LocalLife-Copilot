@@ -15,6 +15,7 @@ from app.application.authorization import (
     RolePermissionDenied,
 )
 from app.core.errors import AppError
+from app.core.observability import bind_log_context
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -24,13 +25,17 @@ def get_authorization_service(request: Request) -> AuthorizationService:
 
 
 async def get_current_principal(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     service: Annotated[AuthorizationService, Depends(get_authorization_service)],
 ) -> AuthorizationPrincipal:
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise _authentication_error("AUTH_REQUIRED", "需要登录")
     try:
-        return await service.authenticate(credentials.credentials)
+        principal = await service.authenticate(credentials.credentials)
+        request.state.user_id = str(principal.user_id)
+        bind_log_context(user_id=str(principal.user_id))
+        return principal
     except AuthenticationRequired as exc:
         raise _authentication_error("AUTH_INVALID_ACCESS_TOKEN", "访问令牌无效或已过期") from exc
 

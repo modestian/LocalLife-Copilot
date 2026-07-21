@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     app_name: str = "LocalLife Copilot API"
     app_version: str = "0.1.0"
     app_environment: str = "development"
+    log_level: str = "INFO"
     api_v1_prefix: str = "/api/v1"
     request_id_header: str = "X-Request-ID"
     request_id_max_length: int = 128
@@ -72,6 +73,14 @@ class Settings(BaseSettings):
         normalized = value.strip()
         if not re.fullmatch(r"[!#$%&'*+.^_`|~0-9A-Za-z-]+", normalized):
             raise ValueError("request_id_header must be a valid HTTP header name")
+        return normalized
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if normalized not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            raise ValueError("log_level must be a standard Python logging level")
         return normalized
 
     @field_validator("access_token_ttl_minutes")

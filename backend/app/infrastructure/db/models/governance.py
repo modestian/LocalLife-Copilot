@@ -219,6 +219,7 @@ class AuditLog(Base):
         CheckConstraint("result IN ('SUCCEEDED', 'FAILED', 'BLOCKED')", name="result"),
         Index("ix_audit_logs_actor_created", "actor_id", "created_at"),
         Index("ix_audit_logs_resource_created", "resource_type", "resource_id", "created_at"),
+        Index("ix_audit_logs_result_created", "result", "created_at"),
         MYSQL_TABLE_OPTIONS,
     )
 
