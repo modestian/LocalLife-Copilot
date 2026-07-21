@@ -1,27 +1,49 @@
 import type { AnalyticsDateRange, Sentiment } from './merchant-analytics'
 
 export interface MerchantComparisonRequest extends AnalyticsDateRange {
-  /** 当前商家加 2～4 家公开竞品；后端正式契约待 ST-402 冻结。 */
+  /** 后端按统一时间窗比较 2～4 家商家。 */
   merchant_ids: string[]
 }
 
-export interface ComparisonMerchantMetric {
+export interface ComparisonSummary {
   merchant_id: string
-  merchant_name: string
-  sample_count: number
+  positive: number
+  neutral: number
+  negative: number
+  total: number
   positive_rate: number
-  avg_rating: number | null
-  aspect_counts: Record<string, number>
-  negative_reason_counts: Record<string, number>
+  negative_rate: number
+}
+
+export interface AspectComparisonMetric {
+  merchant_id: string
+  positive: number
+  neutral: number
+  negative: number
+  total: number
+  positive_rate: number
+}
+
+export interface AspectComparisonRow {
+  aspect: string
+  merchants: AspectComparisonMetric[]
+}
+
+export interface NegativeReasonComparisonMetric {
+  merchant_id: string
+  count: number
+}
+
+export interface NegativeReasonComparisonRow {
+  reason: string
+  merchants: NegativeReasonComparisonMetric[]
 }
 
 export interface MerchantComparisonResult {
-  period_start: string
-  period_end: string
-  metric_definition: string
-  minimum_sample_size: number
-  insufficient_data: boolean
-  merchants: ComparisonMerchantMetric[]
+  merchants: string[]
+  summary: ComparisonSummary[]
+  aspect_comparison: AspectComparisonRow[]
+  negative_reason_comparison: NegativeReasonComparisonRow[]
 }
 
 export type ReplyTone = 'EMPATHETIC' | 'PROFESSIONAL' | 'CONCISE'

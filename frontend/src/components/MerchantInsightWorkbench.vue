@@ -50,7 +50,7 @@ const suggestionsLoading = ref(false)
 const suggestionsError = ref('')
 
 const selectedReview = computed(() => reviews.value.find((review) => review.id === selectedReviewId.value) ?? null)
-const comparisonMerchants = computed(() => comparison.value?.merchants ?? [])
+const comparisonSummaries = computed(() => comparison.value?.summary ?? [])
 
 function toStartDate(value: string): string | undefined {
   return value ? `${value}T00:00:00` : undefined
@@ -86,6 +86,26 @@ function topLabels(counts: Record<string, number>): string {
   return labels.join(' · ') || '暂无数据'
 }
 
+function topAspects(merchantId: string): string {
+  const counts = Object.fromEntries(
+    (comparison.value?.aspect_comparison ?? []).map((row) => [
+      row.aspect,
+      row.merchants.find((merchant) => merchant.merchant_id === merchantId)?.total ?? 0,
+    ]),
+  )
+  return topLabels(counts)
+}
+
+function topNegativeReasons(merchantId: string): string {
+  const counts = Object.fromEntries(
+    (comparison.value?.negative_reason_comparison ?? []).map((row) => [
+      row.reason,
+      row.merchants.find((merchant) => merchant.merchant_id === merchantId)?.count ?? 0,
+    ]),
+  )
+  return topLabels(counts)
+}
+
 function parseAspects(value: string): string[] {
   return [...new Set(value.split(/[，,]/).map((item) => item.trim()).filter(Boolean))]
 }
@@ -102,8 +122,8 @@ function addCompetitor(): void {
     comparisonFormError.value = '该竞品已在对比列表中。'
     return
   }
-  if (competitorIds.value.length >= 4) {
-    comparisonFormError.value = '一次最多选择 4 家竞品。'
+  if (competitorIds.value.length >= 3) {
+    comparisonFormError.value = '一次最多选择 3 家竞品。'
     return
   }
   competitorIds.value = [...competitorIds.value, candidate]
@@ -122,8 +142,8 @@ function validDateRange(start: string, end: string): boolean {
 async function compare(): Promise<void> {
   comparisonFormError.value = ''
   comparisonError.value = ''
-  if (competitorIds.value.length < 2) {
-    comparisonFormError.value = '请至少选择 2 家竞品后再开始比较。'
+  if (competitorIds.value.length < 1) {
+    comparisonFormError.value = '请至少选择 1 家竞品后再开始比较。'
     return
   }
   if (!validDateRange(compareStartDate.value, compareEndDate.value)) {
@@ -258,7 +278,7 @@ onMounted(() => void loadReviews())
           class="competitor-chips"
           aria-label="已选竞品"
         >
-          <span v-if="!competitorIds.length">请选择 2～4 家竞品</span>
+          <span v-if="!competitorIds.length">请选择 1～3 家竞品</span>
           <button
             v-for="competitorId in competitorIds"
             :key="competitorId"
@@ -292,13 +312,13 @@ onMounted(() => void loadReviews())
       </p>
       <template v-else-if="comparison">
         <p
-          v-if="comparison.insufficient_data"
+          v-if="comparison.summary.every((merchant) => merchant.total === 0)"
           class="state-message is-warning"
         >
           样本量低于统一下限，当前不输出确定性排序或结论。
         </p>
         <div class="comparison-meta">
-          <span>统计周期：{{ formatDate(comparison.period_start) }} 至 {{ formatDate(comparison.period_end) }}</span><span>口径：{{ comparison.metric_definition }}</span>
+          <span>统计商家：{{ comparison.merchants.join('、') }}</span><span>口径：公开聚合数据</span>
         </div>
         <div
           class="comparison-table"
@@ -309,15 +329,15 @@ onMounted(() => void loadReviews())
             class="comparison-row comparison-head"
             role="row"
           >
-            <span>商家</span><span>样本</span><span>正面率</span><span>评分</span><span>主要特征 / 归因</span>
+            <span>商家</span><span>样本</span><span>正面率</span><span>负面率</span><span>主要特征 / 归因</span>
           </div>
           <div
-            v-for="merchant in comparisonMerchants"
+            v-for="merchant in comparisonSummaries"
             :key="merchant.merchant_id"
             class="comparison-row"
             role="row"
           >
-            <strong>{{ merchant.merchant_name || merchant.merchant_id }}</strong><span>{{ merchant.sample_count }}</span><span>{{ formatRate(merchant.positive_rate) }}</span><span>{{ merchant.avg_rating ?? '—' }}</span><span>{{ topLabels(merchant.aspect_counts) }}<br><small>归因：{{ topLabels(merchant.negative_reason_counts) }}</small></span>
+            <strong>{{ merchant.merchant_id }}</strong><span>{{ merchant.total }}</span><span>{{ formatRate(merchant.positive_rate) }}</span><span>{{ formatRate(merchant.negative_rate) }}</span><span>{{ topAspects(merchant.merchant_id) }}<br><small>归因：{{ topNegativeReasons(merchant.merchant_id) }}</small></span>
           </div>
         </div>
       </template>
