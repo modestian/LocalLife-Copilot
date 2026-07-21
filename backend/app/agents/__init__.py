@@ -12,6 +12,20 @@ from app.agents.contracts import (
     RetrieverAdapter,
     StateUpdate,
 )
+from app.agents.routing import (
+    ASK_QUESTION_CONTRACT,
+    EXTRACT_CONSTRAINTS_CONTRACT,
+    ROUTE_INTENT_CONTRACT,
+    ClarificationDecision,
+    ClarificationPlanner,
+    ConstraintExtractor,
+    ConstraintOutput,
+    IntentOutput,
+    IntentRouter,
+    merge_constraints,
+    route_after_constraints,
+    route_after_intent,
+)
 from app.agents.state import ChatState, StateField, validate_state_update
 from app.agents.types import (
     ChatConstraints,
@@ -28,8 +42,14 @@ __all__ = [
     "ChatError",
     "ChatIntent",
     "ChatState",
+    "ClarificationDecision",
+    "ClarificationPlanner",
+    "ConstraintExtractor",
+    "ConstraintOutput",
     "GraphNode",
     "HybridSearchRetrieverAdapter",
+    "IntentOutput",
+    "IntentRouter",
     "ModelAdapter",
     "ModelInput",
     "ModelPrediction",
@@ -43,5 +63,11 @@ __all__ = [
     "SourceCitation",
     "StateField",
     "StateUpdate",
+    "ASK_QUESTION_CONTRACT",
+    "EXTRACT_CONSTRAINTS_CONTRACT",
+    "ROUTE_INTENT_CONTRACT",
+    "merge_constraints",
+    "route_after_constraints",
+    "route_after_intent",
     "validate_state_update",
 ]
