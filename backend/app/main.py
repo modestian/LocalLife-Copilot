@@ -24,6 +24,8 @@ from app.api.users import router as users_router
 from app.application.analytics import AnalyticsService
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
+from app.application.dataset_service import DatasetService
+from app.application.feedback import FeedbackService
 from app.application.knowledge import KnowledgeService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
@@ -34,6 +36,8 @@ from app.infrastructure.cache.conversations import RedisConversationMemory
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
 from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
 from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
+from app.infrastructure.db.repositories.dataset import SQLAlchemyDatasetRepository
+from app.infrastructure.db.repositories.feedback import SQLAlchemyFeedbackRepository
 from app.infrastructure.db.repositories.knowledge import SQLAlchemyKnowledgeRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
 from app.infrastructure.db.repositories.tasks import SQLAlchemyTaskRepository
@@ -77,8 +81,12 @@ def create_app(
             authorization_repository,
             access_tokens,
         )
-        # FeedbackService will be wired when SQLAlchemyFeedbackRepository is ready;
-        # tests inject InMemoryFeedbackRepository via app.state.feedback_service.
+        # Feedback + Dataset services (ST-501 production wiring)
+        feedback_repository = SQLAlchemyFeedbackRepository(session_factory)
+        app.state.feedback_service = FeedbackService(feedback_repository)
+        dataset_repository = SQLAlchemyDatasetRepository(session_factory)
+        app.state.dataset_service = DatasetService(feedback_repository, dataset_repository)
+
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
         conversation_repository = SQLAlchemyConversationRepository(session_factory)
