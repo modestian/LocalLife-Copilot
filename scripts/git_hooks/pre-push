@@ -4,16 +4,33 @@ set -eu
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root/backend"
 
-if command -v py >/dev/null 2>&1 && py -3.13 -c "import sys" >/dev/null 2>&1; then
-    py -3.13 -m ruff check .
-    py -3.13 -m ruff format --check .
-    py -3.13 -m pytest --cov=app --cov-report=term-missing --cov-fail-under=70
-elif command -v python3.13 >/dev/null 2>&1; then
-    python3.13 -m ruff check .
-    python3.13 -m ruff format --check .
-    python3.13 -m pytest --cov=app --cov-report=term-missing --cov-fail-under=70
+mkdir -p "$repo_root/.tmp"
+pytest_tmp_dir=$(mktemp -d "$repo_root/.tmp/pytest.XXXXXX")
+cleanup() {
+    rm -rf -- "$pytest_tmp_dir"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+python_probe='import sys; import pytest, pytest_cov, ruff; raise SystemExit(sys.version_info[:2] != (3, 13))'
+
+if command -v python >/dev/null 2>&1 && python -c "$python_probe" >/dev/null 2>&1; then
+    run_python() { python "$@"; }
+elif command -v py >/dev/null 2>&1 && py -3.13 -c "$python_probe" >/dev/null 2>&1; then
+    run_python() { py -3.13 "$@"; }
+elif command -v python3.13 >/dev/null 2>&1 && python3.13 -c "$python_probe" >/dev/null 2>&1; then
+    run_python() { python3.13 "$@"; }
+elif [ -x "$repo_root/.venv/Scripts/python.exe" ] && "$repo_root/.venv/Scripts/python.exe" -c "$python_probe" >/dev/null 2>&1; then
+    run_python() { "$repo_root/.venv/Scripts/python.exe" "$@"; }
+elif [ -x "$repo_root/.venv/bin/python" ] && "$repo_root/.venv/bin/python" -c "$python_probe" >/dev/null 2>&1; then
+    run_python() { "$repo_root/.venv/bin/python" "$@"; }
 else
-    python -m ruff check .
-    python -m ruff format --check .
-    python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=70
+    echo "Python 3.13 with the backend development dependencies is required." >&2
+    exit 1
 fi
+
+run_python -m ruff check .
+run_python -m ruff format --check .
+run_python -m pytest --basetemp="$pytest_tmp_dir" --cov=app --cov-report=term-missing --cov-fail-under=70
