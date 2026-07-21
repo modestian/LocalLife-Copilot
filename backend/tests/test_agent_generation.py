@@ -152,12 +152,8 @@ def test_review_summary_contains_highlights_drawbacks_changes_and_tags() -> None
         "review_summary": {
             "merchant_id": "merchant-1",
             "merchant_name": "安静小馆",
-            "highlights": [
-                {"text": "环境安静", "tags": ["环境"], "source_ids": ["E1"]}
-            ],
-            "drawbacks": [
-                {"text": "高峰期上菜慢", "tags": ["服务"], "source_ids": ["E2"]}
-            ],
+            "highlights": [{"text": "环境安静", "tags": ["环境"], "source_ids": ["E1"]}],
+            "drawbacks": [{"text": "高峰期上菜慢", "tags": ["服务"], "source_ids": ["E2"]}],
             "recent_changes": [
                 {"text": "近期等待时间改善", "tags": ["趋势"], "source_ids": ["E1", "E2"]}
             ],
