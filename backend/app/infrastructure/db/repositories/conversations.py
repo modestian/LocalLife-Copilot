@@ -221,12 +221,17 @@ class SQLAlchemyConversationRepository:
             # Truncation is a logical branch move. Historical messages and their
             # sources remain durable for audit/recovery and can form another branch.
             conversation.current_branch_message_id = target.id
-            settings = dict(conversation.settings_json)
-            settings.pop("_memory_summary", None)
-            conversation.settings_json = settings
+            conversation.settings_json = _settings_after_truncate(dict(conversation.settings_json))
             conversation.updated_at = utc_now()
             await session.flush()
             return _conversation_view(conversation)
+
+
+def _settings_after_truncate(settings: dict[str, object]) -> dict[str, object]:
+    """Drop derived memory so abandoned-branch facts cannot leak into later turns."""
+    settings.pop("_memory_summary", None)
+    settings.pop("constraints", None)
+    return settings
 
 
 def _visible_branch_rows(

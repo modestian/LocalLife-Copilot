@@ -13,6 +13,7 @@ dependencies = [
   "asyncmy==0.2.11",
   "celery[redis]==5.5.3",
   "fastapi==0.116.1",
+  "langgraph==1.2.9",
   "openpyxl==3.1.5",
   "opensearch-py==3.0.0",
   "pandas==2.3.1",

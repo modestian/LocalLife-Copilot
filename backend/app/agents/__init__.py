@@ -32,6 +32,8 @@ from app.agents.generation import (
     infer_generation_mode,
     render_grounded_output,
 )
+from app.agents.graph import ChatGraphNodes, build_chat_graph
+from app.agents.local_model import ExtractiveModelAdapter
 from app.agents.memory import (
     SUMMARY_SETTINGS_KEY,
     ControlledConversationSummarizer,
@@ -55,6 +57,7 @@ from app.agents.routing import (
     route_after_constraints,
     route_after_intent,
 )
+from app.agents.runtime import ChatAgentRuntime, ChatRunContext, ChatRunResult
 from app.agents.state import ChatState, StateField, validate_state_update
 from app.agents.types import (
     ChatConstraints,
@@ -67,7 +70,11 @@ from app.agents.types import (
 )
 
 __all__ = [
+    "ChatAgentRuntime",
     "ChatConstraints",
+    "ChatGraphNodes",
+    "ChatRunContext",
+    "ChatRunResult",
     "ChatError",
     "ChatIntent",
     "ChatState",
@@ -84,6 +91,7 @@ __all__ = [
     "ConstraintExtractor",
     "ConstraintOutput",
     "GraphNode",
+    "ExtractiveModelAdapter",
     "GroundedGeneration",
     "GroundedOutput",
     "GroundedRAGGenerator",
@@ -118,6 +126,7 @@ __all__ = [
     "GENERATE_GROUNDED_CONTRACT",
     "NO_EVIDENCE_ANSWER",
     "PROMPT_POLICY_VERSION",
+    "build_chat_graph",
     "build_grounded_prompt",
     "infer_generation_mode",
     "merge_constraints",
