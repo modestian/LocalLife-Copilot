@@ -8,6 +8,7 @@ from opensearchpy import OpenSearch
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.agents.memory import ConversationMemoryService
 from app.api.analytics import business_router as analytics_business_router
 from app.api.analytics import compare_router as analytics_compare_router
 from app.api.analytics import reviews_router as analytics_reviews_router
@@ -109,6 +110,10 @@ def create_app(
         app.state.conversation_memory = RedisConversationMemory(
             conversation_repository,
             redis_client,
+        )
+        app.state.agent_memory = ConversationMemoryService(
+            conversation_repository,
+            app.state.conversation_memory,
         )
         opensearch_client = OpenSearch(app_settings.opensearch_url)
         embedding_provider = HttpEmbeddingProvider(

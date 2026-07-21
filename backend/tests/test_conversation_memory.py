@@ -17,11 +17,19 @@ from app.infrastructure.cache.conversations import RedisConversationMemory
 
 
 class MemoryFactRepository:
-    def __init__(self, owner_id: UUID, conversation_id: UUID, messages: list[MessageView]) -> None:
+    def __init__(
+        self,
+        owner_id: UUID,
+        conversation_id: UUID,
+        messages: list[MessageView],
+        *,
+        memory_backend: str = "REDIS",
+    ) -> None:
         self.owner_id = owner_id
         self.conversation_id = conversation_id
         self.messages = messages
         self.mysql_reads = 0
+        self.memory_backend = memory_backend
 
     async def get_conversation(self, conversation_id: UUID, owner_user_id: UUID):
         if conversation_id != self.conversation_id or owner_user_id != self.owner_id:
@@ -32,7 +40,7 @@ class MemoryFactRepository:
             owner_user_id=owner_user_id,
             title=None,
             status=ConversationStatus.ACTIVE,
-            memory_backend="REDIS",
+            memory_backend=self.memory_backend,
             current_branch_message_id=None,
             settings={},
             version=1,
@@ -52,6 +60,7 @@ class FakeRedis:
     def __init__(self) -> None:
         self.values: dict[str, str | bytes] = {}
         self.fail = False
+        self.gets = 0
 
     async def get(self, key: str):
         if self.fail:
@@ -151,3 +160,23 @@ async def test_corrupt_cache_is_replaced_from_mysql() -> None:
 
     assert len(restored) == 1
     assert repository.mysql_reads == 1
+
+
+@pytest.mark.asyncio
+async def test_mysql_backend_bypasses_redis_completely() -> None:
+    owner_id, conversation_id = uuid7(), uuid7()
+    repository = MemoryFactRepository(
+        owner_id,
+        conversation_id,
+        [message(conversation_id, 1)],
+        memory_backend="MYSQL",
+    )
+    redis = FakeRedis()
+
+    restored = await RedisConversationMemory(repository, redis).load(  # type: ignore[arg-type]
+        conversation_id, owner_id
+    )
+
+    assert [item.sequence_no for item in restored] == [1]
+    assert redis.gets == 0
+    assert redis.values == {}

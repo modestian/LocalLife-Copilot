@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 from app import init_runtime
+from app.agents.memory import ConversationMemoryService
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
 from app.core.config import Settings
@@ -84,6 +85,7 @@ def test_api_lifespan_wires_authentication_and_authorization_services(monkeypatc
         assert isinstance(app.state.task_repository, SQLAlchemyTaskRepository)
         assert isinstance(app.state.conversation_repository, SQLAlchemyConversationRepository)
         assert isinstance(app.state.conversation_memory, RedisConversationMemory)
+        assert isinstance(app.state.agent_memory, ConversationMemoryService)
 
     engine.dispose.assert_awaited_once()
     redis_client.aclose.assert_awaited_once()
