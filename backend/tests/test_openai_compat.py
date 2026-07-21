@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -118,16 +119,12 @@ def test_non_streaming_response_matches_openai_chat_completion_shape() -> None:
     assert scope.knowledge_base_ids == frozenset()
 
 
-def test_validation_and_stream_errors_use_openai_error_object() -> None:
+def test_validation_errors_use_openai_error_object() -> None:
     _app, client = build_client()
     with client:
         invalid = client.post(
             "/v1/chat/completions",
             json={"model": "local-life-assistant", "messages": []},
-        )
-        streaming = client.post(
-            "/v1/chat/completions",
-            json={**payload(), "stream": True},
         )
 
     assert invalid.status_code == 422
@@ -137,13 +134,28 @@ def test_validation_and_stream_errors_use_openai_error_object() -> None:
         "param": "messages",
         "code": "validation_error",
     }
-    assert streaming.status_code == 400
-    assert streaming.json()["error"] == {
-        "message": "Streaming is not available on this endpoint yet",
-        "type": "invalid_request_error",
-        "param": "stream",
-        "code": "streaming_not_implemented",
-    }
+
+
+def test_streaming_response_emits_ordered_chunks_sources_and_done() -> None:
+    _app, client = build_client()
+    with client:
+        response = client.post(
+            "/v1/chat/completions",
+            json={**payload(), "stream": True},
+        )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    frames = [line.removeprefix("data: ") for line in response.text.splitlines() if line]
+    assert frames[-1] == "[DONE]"
+    chunks = [json.loads(frame) for frame in frames[:-1]]
+    assert chunks[0]["choices"][0]["delta"]["role"] == "assistant"
+    assert (
+        "".join(chunk["choices"][0]["delta"].get("content", "") for chunk in chunks)
+        == "Try the quiet restaurant by the park."
+    )
+    assert chunks[-1]["choices"][0]["finish_reason"] == "stop"
+    assert chunks[-1]["metadata"]["sources"][0]["chunk_id"] == str(CHUNK_ID)
 
 
 def test_authentication_error_uses_openai_error_type_and_keeps_request_id_header() -> None:
