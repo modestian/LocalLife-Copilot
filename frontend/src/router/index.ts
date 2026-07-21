@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 import { tokenStorage } from '@/api/token-storage'
 import { useAuthStore } from '@/stores/auth'
+import LoginView from '@/views/LoginView.vue'
 
 import { canAccessRoles, loginRouteFor, resolveWorkbenchRouteName } from './auth-routing'
 
@@ -11,7 +12,8 @@ const router = createRouter({
     {
       path: '/login',
       name: 'login',
-      component: () => import('@/views/LoginView.vue'),
+      // A protected-route redirect must not wait on a lazy login chunk.
+      component: LoginView,
       meta: { guestOnly: true, title: '登录' },
     },
     {
