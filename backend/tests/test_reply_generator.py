@@ -1,5 +1,10 @@
 """Unit tests for review reply generation and compliance constraints."""
 
+import json
+from dataclasses import dataclass
+from datetime import datetime
+from uuid import UUID
+
 from fastapi.testclient import TestClient
 
 from app.application.reply_generator import (
@@ -194,12 +199,39 @@ class TestReplyGeneratorCompliance:
 # ---------------------------------------------------------------------------
 
 
-def _create_test_client() -> TestClient:
+@dataclass
+class FakeReviewAnalysis:
+    """Lightweight stand-in for the ORM model."""
+
+    id: UUID
+    merchant_id: str
+    review_text: str
+    sentiment: str
+    aspect_labels: str
+    negative_reasons: str
+    review_date: datetime | None = None
+    model_version: str = "v1.0"
+    confidence: float = 0.95
+
+
+class InMemoryReplyRepository:
+    """Minimal fake repository that supports find_review_by_id."""
+
+    def __init__(self, records: list[FakeReviewAnalysis]) -> None:
+        self._records = records
+
+    async def find_review_by_id(self, review_id: UUID) -> FakeReviewAnalysis | None:
+        return next((r for r in self._records if r.id == review_id), None)
+
+
+def _create_test_client(records: list[FakeReviewAnalysis]) -> TestClient:
     """Create a minimal FastAPI TestClient for reply endpoint tests."""
     from fastapi import FastAPI
 
+    from app.api.analytics import get_analytics_service
     from app.api.analytics import reviews_router as analytics_reviews_router
     from app.api.dependencies.authorization import get_current_principal
+    from app.application.analytics import AnalyticsService
     from app.application.authorization import AuthorizationPrincipal, RoleInfo
     from app.core.api import install_api_contract
     from app.core.config import get_settings
@@ -209,6 +241,10 @@ def _create_test_client() -> TestClient:
     app.state.settings = settings
     install_api_contract(app, settings)
     app.include_router(analytics_reviews_router, prefix=settings.api_v1_prefix)
+
+    repo = InMemoryReplyRepository(records)
+    service = AnalyticsService(repo)
+    app.dependency_overrides[get_analytics_service] = lambda: service
     app.dependency_overrides[get_current_principal] = lambda: AuthorizationPrincipal(
         user_id=uuid7(),
         username="reply-test-admin",
@@ -224,96 +260,108 @@ def _create_test_client() -> TestClient:
 
 class TestReplyEndpoint:
     def test_positive_reply_success(self) -> None:
-        client = _create_test_client()
+        review_id = uuid7()
+        records = [
+            FakeReviewAnalysis(
+                id=review_id,
+                merchant_id="M001",
+                review_text="味道很好，服务周到",
+                sentiment="POSITIVE",
+                aspect_labels=json.dumps(["taste", "attitude"]),
+                negative_reasons="[]",
+            )
+        ]
+        client = _create_test_client(records)
         response = client.post(
-            "/api/v1/reviews/test-review-id/reply-suggestions",
-            json={
-                "review_text": "味道很好",
-                "sentiment": "POSITIVE",
-                "aspect_labels": ["taste"],
-                "negative_reasons": [],
-            },
+            f"/api/v1/reviews/{review_id}/reply-suggestions",
+            json={},
         )
         assert response.status_code == 200
         body = response.json()
         assert body["code"] == "OK"
         data = body["data"]
-        assert data["compliance_passed"] is True
-        assert data["template_id"] == "positive_default"
-        assert "reply_text" in data
-        assert "violations" in data
+        assert "draft" in data
         assert "model_version" in data
         assert "prompt_version" in data
         assert "generated_at" in data
         assert "evidence_review_ids" in data
-        assert data["evidence_review_ids"] == ["test-review-id"]
+        assert str(review_id) in data["evidence_review_ids"]
 
     def test_negative_reply_with_reason(self) -> None:
-        client = _create_test_client()
+        review_id = uuid7()
+        records = [
+            FakeReviewAnalysis(
+                id=review_id,
+                merchant_id="M001",
+                review_text="上菜太慢了",
+                sentiment="NEGATIVE",
+                aspect_labels=json.dumps(["waiting_time"]),
+                negative_reasons=json.dumps(["slow_wait"]),
+            )
+        ]
+        client = _create_test_client(records)
         response = client.post(
-            "/api/v1/reviews/test-review-id/reply-suggestions",
-            json={
-                "review_text": "上菜太慢了",
-                "sentiment": "NEGATIVE",
-                "aspect_labels": ["waiting_time"],
-                "negative_reasons": ["slow_wait"],
-            },
+            f"/api/v1/reviews/{review_id}/reply-suggestions",
+            json={},
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["data"]["template_id"] == "neg_slow_wait"
-        assert body["data"]["compliance_passed"] is True
-
-    def test_empty_review_text_rejected(self) -> None:
-        client = _create_test_client()
-        response = client.post(
-            "/api/v1/reviews/test-review-id/reply-suggestions",
-            json={
-                "review_text": "",
-                "sentiment": "POSITIVE",
-                "aspect_labels": [],
-                "negative_reasons": [],
-            },
-        )
-        assert response.status_code == 400
-
-    def test_invalid_sentiment_rejected(self) -> None:
-        client = _create_test_client()
-        response = client.post(
-            "/api/v1/reviews/test-review-id/reply-suggestions",
-            json={
-                "review_text": "测试",
-                "sentiment": "UNKNOWN",
-                "aspect_labels": [],
-                "negative_reasons": [],
-            },
-        )
-        assert response.status_code == 400
-
-    def test_missing_body_field_rejected(self) -> None:
-        client = _create_test_client()
-        response = client.post(
-            "/api/v1/reviews/test-review-id/reply-suggestions",
-            json={
-                "review_text": "测试",
-                # missing sentiment
-                "aspect_labels": [],
-                "negative_reasons": [],
-            },
-        )
-        assert response.status_code == 422
+        assert body["code"] == "OK"
+        assert "draft" in body["data"]
 
     def test_neutral_reply(self) -> None:
-        client = _create_test_client()
+        review_id = uuid7()
+        records = [
+            FakeReviewAnalysis(
+                id=review_id,
+                merchant_id="M001",
+                review_text="环境一般",
+                sentiment="NEUTRAL",
+                aspect_labels=json.dumps(["decoration"]),
+                negative_reasons="[]",
+            )
+        ]
+        client = _create_test_client(records)
         response = client.post(
-            "/api/v1/reviews/test-review-id/reply-suggestions",
-            json={
-                "review_text": "环境一般",
-                "sentiment": "NEUTRAL",
-                "aspect_labels": ["decoration"],
-                "negative_reasons": [],
-            },
+            f"/api/v1/reviews/{review_id}/reply-suggestions",
+            json={},
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["data"]["template_id"] == "neutral_default"
+        assert body["code"] == "OK"
+        assert "draft" in body["data"]
+
+    def test_review_not_found(self) -> None:
+        client = _create_test_client([])
+        response = client.post(
+            f"/api/v1/reviews/{uuid7()}/reply-suggestions",
+            json={},
+        )
+        assert response.status_code == 404
+
+    def test_invalid_tone_rejected(self) -> None:
+        review_id = uuid7()
+        records = [
+            FakeReviewAnalysis(
+                id=review_id,
+                merchant_id="M001",
+                review_text="测试",
+                sentiment="POSITIVE",
+                aspect_labels="[]",
+                negative_reasons="[]",
+            )
+        ]
+        client = _create_test_client(records)
+        response = client.post(
+            f"/api/v1/reviews/{review_id}/reply-suggestions",
+            json={"tone": "INVALID_TONE"},
+        )
+        assert response.status_code == 400
+
+    def test_invalid_review_id_format(self) -> None:
+        client = _create_test_client([])
+        response = client.post(
+            "/api/v1/reviews/not-a-uuid/reply-suggestions",
+            json={},
+        )
+        assert response.status_code == 422

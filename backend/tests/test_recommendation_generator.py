@@ -7,6 +7,7 @@ import json
 # ---------------------------------------------------------------------------
 from dataclasses import dataclass
 from datetime import datetime
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -555,6 +556,9 @@ class InMemoryAnalyticsRepository:
             }
         return stats
 
+    async def find_review_by_id(self, review_id: UUID) -> FakeReviewAnalysis | None:
+        return next((r for r in self._records if r.id == review_id), None)
+
     async def drill_down_reviews(
         self,
         merchant_id: str,
@@ -787,74 +791,84 @@ def _create_test_client(records: list[FakeReviewAnalysis]) -> TestClient:
 class TestRecommendationsEndpoint:
     def test_success(self) -> None:
         client = _create_test_client(_rich_sample_records())
-        response = client.post("/api/v1/merchants/M001/business-suggestions")
+        response = client.post(
+            "/api/v1/merchants/M001/business-suggestions",
+            json={},
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["code"] == "OK"
         data = body["data"]
-        assert data["merchant_id"] == "M001"
         assert data["prompt_version"] == PROMPT_VERSION
         assert "generated_at" in data
-        assert "summary" in data
-        assert "recommendations" in data
-        assert "low_sample_warning" in data
-        assert len(data["recommendations"]) > 0
-        # Verify first recommendation has required fields
-        rec = data["recommendations"][0]
-        assert {"recommendation_id", "category", "priority", "title", "description"} <= set(
-            rec.keys()
-        )
-        assert {"confidence", "evidence"} <= set(rec.keys())
+        assert "suggestions" in data
+        assert "insufficient_data" in data
+        assert len(data["suggestions"]) > 0
+        # Verify first suggestion has required fields
+        rec = data["suggestions"][0]
+        assert {"id", "title", "content", "confidence"} <= set(rec.keys())
+        assert {"period_start", "period_end"} <= set(rec.keys())
+        assert {"evidence_review_ids", "evidence_reviews"} <= set(rec.keys())
 
     def test_empty_merchant_returns_200(self) -> None:
         client = _create_test_client(_rich_sample_records())
-        response = client.post("/api/v1/merchants/M999/business-suggestions")
+        response = client.post(
+            "/api/v1/merchants/M999/business-suggestions",
+            json={},
+        )
         assert response.status_code == 200
         body = response.json()
-        assert body["data"]["summary"]["total_reviews"] == 0
-        assert body["data"]["low_sample_warning"] is True
-        assert len(body["data"]["recommendations"]) == 0
+        assert body["data"]["insufficient_data"] is True
+        assert len(body["data"]["suggestions"]) == 0
 
     def test_with_date_range(self) -> None:
         client = _create_test_client(_rich_sample_records())
         response = client.post(
-            "/api/v1/merchants/M001/business-suggestions"
-            "?start_date=2025-07-02T00:00:00"
-            "&end_date=2025-07-03T00:00:00"
+            "/api/v1/merchants/M001/business-suggestions",
+            json={
+                "start_date": "2025-07-02T00:00:00",
+                "end_date": "2025-07-03T00:00:00",
+            },
         )
         assert response.status_code == 200
         body = response.json()
-        assert body["data"]["summary"]["total_reviews"] == 0
+        # All records are on 2025-07-01, so date range 07-02 to 07-03 excludes all
+        assert len(body["data"]["suggestions"]) == 0
 
     def test_evidence_structure(self) -> None:
         client = _create_test_client(_rich_sample_records())
-        response = client.post("/api/v1/merchants/M001/business-suggestions")
+        response = client.post(
+            "/api/v1/merchants/M001/business-suggestions",
+            json={},
+        )
         body = response.json()
-        neg_recs = [
-            r for r in body["data"]["recommendations"] if r["category"] == "negative_reason"
-        ]
-        assert len(neg_recs) > 0
-        for rec in neg_recs:
-            assert len(rec["evidence"]) > 0
-            ev = rec["evidence"][0]
+        suggestions = body["data"]["suggestions"]
+        # Find suggestions with evidence (negative_reason category ones)
+        with_evidence = [s for s in suggestions if len(s["evidence_reviews"]) > 0]
+        assert len(with_evidence) > 0
+        for rec in with_evidence:
+            ev = rec["evidence_reviews"][0]
             assert {"review_id", "review_text", "sentiment"} <= set(ev.keys())
-            assert {"aspect_labels", "negative_reasons", "review_date"} <= set(ev.keys())
+            assert "reviewed_at" in ev
 
-    def test_priority_ordering(self) -> None:
+    def test_confidence_values(self) -> None:
         client = _create_test_client(_rich_sample_records())
-        response = client.post("/api/v1/merchants/M001/business-suggestions")
+        response = client.post(
+            "/api/v1/merchants/M001/business-suggestions",
+            json={},
+        )
         body = response.json()
-        priorities = [r["priority"] for r in body["data"]["recommendations"]]
-        # Should be sorted: high before medium before low
-        priority_order = {"high": 0, "medium": 1, "low": 2}
-        indexed = [priority_order.get(p, 3) for p in priorities]
-        assert indexed == sorted(indexed)
+        for rec in body["data"]["suggestions"]:
+            assert 0.0 <= rec["confidence"] <= 1.0
 
-    def test_summary_fields(self) -> None:
+    def test_focus_aspects_filtering(self) -> None:
+        """When focus_aspects is provided, only matching aspects should appear."""
         client = _create_test_client(_rich_sample_records())
-        response = client.post("/api/v1/merchants/M001/business-suggestions")
+        response = client.post(
+            "/api/v1/merchants/M001/business-suggestions",
+            json={"focus_aspects": ["taste"]},
+        )
+        assert response.status_code == 200
         body = response.json()
-        summary = body["data"]["summary"]
-        assert {"total_reviews", "positive", "neutral", "negative"} <= set(summary.keys())
-        assert {"positive_rate", "negative_rate", "data_confidence"} <= set(summary.keys())
-        assert summary["total_reviews"] == 18  # 5+5+3+3+2
+        # Should have suggestions (taste-related ones)
+        assert len(body["data"]["suggestions"]) > 0

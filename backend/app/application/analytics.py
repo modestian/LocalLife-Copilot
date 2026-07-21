@@ -7,6 +7,7 @@ performs parameter validation only – no business-rule mutation.
 
 from datetime import datetime
 from typing import Literal, Protocol
+from uuid import UUID
 
 from app.application.recommendation_generator import (
     RecommendationGenerator,
@@ -59,6 +60,8 @@ class AnalyticsRepository(Protocol):
         start_date: datetime | None = None,
         end_date: datetime | None = None,
     ) -> dict[str, dict]: ...
+
+    async def find_review_by_id(self, review_id: UUID) -> ReviewAnalysis | None: ...
 
     async def drill_down_reviews(
         self,
@@ -204,6 +207,9 @@ class AnalyticsService:
             end_date=end_date,
         )
 
+    _MINIMUM_SAMPLE_SIZE = 10
+    _METRIC_DEFINITION = "sentiment_positive_rate"
+
     async def compare_merchants(
         self,
         merchant_ids: list[str],
@@ -213,10 +219,13 @@ class AnalyticsService:
     ) -> dict:
         """Compare 2-4 merchants under the same time window and metrics.
 
-        Returns a dict with three sections:
-        - ``summary``: per-merchant sentiment distribution
-        - ``aspect_comparison``: per-aspect cross-merchant comparison
-        - ``negative_reason_comparison``: per-reason cross-merchant comparison
+        Returns a flat per-merchant structure aligned with the frontend
+        ``MerchantComparisonResult`` contract:
+        - ``merchants``: list of per-merchant metric dicts
+        - ``period_start`` / ``period_end``: time window bounds
+        - ``metric_definition``: fixed metric identifier
+        - ``minimum_sample_size``: threshold for sufficient data
+        - ``insufficient_data``: True if all merchants are below threshold
         """
         _validate_merchant_ids(merchant_ids)
         _validate_date_range(start_date, end_date)
@@ -228,7 +237,7 @@ class AnalyticsService:
             end_date=end_date,
         )
 
-        # 2. Aspect comparison (per-merchant, then align)
+        # 2. Aspect stats per merchant → restructure into per-merchant aspect_counts
         aspect_maps: dict[str, list[dict]] = {}
         for mid in merchant_ids:
             aspect_maps[mid] = await self._repository.get_aspect_sentiment_stats(
@@ -237,29 +246,7 @@ class AnalyticsService:
                 end_date=end_date,
             )
 
-        # Collect all aspects across merchants
-        all_aspects: set[str] = set()
-        for stats in aspect_maps.values():
-            all_aspects.update(s["aspect"] for s in stats)
-
-        aspect_comparison: list[dict] = []
-        for aspect in sorted(all_aspects):
-            merchants: list[dict] = []
-            for mid in merchant_ids:
-                found = next((s for s in aspect_maps[mid] if s["aspect"] == aspect), None)
-                if found:
-                    merchants.append(
-                        {
-                            "merchant_id": mid,
-                            "positive_rate": found["positive_rate"],
-                            "total": found["total"],
-                        }
-                    )
-                else:
-                    merchants.append({"merchant_id": mid, "positive_rate": 0.0, "total": 0})
-            aspect_comparison.append({"aspect": aspect, "merchants": merchants})
-
-        # 3. Negative reason comparison (per-merchant, then align)
+        # 3. Negative reason stats per merchant → per-merchant negative_reason_counts
         reason_maps: dict[str, list[dict]] = {}
         for mid in merchant_ids:
             reason_maps[mid] = await self._repository.get_negative_reason_aggregation(
@@ -268,29 +255,67 @@ class AnalyticsService:
                 end_date=end_date,
             )
 
-        all_reasons: set[str] = set()
-        for reasons in reason_maps.values():
-            all_reasons.update(r["reason"] for r in reasons)
+        # 4. Build flat per-merchant metric list
+        merchant_metrics: list[dict] = []
+        for mid in merchant_ids:
+            stats = summary.get(
+                mid,
+                {
+                    "positive": 0,
+                    "neutral": 0,
+                    "negative": 0,
+                    "total": 0,
+                    "positive_rate": 0.0,
+                    "negative_rate": 0.0,
+                },
+            )
+            sample_count = stats.get("total", 0)
 
-        reason_comparison: list[dict] = []
-        for reason in sorted(all_reasons):
-            merchants = []
-            for mid in merchant_ids:
-                found = next((r for r in reason_maps[mid] if r["reason"] == reason), None)
-                merchants.append({"merchant_id": mid, "count": found["count"] if found else 0})
-            reason_comparison.append({"reason": reason, "merchants": merchants})
+            # aspect_counts: {aspect_label: total_count}
+            aspect_counts: dict[str, int] = {}
+            for s in aspect_maps.get(mid, []):
+                aspect_counts[s["aspect"]] = s["total"]
+
+            # negative_reason_counts: {reason: count}
+            negative_reason_counts: dict[str, int] = {}
+            for r in reason_maps.get(mid, []):
+                negative_reason_counts[r["reason"]] = r["count"]
+
+            merchant_metrics.append(
+                {
+                    "merchant_id": mid,
+                    "merchant_name": mid,  # placeholder — no merchant name table
+                    "sample_count": sample_count,
+                    "positive_rate": stats.get("positive_rate", 0.0),
+                    "avg_rating": None,  # not available in current data model
+                    "aspect_counts": aspect_counts,
+                    "negative_reason_counts": negative_reason_counts,
+                }
+            )
+
+        # 5. Determine period bounds and data sufficiency
+        period_start = start_date.isoformat() if start_date else ""
+        period_end = end_date.isoformat() if end_date else ""
+        insufficient = all(m["sample_count"] < self._MINIMUM_SAMPLE_SIZE for m in merchant_metrics)
 
         return {
-            "merchants": merchant_ids,
-            "summary": [summary[mid] for mid in merchant_ids],
-            "aspect_comparison": aspect_comparison,
-            "negative_reason_comparison": reason_comparison,
+            "period_start": period_start,
+            "period_end": period_end,
+            "metric_definition": self._METRIC_DEFINITION,
+            "minimum_sample_size": self._MINIMUM_SAMPLE_SIZE,
+            "insufficient_data": insufficient,
+            "merchants": merchant_metrics,
         }
+
+    async def find_review_by_id(self, review_id: UUID) -> ReviewAnalysis | None:
+        """Look up a single review analysis by ID."""
+        return await self._repository.find_review_by_id(review_id)
 
     async def generate_recommendations(
         self,
         merchant_id: str,
         *,
+        focus_aspects: list[str] | None = None,
         start_date: datetime | None = None,
         end_date: datetime | None = None,
     ) -> RecommendationReport:
@@ -298,6 +323,8 @@ class AnalyticsService:
 
         Orchestrates data fetching from the repository, then delegates to
         :class:`RecommendationGenerator` for rule-based recommendation synthesis.
+        If ``focus_aspects`` is provided, aspect stats are filtered to only
+        include those aspects.
         """
         _validate_merchant_id(merchant_id)
         _validate_date_range(start_date, end_date)
@@ -325,12 +352,15 @@ class AnalyticsService:
             end_date=end_date,
         )
 
-        # 3. Aspect sentiment stats
+        # 3. Aspect sentiment stats (optionally filtered by focus_aspects)
         aspect_stats = await self._repository.get_aspect_sentiment_stats(
             merchant_id,
             start_date=start_date,
             end_date=end_date,
         )
+        if focus_aspects:
+            focus_set = set(focus_aspects)
+            aspect_stats = [s for s in aspect_stats if s["aspect"] in focus_set]
 
         # 4. Fetch evidence reviews for each negative reason
         evidence_reviews: dict[str, list[ReviewAnalysis]] = {}

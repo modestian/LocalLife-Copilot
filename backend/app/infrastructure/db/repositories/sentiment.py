@@ -113,6 +113,11 @@ class SQLAlchemySentimentRepository:
             rows = await session.scalars(stmt)
             return list(rows)
 
+    async def find_review_by_id(self, review_id: UUID) -> ReviewAnalysis | None:
+        """Look up a single review analysis by primary key."""
+        async with self._session_factory() as session:
+            return await session.get(ReviewAnalysis, review_id)
+
     # ------------------------------------------------------------------
     # Aggregation helpers
     # ------------------------------------------------------------------

@@ -102,6 +102,9 @@ class InMemoryAnalyticsRepository:
 
         return [{"reason": reason, "count": count} for reason, count in counter.most_common()]
 
+    async def find_review_by_id(self, review_id: UUID) -> FakeReviewAnalysis | None:
+        return next((r for r in self._records if r.id == review_id), None)
+
     async def drill_down_reviews(
         self,
         merchant_id: str,
@@ -727,39 +730,34 @@ class TestCompareMerchantsService:
     @pytest.mark.asyncio
     async def test_compare_two_merchants(self, service: AnalyticsService) -> None:
         result = await service.compare_merchants(["M001", "M002"])
-        assert result["merchants"] == ["M001", "M002"]
-        assert len(result["summary"]) == 2
+        assert len(result["merchants"]) == 2
+        assert [m["merchant_id"] for m in result["merchants"]] == ["M001", "M002"]
         # M001: 1 pos, 1 neu, 2 neg = 4 total
-        m001 = next(s for s in result["summary"] if s["merchant_id"] == "M001")
-        assert m001["positive"] == 1
-        assert m001["negative"] == 2
-        assert m001["total"] == 4
+        m001 = next(m for m in result["merchants"] if m["merchant_id"] == "M001")
+        assert m001["sample_count"] == 4
         # M002: 1 pos, 0 neu, 0 neg = 1 total
-        m002 = next(s for s in result["summary"] if s["merchant_id"] == "M002")
-        assert m002["positive"] == 1
-        assert m002["total"] == 1
+        m002 = next(m for m in result["merchants"] if m["merchant_id"] == "M002")
+        assert m002["sample_count"] == 1
         assert m002["positive_rate"] == 1.0
 
     @pytest.mark.asyncio
     async def test_compare_aspect_alignment(self, service: AnalyticsService) -> None:
         result = await service.compare_merchants(["M001", "M002"])
-        aspects = {row["aspect"] for row in result["aspect_comparison"]}
-        assert "taste" in aspects
-        assert "service" in aspects
-        # Each aspect row should have an entry per merchant
-        for row in result["aspect_comparison"]:
-            assert len(row["merchants"]) == 2
+        # Each merchant should have an aspect_counts dict
+        for m in result["merchants"]:
+            assert isinstance(m["aspect_counts"], dict)
+        m001 = next(m for m in result["merchants"] if m["merchant_id"] == "M001")
+        assert "taste" in m001["aspect_counts"]
+        assert "service" in m001["aspect_counts"]
 
     @pytest.mark.asyncio
     async def test_compare_negative_reason_alignment(self, service: AnalyticsService) -> None:
         result = await service.compare_merchants(["M001", "M002"])
         # M001 has negative reviews, M002 does not
-        reasons = {row["reason"] for row in result["negative_reason_comparison"]}
-        assert "slow_wait" in reasons
-        for row in result["negative_reason_comparison"]:
-            assert len(row["merchants"]) == 2
-            m002_entry = next(m for m in row["merchants"] if m["merchant_id"] == "M002")
-            assert m002_entry["count"] == 0
+        m001 = next(m for m in result["merchants"] if m["merchant_id"] == "M001")
+        assert "slow_wait" in m001["negative_reason_counts"]
+        m002 = next(m for m in result["merchants"] if m["merchant_id"] == "M002")
+        assert len(m002["negative_reason_counts"]) == 0
 
     @pytest.mark.asyncio
     async def test_compare_with_date_range(self, service: AnalyticsService) -> None:
@@ -769,10 +767,10 @@ class TestCompareMerchantsService:
             end_date=datetime(2025, 7, 3),
         )
         # Only 1 record on 2025-07-02 for M001, none for M002
-        m001 = next(s for s in result["summary"] if s["merchant_id"] == "M001")
-        assert m001["total"] == 1
-        m002 = next(s for s in result["summary"] if s["merchant_id"] == "M002")
-        assert m002["total"] == 0
+        m001 = next(m for m in result["merchants"] if m["merchant_id"] == "M001")
+        assert m001["sample_count"] == 1
+        m002 = next(m for m in result["merchants"] if m["merchant_id"] == "M002")
+        assert m002["sample_count"] == 0
 
     @pytest.mark.asyncio
     async def test_compare_too_few_merchants(self, service: AnalyticsService) -> None:
@@ -797,50 +795,73 @@ class TestCompareMerchantsService:
     @pytest.mark.asyncio
     async def test_compare_merchant_with_no_data(self, service: AnalyticsService) -> None:
         result = await service.compare_merchants(["M001", "M999"])
-        m999 = next(s for s in result["summary"] if s["merchant_id"] == "M999")
-        assert m999["total"] == 0
+        m999 = next(m for m in result["merchants"] if m["merchant_id"] == "M999")
+        assert m999["sample_count"] == 0
         assert m999["positive_rate"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_compare_has_metadata_fields(self, service: AnalyticsService) -> None:
+        result = await service.compare_merchants(["M001", "M002"])
+        assert "period_start" in result
+        assert "period_end" in result
+        assert "metric_definition" in result
+        assert "minimum_sample_size" in result
+        assert "insufficient_data" in result
+        assert result["metric_definition"] == "sentiment_positive_rate"
+        assert result["minimum_sample_size"] == 10
 
 
 class TestCompareMerchantsEndpoint:
     def test_success(self, sample_records: list[FakeReviewAnalysis]) -> None:
         client = _create_test_client(sample_records)
-        response = client.get("/api/v1/analytics/compare?merchant_ids=M001&merchant_ids=M002")
+        response = client.post(
+            "/api/v1/merchants/compare",
+            json={"merchant_ids": ["M001", "M002"]},
+        )
         assert response.status_code == 200
         body = response.json()
         assert body["code"] == "OK"
         data = body["data"]
-        assert data["merchants"] == ["M001", "M002"]
-        assert len(data["summary"]) == 2
-        assert "aspect_comparison" in data
-        assert "negative_reason_comparison" in data
+        assert len(data["merchants"]) == 2
+        assert [m["merchant_id"] for m in data["merchants"]] == ["M001", "M002"]
+        assert "period_start" in data
+        assert "period_end" in data
+        assert "metric_definition" in data
+        assert "minimum_sample_size" in data
+        assert "insufficient_data" in data
 
     def test_with_date_range(self, sample_records: list[FakeReviewAnalysis]) -> None:
         client = _create_test_client(sample_records)
-        response = client.get(
-            "/api/v1/analytics/compare"
-            "?merchant_ids=M001&merchant_ids=M002"
-            "&start_date=2025-07-02T00:00:00"
-            "&end_date=2025-07-03T00:00:00"
+        response = client.post(
+            "/api/v1/merchants/compare",
+            json={
+                "merchant_ids": ["M001", "M002"],
+                "start_date": "2025-07-02T00:00:00",
+                "end_date": "2025-07-03T00:00:00",
+            },
         )
         assert response.status_code == 200
         body = response.json()
-        m001 = next(s for s in body["data"]["summary"] if s["merchant_id"] == "M001")
-        assert m001["total"] == 1
+        m001 = next(m for m in body["data"]["merchants"] if m["merchant_id"] == "M001")
+        assert m001["sample_count"] == 1
 
     def test_too_few_merchants(self, sample_records: list[FakeReviewAnalysis]) -> None:
         client = _create_test_client(sample_records)
-        response = client.get("/api/v1/analytics/compare?merchant_ids=M001")
+        response = client.post(
+            "/api/v1/merchants/compare",
+            json={"merchant_ids": ["M001"]},
+        )
         assert response.status_code == 422
 
     def test_three_merchants(self, sample_records: list[FakeReviewAnalysis]) -> None:
         client = _create_test_client(sample_records)
-        response = client.get(
-            "/api/v1/analytics/compare?merchant_ids=M001&merchant_ids=M002&merchant_ids=M003"
+        response = client.post(
+            "/api/v1/merchants/compare",
+            json={"merchant_ids": ["M001", "M002", "M003"]},
         )
         assert response.status_code == 200
         body = response.json()
-        assert len(body["data"]["summary"]) == 3
+        assert len(body["data"]["merchants"]) == 3
         # M003 has no data → all zeros
-        m003 = next(s for s in body["data"]["summary"] if s["merchant_id"] == "M003")
-        assert m003["total"] == 0
+        m003 = next(m for m in body["data"]["merchants"] if m["merchant_id"] == "M003")
+        assert m003["sample_count"] == 0
