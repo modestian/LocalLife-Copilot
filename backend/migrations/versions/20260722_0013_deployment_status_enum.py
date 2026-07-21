@@ -11,7 +11,6 @@ the DEPLOYMENT_STATUSES frozenset in app/infrastructure/models/enums.py.
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260722_0013"
@@ -21,24 +20,21 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    with op.batch_alter_table("model_deployments", schema=None) as batch_op:
-        batch_op.alter_column(
-            "status",
-            existing_type=sa.String(length=16),
-            nullable=False,
-            server_default=None,
-        )
-        batch_op.drop_constraint("status", type_="check")
-        batch_op.create_check_constraint(
-            "status",
-            "status IN ('ACTIVE', 'CANARY', 'SUPERSEDED', 'ROLLED_BACK')",
-        )
+    # Replace the CHECK constraint directly with raw SQL to avoid
+    # Alembic batch_alter_table naming-convention issues on MySQL 8.x
+    # where the named CHECK constraint is not found during DROP.
+    op.execute("ALTER TABLE model_deployments DROP CONSTRAINT ck_model_deployments_status")
+    op.execute(
+        "ALTER TABLE model_deployments "
+        "ADD CONSTRAINT ck_model_deployments_status "
+        "CHECK (status IN ('ACTIVE', 'CANARY', 'SUPERSEDED', 'ROLLED_BACK'))"
+    )
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("model_deployments", schema=None) as batch_op:
-        batch_op.drop_constraint("status", type_="check")
-        batch_op.create_check_constraint(
-            "status",
-            "status IN ('ACTIVE', 'SUPERSEDED', 'FAILED')",
-        )
+    op.execute("ALTER TABLE model_deployments DROP CONSTRAINT ck_model_deployments_status")
+    op.execute(
+        "ALTER TABLE model_deployments "
+        "ADD CONSTRAINT ck_model_deployments_status "
+        "CHECK (status IN ('ACTIVE', 'SUPERSEDED', 'FAILED'))"
+    )
