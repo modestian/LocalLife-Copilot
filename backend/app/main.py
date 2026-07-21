@@ -26,6 +26,7 @@ from app.api.governance import router as governance_router
 from app.api.health import router as health_router
 from app.api.knowledge import router as knowledge_router
 from app.api.observability import audit_router, metrics_router
+from app.api.openai import router as openai_router
 from app.api.search import router as search_router
 from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
@@ -197,6 +198,7 @@ def create_app(
     app.include_router(knowledge_router, prefix=app_settings.api_v1_prefix)
     app.include_router(tasks_router, prefix=app_settings.api_v1_prefix)
     app.include_router(metrics_router)
+    app.include_router(openai_router)
     return app
 
 

@@ -62,6 +62,18 @@ def error_response(
     details: list[dict[str, Any]] | None = None,
     status_code: int,
 ) -> JSONResponse:
+    if request.url.path == "/v1/chat/completions":
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "error": {
+                    "message": message,
+                    "type": _openai_error_type(status_code),
+                    "param": _openai_error_param(details),
+                    "code": code.lower(),
+                }
+            },
+        )
     return JSONResponse(
         status_code=status_code,
         content={
@@ -71,6 +83,30 @@ def error_response(
             "request_id": get_request_id(request),
         },
     )
+
+
+def _openai_error_type(status_code: int) -> str:
+    if status_code == 401:
+        return "authentication_error"
+    if status_code == 403:
+        return "permission_error"
+    if status_code == 429:
+        return "rate_limit_error"
+    if status_code >= 500:
+        return "server_error"
+    return "invalid_request_error"
+
+
+def _openai_error_param(details: list[dict[str, Any]] | None) -> str | None:
+    if not details:
+        return None
+    field = details[0].get("field")
+    if not isinstance(field, str):
+        return None
+    for prefix in ("body.", "query.", "path."):
+        if field.startswith(prefix):
+            return field.removeprefix(prefix)
+    return field
 
 
 def _accepted_request_id(value: str | None, max_length: int) -> str | None:
