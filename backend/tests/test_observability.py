@@ -10,8 +10,20 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.dependencies.authorization import get_current_principal
-from app.api.observability import audit_router, get_audit_service, metrics_router
-from app.application.audit import AuditFilter, AuditQueryService, AuditRecord
+from app.api.observability import (
+    audit_router,
+    get_audit_service,
+    get_chat_log_service,
+    metrics_router,
+)
+from app.application.audit import (
+    AuditFilter,
+    AuditQueryService,
+    AuditRecord,
+    ChatLogFilter,
+    ChatLogQueryService,
+    ChatLogRecord,
+)
 from app.application.authorization import AuthorizationPrincipal, RoleInfo
 from app.core.api import install_api_contract
 from app.core.config import Settings
@@ -49,6 +61,31 @@ class InMemoryAuditRepository:
             and (cursor is None or (row.created_at, row.id) < cursor)
         ]
         return rows[:limit]
+
+    async def query_chat_logs(
+        self, filters: ChatLogFilter, *, limit: int, offset: int
+    ) -> list[ChatLogRecord]:
+        del filters, limit, offset
+        return []
+
+
+class InMemoryChatLogRepository:
+    def __init__(self, rows: list[ChatLogRecord]) -> None:
+        self.rows = rows
+        self.last_filters: ChatLogFilter | None = None
+
+    async def query_chat_logs(
+        self, filters: ChatLogFilter, *, limit: int, offset: int
+    ) -> list[ChatLogRecord]:
+        self.last_filters = filters
+        rows = [
+            row
+            for row in self.rows
+            if (filters.user_id is None or row.user_id == filters.user_id)
+            and (filters.conversation_id is None or row.conversation_id == filters.conversation_id)
+            and (filters.status is None or row.status == filters.status)
+        ]
+        return rows[offset : offset + limit]
 
 
 def _audit_row(
@@ -88,7 +125,10 @@ def _principal(*, admin: bool = True) -> AuthorizationPrincipal:
 
 
 def _audit_client(
-    service: AuditQueryService, *, principal: AuthorizationPrincipal | None = None
+    service: AuditQueryService,
+    *,
+    principal: AuthorizationPrincipal | None = None,
+    chat_service: ChatLogQueryService | None = None,
 ) -> TestClient:
     app = FastAPI()
     settings = Settings()
@@ -98,6 +138,9 @@ def _audit_client(
     app.include_router(audit_router, prefix=settings.api_v1_prefix)
     app.include_router(metrics_router)
     app.dependency_overrides[get_audit_service] = lambda: service
+    app.dependency_overrides[get_chat_log_service] = lambda: chat_service or ChatLogQueryService(
+        InMemoryChatLogRepository([])
+    )
     app.dependency_overrides[get_current_principal] = lambda: principal or _principal()
     return TestClient(app)
 
@@ -254,6 +297,46 @@ def test_non_admin_cannot_query_audits_and_no_mutation_route_exists() -> None:
     assert denied.status_code == 403
     assert patched.status_code == 405
     assert deleted.status_code == 405
+
+
+def test_chat_log_api_returns_trace_metadata_without_message_content() -> None:
+    principal = _principal(admin=False)
+    conversation_id = uuid7()
+    repository = InMemoryChatLogRepository(
+        [
+            ChatLogRecord(
+                message_id=uuid7(),
+                conversation_id=conversation_id,
+                user_id=principal.user_id,
+                request_id="chat-request",
+                role="ASSISTANT",
+                status="COMPLETED",
+                model_version_id=uuid7(),
+                prompt_tokens=11,
+                completion_tokens=5,
+                latency_ms=240,
+                error_code=None,
+                created_at=datetime(2026, 7, 21, 12, 0),
+            )
+        ]
+    )
+    with _audit_client(
+        AuditQueryService(InMemoryAuditRepository([])),
+        principal=principal,
+        chat_service=ChatLogQueryService(repository),
+    ) as client:
+        response = client.get(
+            "/api/v1/chat-logs",
+            params={"conversation_id": str(conversation_id), "status": "COMPLETED"},
+        )
+
+    assert response.status_code == 200
+    item = response.json()["data"]["items"][0]
+    assert item["request_id"] == "chat-request"
+    assert item["prompt_tokens"] == 11
+    assert "content" not in item
+    assert repository.last_filters is not None
+    assert repository.last_filters.user_id == principal.user_id
 
 
 def test_metrics_endpoint_uses_prometheus_content_type() -> None:

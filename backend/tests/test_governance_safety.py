@@ -15,11 +15,16 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, make_transient_to_detached
 
 from app.api.observability import audit_router
+from app.application.governance import DeploymentRequest
 from app.core.config import Settings
 from app.core.ids import uuid7
 from app.core.observability import JsonLogFormatter, redact_sensitive_data
 from app.infrastructure.db.models.governance import (
     AuditLog,
+    ModelDefinition,
+    ModelDeployment,
+    ModelDeploymentRoute,
+    ModelVersion,
     PromptDefinition,
     PromptVersion,
     _protect_audit_log,
@@ -41,6 +46,7 @@ class _ConcurrentPromptState:
         self.definition_id = uuid7()
         self.definition = object()
         self.lock = asyncio.Lock()
+        self.audits: list[AuditLog] = []
         self.versions = {
             version_id: PromptVersion(
                 id=version_id,
@@ -106,6 +112,10 @@ class _FakeConcurrentSession:
     async def flush(self) -> None:
         await asyncio.sleep(0)
 
+    def add(self, row: object) -> None:
+        if isinstance(row, AuditLog):
+            self.state.audits.append(row)
+
 
 class _FakeConcurrentSessionFactory:
     def __init__(self, state: _ConcurrentPromptState) -> None:
@@ -132,6 +142,8 @@ async def test_repository_serializes_concurrent_publication_of_distinct_drafts()
     assert sum(row.status == "PUBLISHED" for row in versions) == 1
     assert sorted(row.status for row in versions) == ["ARCHIVED", "PUBLISHED"]
     assert all(row.published_by == actor_id for row in versions)
+    assert len(state.audits) == 2
+    assert all(row.action == "PROMPT_PUBLISH" for row in state.audits)
 
 
 @pytest.mark.skipif(
@@ -198,12 +210,132 @@ async def test_concurrent_prompt_publications_leave_exactly_one_published_versio
         assert all(row.published_by == actor_id for row in versions)
     finally:
         async with session_factory() as session, session.begin():
+            await session.execute(delete(AuditLog).where(AuditLog.actor_id == actor_id))
             if version_ids:
                 await session.execute(
                     delete(PromptVersion).where(PromptVersion.id.in_(version_ids))
                 )
             await session.execute(
                 delete(PromptDefinition).where(PromptDefinition.id == definition_id)
+            )
+            await session.execute(delete(User).where(User.id == actor_id))
+        await engine.dispose()
+
+
+@pytest.mark.skipif(
+    os.getenv("ST103_MYSQL_INTEGRATION") != "1",
+    reason="set ST103_MYSQL_INTEGRATION=1 with migrated MySQL available",
+)
+@pytest.mark.asyncio
+async def test_concurrent_full_model_releases_leave_one_active_deployment() -> None:
+    """The route-row lock serializes releases of different model versions."""
+    settings = Settings()
+    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    repository = SQLAlchemyGovernanceRepository(session_factory)
+    suffix = uuid7().hex
+    actor_id = uuid7()
+    definition_id = uuid7()
+    first_version_id = uuid7()
+    second_version_id = uuid7()
+    scene = f"st103-{suffix}"
+    environment = "integration"
+    try:
+        async with session_factory() as session, session.begin():
+            session.add(
+                User(
+                    id=actor_id,
+                    username=f"st103-model-{suffix}",
+                    normalized_username=f"st103-model-{suffix}",
+                    password_hash="integration-test-only",
+                    display_name="ST-103 model integration actor",
+                )
+            )
+            session.add(
+                ModelDefinition(
+                    id=definition_id,
+                    code=f"st103-model-{suffix}",
+                    name="ST-103 concurrent model",
+                    task_type="integration",
+                    provider="local",
+                )
+            )
+        async with session_factory() as session, session.begin():
+            session.add_all(
+                [
+                    ModelVersion(
+                        id=version_id,
+                        model_definition_id=definition_id,
+                        version=f"v{index}",
+                        base_model_ref=f"base@{index}",
+                        adapter_uri=f"s3://integration/{suffix}/{index}",
+                        artifact_sha256=str(index) * 64,
+                        status="APPROVED",
+                        created_by=actor_id,
+                    )
+                    for index, version_id in enumerate(
+                        (first_version_id, second_version_id), start=1
+                    )
+                ]
+            )
+
+        await asyncio.gather(
+            repository.deploy_model(
+                DeploymentRequest(
+                    first_version_id,
+                    scene,
+                    environment,
+                    100,
+                    actor_id,
+                    "first full release",
+                    "model-release-1",
+                )
+            ),
+            repository.deploy_model(
+                DeploymentRequest(
+                    second_version_id,
+                    scene,
+                    environment,
+                    100,
+                    actor_id,
+                    "second full release",
+                    "model-release-2",
+                )
+            ),
+        )
+
+        async with session_factory() as session:
+            deployments = (
+                await session.scalars(
+                    select(ModelDeployment).where(
+                        ModelDeployment.scene == scene,
+                        ModelDeployment.environment == environment,
+                    )
+                )
+            ).all()
+        assert len(deployments) == 2
+        assert sum(row.status == "ACTIVE" for row in deployments) == 1
+        assert sorted(row.status for row in deployments) == ["ACTIVE", "SUPERSEDED"]
+    finally:
+        async with session_factory() as session, session.begin():
+            await session.execute(delete(AuditLog).where(AuditLog.actor_id == actor_id))
+            await session.execute(
+                delete(ModelDeployment).where(
+                    ModelDeployment.scene == scene,
+                    ModelDeployment.environment == environment,
+                )
+            )
+            await session.execute(
+                delete(ModelDeploymentRoute).where(
+                    ModelDeploymentRoute.scene == scene,
+                    ModelDeploymentRoute.environment == environment,
+                )
+            )
+            await session.execute(
+                delete(ModelVersion).where(ModelVersion.model_definition_id == definition_id)
+            )
+            await session.execute(
+                delete(ModelDefinition).where(ModelDefinition.id == definition_id)
             )
             await session.execute(delete(User).where(User.id == actor_id))
         await engine.dispose()

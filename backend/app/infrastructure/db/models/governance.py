@@ -179,6 +179,23 @@ class ModelDeployment(Base):
     )
 
 
+class ModelDeploymentRoute(Base):
+    """Stable lock anchor used to serialize releases for one runtime route."""
+
+    __tablename__ = "model_deployment_routes"
+    __table_args__ = (
+        UniqueConstraint("scene", "environment", name="uq_model_deployment_routes_key"),
+        MYSQL_TABLE_OPTIONS,
+    )
+
+    id: Mapped[UUID] = mapped_column(UUIDBinary(), primary_key=True, default=uuid7)
+    scene: Mapped[str] = mapped_column(String(64), nullable=False)
+    environment: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DATETIME_6, nullable=False, default=utc_now, server_default=text("CURRENT_TIMESTAMP(6)")
+    )
+
+
 class SensitiveWordRule(Base):
     """A versioned sensitive-word rule; prior versions remain traceable."""
 

@@ -3,9 +3,12 @@
 import json
 import math
 from collections.abc import Sequence
+from time import perf_counter
 from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+from app.core.observability import MetricsRegistry
 
 
 class EmbeddingError(RuntimeError):
@@ -23,12 +26,21 @@ class EmbeddingProvider(Protocol):
 class HttpEmbeddingProvider:
     """Call the model gateway using an OpenAI-compatible embeddings contract."""
 
-    def __init__(self, url: str, *, model: str, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        url: str,
+        *,
+        model: str,
+        timeout_seconds: float,
+        metrics_registry: MetricsRegistry | None = None,
+    ) -> None:
         self._url = url
         self._model = model
         self._timeout_seconds = timeout_seconds
+        self._metrics_registry = metrics_registry
 
     def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
+        started_at = perf_counter()
         payload = json.dumps({"model": self._model, "input": list(texts)}).encode()
         request = Request(
             self._url,
@@ -40,17 +52,34 @@ class HttpEmbeddingProvider:
             with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310
                 body = json.load(response)
         except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
+            self._observe("FAILED", started_at)
             raise EmbeddingError(
                 "EMBEDDING_GATEWAY_FAILED", "embedding gateway request failed"
             ) from exc
 
         try:
             data = sorted(body["data"], key=lambda item: item["index"])
-            return [item["embedding"] for item in data]
+            vectors = [item["embedding"] for item in data]
         except (KeyError, TypeError) as exc:
+            self._observe("FAILED", started_at)
             raise EmbeddingError(
                 "EMBEDDING_RESPONSE_INVALID", "embedding gateway returned an invalid response"
             ) from exc
+        usage = body.get("usage", {}) if isinstance(body, dict) else {}
+        prompt_tokens = usage.get("prompt_tokens", 0) if isinstance(usage, dict) else 0
+        self._observe("SUCCEEDED", started_at, prompt_tokens=prompt_tokens)
+        return vectors
+
+    def _observe(self, result: str, started_at: float, *, prompt_tokens: object = 0) -> None:
+        if self._metrics_registry is None:
+            return
+        safe_prompt_tokens = prompt_tokens if isinstance(prompt_tokens, int) else 0
+        self._metrics_registry.observe_model_call(
+            model=self._model,
+            result=result,
+            latency_ms=(perf_counter() - started_at) * 1000,
+            prompt_tokens=safe_prompt_tokens,
+        )
 
 
 class BatchedEmbedder:

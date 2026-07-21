@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.dependencies.authorization import CurrentPrincipal
+from app.application.content_safety import ContentDirection
 from app.application.conversations import (
     ConversationNotFound,
     MessageInput,
@@ -13,7 +14,7 @@ from app.application.conversations import (
     MessageRole,
     MessageStatus,
 )
-from app.core.api import success_response
+from app.core.api import get_request_id, success_response
 from app.core.errors import AppError
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -165,6 +166,30 @@ async def append_message(
     body: MessageCreateDTO,
     principal: CurrentPrincipal,
 ) -> dict[str, Any]:
+    safety_service = getattr(request.app.state, "content_safety_service", None)
+    if safety_service is not None and body.role in {MessageRole.USER, MessageRole.ASSISTANT}:
+        direction = (
+            ContentDirection.INPUT if body.role is MessageRole.USER else ContentDirection.OUTPUT
+        )
+        safety_result = await safety_service.check(
+            content=body.content,
+            direction=direction,
+            actor_id=principal.user_id,
+            request_id=get_request_id(request),
+            conversation_id=conversation_id,
+        )
+        if not safety_result.allowed:
+            code = (
+                "SENSITIVE_INPUT_REJECTED"
+                if direction is ContentDirection.INPUT
+                else "SENSITIVE_OUTPUT_STOPPED"
+            )
+            message = (
+                "输入包含受限内容，已拒绝处理"
+                if direction is ContentDirection.INPUT
+                else "输出包含受限内容，已停止返回"
+            )
+            raise AppError(422, code, message)
     row = await _not_found(
         _repository(request).append_message(
             conversation_id,

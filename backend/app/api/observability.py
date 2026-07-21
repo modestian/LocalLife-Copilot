@@ -9,7 +9,14 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from app.api.dependencies.authorization import CurrentPrincipal
-from app.application.audit import AuditFilter, AuditQueryService, AuditRecord
+from app.application.audit import (
+    AuditFilter,
+    AuditQueryService,
+    AuditRecord,
+    ChatLogFilter,
+    ChatLogQueryService,
+    ChatLogRecord,
+)
 from app.core.api import success_response
 from app.core.errors import AppError
 from app.core.observability import MetricsRegistry, redact_sensitive_data
@@ -28,6 +35,16 @@ def get_audit_service(request: Request) -> AuditQueryService:
 AuditServiceDependency = Annotated[AuditQueryService, Depends(get_audit_service)]
 
 
+def get_chat_log_service(request: Request) -> ChatLogQueryService:
+    service: ChatLogQueryService | None = getattr(request.app.state, "chat_log_service", None)
+    if service is None:
+        raise AppError(503, "SERVICE_UNAVAILABLE", "对话日志查询服务尚未配置")
+    return service
+
+
+ChatLogServiceDependency = Annotated[ChatLogQueryService, Depends(get_chat_log_service)]
+
+
 def _serialize_audit(row: AuditRecord) -> dict[str, Any]:
     return {
         "id": str(row.id),
@@ -40,6 +57,23 @@ def _serialize_audit(row: AuditRecord) -> dict[str, Any]:
         "result": row.result,
         "before_summary": redact_sensitive_data(row.before_summary),
         "after_summary": redact_sensitive_data(row.after_summary),
+        "created_at": row.created_at.isoformat(),
+    }
+
+
+def _serialize_chat_log(row: ChatLogRecord) -> dict[str, Any]:
+    return {
+        "message_id": str(row.message_id),
+        "conversation_id": str(row.conversation_id),
+        "user_id": str(row.user_id),
+        "request_id": row.request_id,
+        "role": row.role,
+        "status": row.status,
+        "model_version_id": str(row.model_version_id) if row.model_version_id else None,
+        "prompt_tokens": row.prompt_tokens,
+        "completion_tokens": row.completion_tokens,
+        "latency_ms": row.latency_ms,
+        "error_code": row.error_code,
         "created_at": row.created_at.isoformat(),
     }
 
@@ -78,6 +112,49 @@ async def list_audit_logs(
         {
             "items": [_serialize_audit(row) for row in page.items],
             "next_cursor": page.next_cursor,
+            "page_size": page_size,
+        },
+    )
+
+
+@audit_router.get("/chat-logs")
+async def list_chat_logs(
+    request: Request,
+    principal: CurrentPrincipal,
+    service: ChatLogServiceDependency,
+    user_id: Annotated[UUID | None, Query()] = None,
+    conversation_id: Annotated[UUID | None, Query()] = None,
+    start_time: Annotated[datetime | None, Query()] = None,
+    end_time: Annotated[datetime | None, Query()] = None,
+    status: Annotated[
+        Literal["STREAMING", "COMPLETED", "FAILED", "CANCELLED"] | None, Query()
+    ] = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> dict[str, Any]:
+    if not principal.is_platform_admin:
+        if user_id is not None and user_id != principal.user_id:
+            raise AppError(403, "FORBIDDEN", "不能查询其他用户的对话日志")
+        user_id = principal.user_id
+    try:
+        rows = await service.query(
+            ChatLogFilter(
+                user_id=user_id,
+                conversation_id=conversation_id,
+                start_time=start_time,
+                end_time=end_time,
+                status=status,
+            ),
+            page=page,
+            page_size=page_size,
+        )
+    except ValueError as exc:
+        raise AppError(422, "INVALID_CHAT_LOG_QUERY", str(exc)) from exc
+    return success_response(
+        request,
+        {
+            "items": [_serialize_chat_log(row) for row in rows],
+            "page": page,
             "page_size": page_size,
         },
     )
