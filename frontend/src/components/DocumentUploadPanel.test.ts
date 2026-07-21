@@ -55,7 +55,6 @@ describe('DocumentUploadPanel', () => {
     const numberInputs = wrapper.findAll('.upload-options input[type="number"]')
     await numberInputs[0]?.setValue(800)
     await numberInputs[1]?.setValue(120)
-    await wrapper.get('.upload-options input[placeholder="使用知识库默认方案"]').setValue('clean-v2')
     await wrapper.get('.checkbox-option input').setValue(true)
 
     expect(wrapper.text()).toContain('待上传 2 个')
@@ -68,7 +67,6 @@ describe('DocumentUploadPanel', () => {
       splitter: 'semantic',
       chunk_size: 800,
       chunk_overlap: 120,
-      cleaning_profile_id: 'clean-v2',
       force_new_version: true,
     })
     expect(wrapper.emitted('accepted')?.[0]?.[0]).toEqual(accepted)

@@ -19,7 +19,6 @@ describe('document API', () => {
       splitter: 'recursive',
       chunk_size: 500,
       chunk_overlap: 80,
-      cleaning_profile_id: 'clean-default',
       force_new_version: true,
     })
 
@@ -33,7 +32,6 @@ describe('document API', () => {
     expect(form.get('splitter')).toBe('recursive')
     expect(form.get('chunk_size')).toBe('500')
     expect(form.get('chunk_overlap')).toBe('80')
-    expect(form.get('cleaning_profile_id')).toBe('clean-default')
     expect(form.get('force_new_version')).toBe('true')
   })
 

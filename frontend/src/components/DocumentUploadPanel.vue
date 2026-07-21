@@ -32,7 +32,6 @@ const options = reactive({
   splitter: 'recursive' as SplitterStrategy,
   chunkSize: props.defaultChunkSize,
   chunkOverlap: props.defaultChunkOverlap,
-  cleaningProfileId: '',
   forceNewVersion: false,
 })
 
@@ -104,7 +103,6 @@ async function submit(): Promise<void> {
       splitter: options.splitter,
       chunk_size: options.chunkSize,
       chunk_overlap: options.chunkOverlap,
-      cleaning_profile_id: options.cleaningProfileId.trim() || undefined,
       force_new_version: options.forceNewVersion,
     })
     files.value = []
@@ -214,13 +212,6 @@ async function submit(): Promise<void> {
           type="number"
           min="0"
           :max="Math.max(0, options.chunkSize - 1)"
-        >
-      </label>
-      <label>
-        <span>清洗方案 ID（可选）</span>
-        <input
-          v-model="options.cleaningProfileId"
-          placeholder="使用知识库默认方案"
         >
       </label>
       <label class="checkbox-option">

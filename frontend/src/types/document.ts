@@ -82,7 +82,6 @@ export interface UploadDocumentsPayload {
   splitter: SplitterStrategy
   chunk_size: number
   chunk_overlap: number
-  cleaning_profile_id?: string
   force_new_version: boolean
 }
 

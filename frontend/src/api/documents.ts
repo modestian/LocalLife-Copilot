@@ -29,9 +29,6 @@ export const documentApi = {
     form.append('splitter', payload.splitter)
     form.append('chunk_size', String(payload.chunk_size))
     form.append('chunk_overlap', String(payload.chunk_overlap))
-    if (payload.cleaning_profile_id) {
-      form.append('cleaning_profile_id', payload.cleaning_profile_id)
-    }
     form.append('force_new_version', String(payload.force_new_version))
 
     return requestData({
