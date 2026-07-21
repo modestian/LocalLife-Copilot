@@ -16,6 +16,88 @@ class TestSentimentResult:
         assert result.confidence == 0.1235
 
 
+class TestNeutralCalibration:
+    """Tests for margin-based neutral calibration logic."""
+
+    def test_clear_positive_stays_positive(self):
+        clf = SentimentClassifier()
+        scores = [
+            {"label": "POSITIVE", "score": 0.95},
+            {"label": "NEUTRAL", "score": 0.03},
+            {"label": "NEGATIVE", "score": 0.02},
+        ]
+        label, score = clf._calibrate_neutral(scores)
+        assert label == "POSITIVE"
+        assert score == pytest.approx(0.95)
+
+    def test_borderline_positive_becomes_neutral(self):
+        clf = SentimentClassifier()
+        # margin = 0.80 - 0.65 = 0.15 < 0.25 threshold
+        scores = [
+            {"label": "POSITIVE", "score": 0.80},
+            {"label": "NEUTRAL", "score": 0.65},
+            {"label": "NEGATIVE", "score": 0.05},
+        ]
+        label, score = clf._calibrate_neutral(scores)
+        assert label == "NEUTRAL"
+
+    def test_clear_neutral_stays_neutral(self):
+        clf = SentimentClassifier()
+        scores = [
+            {"label": "NEUTRAL", "score": 0.90},
+            {"label": "POSITIVE", "score": 0.05},
+            {"label": "NEGATIVE", "score": 0.05},
+        ]
+        label, score = clf._calibrate_neutral(scores)
+        assert label == "NEUTRAL"
+
+    def test_clear_negative_stays_negative(self):
+        clf = SentimentClassifier()
+        scores = [
+            {"label": "NEGATIVE", "score": 0.92},
+            {"label": "NEUTRAL", "score": 0.04},
+            {"label": "POSITIVE", "score": 0.04},
+        ]
+        label, score = clf._calibrate_neutral(scores)
+        assert label == "NEGATIVE"
+
+    def test_empty_scores_returns_neutral(self):
+        clf = SentimentClassifier()
+        label, score = clf._calibrate_neutral([])
+        assert label == "NEUTRAL"
+        assert score == 0.0
+
+    def test_custom_threshold_via_env(self, monkeypatch):
+        monkeypatch.setenv("SENTIMENT_NEUTRAL_MARGIN", "0.50")
+        clf = SentimentClassifier()
+        # margin = 0.90 - 0.60 = 0.30 < 0.50 threshold
+        scores = [
+            {"label": "POSITIVE", "score": 0.90},
+            {"label": "NEUTRAL", "score": 0.60},
+        ]
+        label, _ = clf._calibrate_neutral(scores)
+        assert label == "NEUTRAL"
+
+    def test_parse_pipeline_scores_nested_list(self):
+        clf = SentimentClassifier()
+        raw = [[{"label": "POSITIVE", "score": 0.9}, {"label": "NEUTRAL", "score": 0.1}]]
+        scores = clf._parse_pipeline_scores(raw)
+        assert len(scores) == 2
+        assert scores[0]["label"] == "POSITIVE"
+
+    def test_parse_pipeline_scores_flat_list(self):
+        clf = SentimentClassifier()
+        raw = [{"label": "POSITIVE", "score": 0.9}, {"label": "NEUTRAL", "score": 0.1}]
+        scores = clf._parse_pipeline_scores(raw)
+        assert len(scores) == 2
+
+    def test_parse_pipeline_scores_empty(self):
+        clf = SentimentClassifier()
+        scores = clf._parse_pipeline_scores([])
+        assert len(scores) == 1
+        assert scores[0]["label"] == "NEUTRAL"
+
+
 class TestModelReference:
     def test_hugging_face_id_is_not_converted_to_local_path(self):
         classifier = SentimentClassifier(model_name="organization/model")

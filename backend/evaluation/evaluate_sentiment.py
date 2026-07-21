@@ -4,6 +4,10 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+# Ensure Unicode output works on Windows GBK consoles
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.analytics import AspectExtractor

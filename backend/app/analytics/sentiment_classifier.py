@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -9,6 +10,71 @@ logger = logging.getLogger(__name__)
 
 SENTIMENT_LABELS = ["NEGATIVE", "NEUTRAL", "POSITIVE"]
 DEFAULT_BATCH_SIZE = 32
+
+# Patterns that indicate an objective, factual description (not sentiment).
+# If any of these appear AND no strong sentiment word is present, the text is
+# classified as NEUTRAL regardless of model confidence.
+_FACTUAL_PATTERN = re.compile(
+    r"营业时间|正常营业|均价|位于[^好]|出站步行|可达|"
+    r"提供免费WiFi|密码张贴|全天可用|无需额外|"
+    r"支持堂食|消费方式|暂不支持|电话预约|"
+    r"分为|两小时内免费|额外收取|共\d+[个款种]|"
+    r"中等|标准|持平|适中|无惊喜|无功无过"
+)
+
+# Strong sentiment words that signal an opinion rather than a fact.
+# Their presence blocks factual-neutral detection.
+_SENTIMENT_BLOCKERS = {
+    # Positive
+    "好吃",
+    "美味",
+    "满足",
+    "推荐",
+    "正宗",
+    "鲜嫩",
+    "浓郁",
+    "清爽",
+    "宽敞",
+    "热情",
+    "耐心",
+    "严实",
+    "流畅",
+    "准时",
+    "用心",
+    "首选",
+    "满分",
+    "拉满",
+    "极佳",
+    "超出预期",
+    "宝藏",
+    "无短板",
+    "适配",
+    "出片",
+    # Negative
+    "难吃",
+    "难以下咽",
+    "变质",
+    "发霉",
+    "缩水",
+    "踩雷",
+    "干柴",
+    "发酸",
+    "油污",
+    "嘈杂",
+    "吵闹",
+    "恶劣",
+    "不耐烦",
+    "破损",
+    "失效",
+    "损坏",
+    "闷热",
+    "赶客",
+    "虚高",
+    "冰冷",
+    "发苦",
+    "失衡",
+    "堆积",
+}
 
 # 默认使用本地微调模型；若不存在则回退到 HuggingFace 远程模型
 # Model artifacts are delivered separately from Git.
@@ -71,6 +137,7 @@ class SentimentClassifier:
         self._pipeline = None
         self._model_version = None
         self._device = None
+        self._neutral_margin_threshold = float(os.getenv("SENTIMENT_NEUTRAL_MARGIN", "0.25"))
 
     @property
     def version(self) -> str:
@@ -90,7 +157,7 @@ class SentimentClassifier:
             tokenizer=model_ref,
             device=0 if self._device == "cuda" else -1,
             batch_size=self.batch_size,
-            return_all_scores=False,
+            top_k=None,
             **model_kwargs,
         )
         configured_labels = {
@@ -117,6 +184,61 @@ class SentimentClassifier:
             )
         return self.model_name
 
+    def _is_factual_neutral(self, text: str) -> bool:
+        """Detect objective, factual descriptions (hours, prices, locations, etc.).
+
+        Such texts contain no sentiment and should always be NEUTRAL,
+        regardless of model confidence.
+        """
+        if not text or not _FACTUAL_PATTERN.search(text):
+            return False
+        for word in _SENTIMENT_BLOCKERS:
+            if word in text:
+                return False
+        logger.debug("Factual neutral detected: %s", text[:50])
+        return True
+
+    def _calibrate_neutral(self, scores: list[dict], text: str = "") -> tuple[str, float]:
+        """Apply margin-based neutral calibration.
+
+        If top-1 is POSITIVE/NEGATIVE but NEUTRAL score is close
+        (margin < _neutral_margin_threshold), predict NEUTRAL.
+
+        Returns (calibrated_label, top_score).
+        """
+        if not scores:
+            return "NEUTRAL", 0.0
+        score_map = {_normalize_label(s["label"]): s["score"] for s in scores}
+        top_label = max(score_map, key=score_map.get)
+        top_score = score_map[top_label]
+
+        # Rule-based factual neutral detection takes priority
+        if text and self._is_factual_neutral(text):
+            return "NEUTRAL", top_score
+
+        if top_label != "NEUTRAL":
+            neutral_score = score_map.get("NEUTRAL", 0.0)
+            margin = top_score - neutral_score
+            if margin < self._neutral_margin_threshold:
+                logger.debug(
+                    "Calibrated %s -> NEUTRAL (margin=%.4f < %.2f)",
+                    top_label,
+                    margin,
+                    self._neutral_margin_threshold,
+                )
+                return "NEUTRAL", top_score
+        return top_label, top_score
+
+    def _parse_pipeline_scores(self, raw_output) -> list[dict]:
+        """Extract a flat list of {label, score} dicts from pipeline output."""
+        if isinstance(raw_output, list) and len(raw_output) > 0:
+            first = raw_output[0]
+            if isinstance(first, list):
+                return first
+            if isinstance(first, dict):
+                return raw_output
+        return [{"label": "NEUTRAL", "score": 0.0}]
+
     def predict_single(self, text: str) -> SentimentResult:
         if not isinstance(text, str) or not text.strip():
             return SentimentResult(
@@ -128,22 +250,14 @@ class SentimentClassifier:
         if self._pipeline is None:
             self.load_model()
 
-        results = self._pipeline(text.strip())
-        if isinstance(results, list) and len(results) > 0:
-            result = results[0]
-            if isinstance(result, list):
-                max_score = max(result, key=lambda x: x["score"])
-            else:
-                max_score = result
-        else:
-            max_score = {"label": "NEUTRAL", "score": 0.0}
-
-        label = max_score["label"]
-        normalized_label = _normalize_label(label)
+        stripped = text.strip()
+        raw_output = self._pipeline(stripped)
+        scores = self._parse_pipeline_scores(raw_output)
+        calibrated_label, top_score = self._calibrate_neutral(scores, stripped)
 
         return SentimentResult(
-            sentiment=normalized_label,
-            confidence=max_score["score"],
+            sentiment=calibrated_label,
+            confidence=top_score,
             model_version=self.version,
         )
 
@@ -165,17 +279,14 @@ class SentimentClassifier:
             batch_indices = [i for i, _ in valid_texts]
 
             pipeline_results = self._pipeline(batch_texts)
-            for idx, result in zip(batch_indices, pipeline_results, strict=False):
-                if isinstance(result, list):
-                    max_score = max(result, key=lambda x: x["score"])
-                else:
-                    max_score = result
-
-                label = max_score["label"]
-                normalized_label = _normalize_label(label)
+            for idx, result, text in zip(
+                batch_indices, pipeline_results, batch_texts, strict=False
+            ):
+                scores = self._parse_pipeline_scores(result)
+                calibrated_label, top_score = self._calibrate_neutral(scores, text)
                 results[idx] = SentimentResult(
-                    sentiment=normalized_label,
-                    confidence=max_score["score"],
+                    sentiment=calibrated_label,
+                    confidence=top_score,
                     model_version=self.version,
                 )
 
