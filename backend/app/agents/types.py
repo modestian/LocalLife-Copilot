@@ -63,6 +63,7 @@ class SourceCitation:
     source_location: str
     content_snapshot: str
     score: float | None = None
+    evidence_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.rank_no <= 0:
@@ -71,6 +72,8 @@ class SourceCitation:
             raise ValueError("citation identifiers must not be blank")
         if not self.content_snapshot.strip():
             raise ValueError("content_snapshot must not be blank")
+        if self.evidence_id is not None and not self.evidence_id.strip():
+            raise ValueError("evidence_id must not be blank")
 
 
 @dataclass(frozen=True, slots=True)

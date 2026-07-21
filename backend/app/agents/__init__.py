@@ -17,6 +17,10 @@ from app.agents.generation import (
     NO_EVIDENCE_ANSWER,
     PROMPT_POLICY_VERSION,
     BusinessStatus,
+    CitationIssue,
+    CitationPolicy,
+    CitationVerification,
+    CitationVerifier,
     GenerationMode,
     GroundedGeneration,
     GroundedOutput,
@@ -36,6 +40,7 @@ from app.agents.memory import (
     ConversationSummarizer,
     MemoryWindow,
 )
+from app.agents.persistence import GroundedPersistenceError, GroundedResponsePersister
 from app.agents.routing import (
     ASK_QUESTION_CONTRACT,
     EXTRACT_CONSTRAINTS_CONTRACT,
@@ -66,6 +71,10 @@ __all__ = [
     "ChatError",
     "ChatIntent",
     "ChatState",
+    "CitationIssue",
+    "CitationPolicy",
+    "CitationVerification",
+    "CitationVerifier",
     "ControlledConversationSummarizer",
     "ConversationHistoryAdapter",
     "ConversationMemoryService",
@@ -78,6 +87,8 @@ __all__ = [
     "GroundedGeneration",
     "GroundedOutput",
     "GroundedRAGGenerator",
+    "GroundedPersistenceError",
+    "GroundedResponsePersister",
     "HybridSearchRetrieverAdapter",
     "IntentOutput",
     "IntentRouter",
