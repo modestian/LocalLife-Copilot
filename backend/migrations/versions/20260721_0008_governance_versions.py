@@ -172,53 +172,9 @@ def upgrade() -> None:
     op.create_index(
         "ix_model_deployments_route_status", "model_deployments", ["scene", "environment", "status"]
     )
-    op.execute(
-        """
-        CREATE TRIGGER trg_prompt_versions_immutable BEFORE UPDATE ON prompt_versions
-        FOR EACH ROW
-        BEGIN
-          IF NOT (OLD.prompt_definition_id <=> NEW.prompt_definition_id)
-             OR OLD.version_no <> NEW.version_no
-             OR OLD.content <> NEW.content
-             OR NOT (OLD.variables_json <=> NEW.variables_json)
-             OR OLD.content_hash <> NEW.content_hash
-             OR NOT (OLD.created_by <=> NEW.created_by) THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'prompt version content is immutable';
-          END IF;
-          IF OLD.status <> 'DRAFT'
-             AND (NOT (OLD.published_at <=> NEW.published_at)
-               OR NOT (OLD.published_by <=> NEW.published_by)
-               OR NOT (OLD.publication_action <=> NEW.publication_action)
-               OR NOT (OLD.publication_result <=> NEW.publication_result)) THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'prompt publication metadata is immutable';
-          END IF;
-        END
-        """
-    )
-    op.execute(
-        """
-        CREATE TRIGGER trg_model_versions_immutable BEFORE UPDATE ON model_versions
-        FOR EACH ROW
-        BEGIN
-          IF NOT (OLD.model_definition_id <=> NEW.model_definition_id)
-             OR OLD.version <> NEW.version
-             OR OLD.base_model_ref <> NEW.base_model_ref
-             OR NOT (OLD.adapter_uri <=> NEW.adapter_uri)
-             OR NOT (OLD.artifact_sha256 <=> NEW.artifact_sha256)
-             OR NOT (OLD.dimension <=> NEW.dimension)
-             OR NOT (OLD.labels_json <=> NEW.labels_json)
-             OR NOT (OLD.metrics_json <=> NEW.metrics_json)
-             OR NOT (OLD.created_by <=> NEW.created_by) THEN
-            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'model version content is immutable';
-          END IF;
-        END
-        """
-    )
 
 
 def downgrade() -> None:
-    op.execute("DROP TRIGGER IF EXISTS trg_model_versions_immutable")
-    op.execute("DROP TRIGGER IF EXISTS trg_prompt_versions_immutable")
     op.drop_table("model_deployments")
     op.drop_table("model_versions")
     op.drop_table("model_definitions")

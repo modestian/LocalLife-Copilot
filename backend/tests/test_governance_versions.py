@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from sqlalchemy import CheckConstraint, Table, UniqueConstraint
+from sqlalchemy.orm import Session, make_transient_to_detached
 
 from app.application.governance import (
     DeploymentAction,
@@ -24,6 +25,10 @@ from app.infrastructure.db.models import (
     ModelVersion,
     PromptDefinition,
     PromptVersion,
+)
+from app.infrastructure.db.models.governance import (
+    _protect_model_version,
+    _protect_prompt_version,
 )
 
 
@@ -95,6 +100,44 @@ def test_model_artifact_identity_is_required() -> None:
     assert ModelVersion.__table__.c.artifact_sha256.nullable is False
 
 
+def test_persisted_prompt_content_cannot_be_changed_in_place() -> None:
+    row = PromptVersion(
+        id=uuid7(),
+        prompt_definition_id=uuid7(),
+        version_no=1,
+        content="original",
+        variables_json={},
+        status="PUBLISHED",
+        content_hash="a" * 64,
+        created_by=uuid7(),
+    )
+    make_transient_to_detached(row)
+    with Session() as session:
+        session.add(row)
+        row.content = "changed"
+        with pytest.raises(ValueError, match="create a new version"):
+            _protect_prompt_version(None, None, row)
+
+
+def test_persisted_model_artifact_cannot_be_changed_in_place() -> None:
+    row = ModelVersion(
+        id=uuid7(),
+        model_definition_id=uuid7(),
+        version="v1",
+        base_model_ref="base@revision",
+        adapter_uri="s3://models/v1",
+        artifact_sha256="b" * 64,
+        status="APPROVED",
+        created_by=uuid7(),
+    )
+    make_transient_to_detached(row)
+    with Session() as session:
+        session.add(row)
+        row.adapter_uri = "s3://models/replaced"
+        with pytest.raises(ValueError, match="create a new version"):
+            _protect_model_version(None, None, row)
+
+
 @pytest.mark.parametrize(
     ("current", "target"),
     [
@@ -142,7 +185,6 @@ class RecordingOperations:
     def __init__(self) -> None:
         self.created_tables: list[str] = []
         self.created_indexes: list[str] = []
-        self.executed: list[str] = []
         self.dropped_tables: list[str] = []
 
     def create_table(self, name: str, *items: Any, **options: Any) -> None:
@@ -152,9 +194,6 @@ class RecordingOperations:
     def create_index(self, name: str, table: str, columns: list[str], **options: Any) -> None:
         del table, columns, options
         self.created_indexes.append(name)
-
-    def execute(self, statement: str) -> None:
-        self.executed.append(statement)
 
     def drop_table(self, name: str) -> None:
         self.dropped_tables.append(name)
@@ -174,7 +213,7 @@ def _load_migration() -> ModuleType:
     return module
 
 
-def test_migration_builds_dependency_order_and_immutability_triggers() -> None:
+def test_migration_builds_tables_in_dependency_order_without_privileged_ddl() -> None:
     migration = _load_migration()
     recorder = RecordingOperations()
     migration.op = recorder
@@ -188,9 +227,6 @@ def test_migration_builds_dependency_order_and_immutability_triggers() -> None:
         "model_versions",
         "model_deployments",
     ]
-    statements = "\n".join(recorder.executed)
-    assert "trg_prompt_versions_immutable" in statements
-    assert "trg_model_versions_immutable" in statements
 
 
 def test_migration_downgrade_removes_tables_in_reverse_dependency_order() -> None:
