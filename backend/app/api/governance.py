@@ -8,12 +8,14 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
 
 from app.api.dependencies.authorization import CurrentPrincipal
+from app.application.deployment_metrics import DeploymentMetricsTracker
 from app.application.governance import (
     DeploymentRequest,
     GovernanceResourceNotFound,
     InvalidLifecycleTransition,
     ModelVersionStatus,
 )
+from app.application.model_routing import ModelRouter
 from app.core.api import get_request_id, success_response
 from app.core.errors import AppError
 from app.infrastructure.db.repositories.governance import SQLAlchemyGovernanceRepository
@@ -350,6 +352,75 @@ async def rollback_model(
             exc,
         ) from exc
     return success_response(request, _deployment_data(row), message="rolled back")
+
+
+@router.get("/models/deployments")
+async def list_deployments(
+    request: Request,
+    principal: CurrentPrincipal,
+    repository: GovernanceDependency,
+    scene: str,
+    environment: str,
+) -> dict[str, Any]:
+    """List all ACTIVE and CANARY deployments for a given scene and environment."""
+    _require_admin(principal)
+    router = ModelRouter(repository._session_factory)
+    decisions = await router.list_active(scene, environment)
+    return success_response(
+        request,
+        {
+            "scene": scene,
+            "environment": environment,
+            "items": [
+                {
+                    "deployment_id": str(d.deployment_id),
+                    "model_version_id": str(d.model_version_id),
+                    "traffic_percent": d.traffic_percent,
+                    "status": "CANARY" if d.is_canary else "ACTIVE",
+                    "is_canary": d.is_canary,
+                }
+                for d in decisions
+            ],
+        },
+    )
+
+
+@router.get("/models/deployments/compare")
+async def compare_deployments(
+    request: Request,
+    principal: CurrentPrincipal,
+    repository: GovernanceDependency,
+    scene: str,
+    environment: str,
+) -> dict[str, Any]:
+    """Compare runtime metrics across ACTIVE and CANARY deployments."""
+    _require_admin(principal)
+    tracker: DeploymentMetricsTracker | None = getattr(
+        request.app.state, "deployment_metrics_tracker", None
+    )
+    if tracker is None:
+        tracker = DeploymentMetricsTracker()
+    metrics_list = await tracker.compare(scene, environment, repository._session_factory)
+    return success_response(
+        request,
+        {
+            "scene": scene,
+            "environment": environment,
+            "items": [
+                {
+                    "deployment_id": str(m.deployment_id),
+                    "model_version_id": str(m.model_version_id),
+                    "status": m.status,
+                    "traffic_percent": m.traffic_percent,
+                    "request_count": m.request_count,
+                    "error_count": m.error_count,
+                    "error_rate": round(m.error_rate, 4),
+                    "avg_latency_ms": m.avg_latency_ms,
+                }
+                for m in metrics_list
+            ],
+        },
+    )
 
 
 async def _operation_error(

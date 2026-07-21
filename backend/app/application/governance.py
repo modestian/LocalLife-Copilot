@@ -27,8 +27,9 @@ class DeploymentAction(StrEnum):
 
 class DeploymentStatus(StrEnum):
     ACTIVE = "ACTIVE"
+    CANARY = "CANARY"
     SUPERSEDED = "SUPERSEDED"
-    FAILED = "FAILED"
+    ROLLED_BACK = "ROLLED_BACK"
 
 
 MODEL_VERSION_TRANSITIONS = {

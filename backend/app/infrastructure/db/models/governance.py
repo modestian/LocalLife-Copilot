@@ -152,7 +152,9 @@ class ModelDeployment(Base):
     __table_args__ = (
         CheckConstraint("traffic_percent BETWEEN 1 AND 100", name="traffic_percent"),
         CheckConstraint("action IN ('CANARY', 'FULL', 'ROLLBACK')", name="action"),
-        CheckConstraint("status IN ('ACTIVE', 'SUPERSEDED', 'FAILED')", name="status"),
+        CheckConstraint(
+            "status IN ('ACTIVE', 'CANARY', 'SUPERSEDED', 'ROLLED_BACK')", name="status"
+        ),
         CheckConstraint("result IN ('SUCCEEDED', 'FAILED')", name="result"),
         Index("ix_model_deployments_route_status", "scene", "environment", "status"),
         MYSQL_TABLE_OPTIONS,
