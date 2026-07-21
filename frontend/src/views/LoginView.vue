@@ -34,11 +34,18 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <main class="auth-page">
+  <main class="auth-page app-auth-page">
     <section class="auth-intro">
-      <span class="eyebrow">LOCAL LIFE · AI COPILOT</span>
-      <h1>从一句需求，找到合适的店。</h1>
-      <p>登录后可按距离、预算、菜系与场景探店，并继续多轮追问。</p>
+      <div class="auth-brand">
+        <span class="auth-brand__seal">L</span>
+        <span>LOCAL LIFE<small>AI 智能探店</small></span>
+      </div>
+      <span class="eyebrow">LOCAL DISCOVERY · MEMBER ACCESS</span>
+      <h1>让每一次出发，<br>都更值得。</h1>
+      <p>用距离、预算和场景告诉 AI 你的期待，少一点翻找，多一点恰到好处。</p>
+      <div class="auth-benefits">
+        <span>真实口碑</span><span>场景推荐</span><span>来源可查</span>
+      </div>
     </section>
 
     <el-card

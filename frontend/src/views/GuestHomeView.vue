@@ -27,6 +27,14 @@ const scenes = [
   },
 ]
 
+const popularSearches = ['约会餐厅', '附近咖啡', '朋友聚餐', '周末遛娃']
+
+const discoveryCards = [
+  { icon: '✦', title: '约会晚餐', detail: '氛围、距离与双人预算', meta: '今晚就能去' },
+  { icon: '◎', title: '朋友聚餐', detail: '包间、菜系与多人评价', meta: '按人数筛选' },
+  { icon: '⌁', title: '安静咖啡', detail: '插座、久坐与环境口碑', meta: '适合工作日' },
+]
+
 function openSection(path: string): void {
   void router.push(path)
 }
@@ -44,7 +52,8 @@ function login(): void {
         href="/"
         aria-label="LocalLife Copilot 首页"
       >
-        LOCAL LIFE · AI COPILOT
+        <span class="brand-mark__seal">L</span>
+        <span>LOCAL LIFE<small>AI 智能探店</small></span>
       </a>
       <nav aria-label="游客导航">
         <router-link to="/app">
@@ -67,31 +76,78 @@ function login(): void {
 
     <main class="guest-main">
       <section class="guest-hero">
-        <div>
-          <span class="eyebrow">GUEST MODE · 只读浏览</span>
-          <h1>先看看，<br>再决定去哪家。</h1>
+        <div class="guest-hero__copy">
+          <span class="eyebrow">LOCAL DISCOVERY · AI COPILOT</span>
+          <h1>今天想吃点什么？</h1>
           <p class="intro">
-            无需登录即可进入所有板块浏览内容；游客仅有读取权限，提交、编辑、删除等操作需要登录并通过权限校验。
+            不只看评分。告诉 AI 你的距离、预算和场景，找到真正适合此刻的好去处。
           </p>
-          <div class="hero-actions">
-            <el-button
-              type="primary"
+          <div
+            class="hero-search"
+            role="search"
+          >
+            <span class="hero-search__icon">⌕</span>
+            <button
+              type="button"
               @click="openSection('/app')"
             >
-              进入探店板块
-            </el-button>
-            <a href="#scenes">先浏览场景</a>
+              搜餐厅、咖啡、周末好去处
+            </button>
+            <span class="hero-search__action">AI 搜索</span>
+          </div>
+          <div class="popular-searches">
+            <span>热门：</span>
+            <button
+              v-for="item in popularSearches"
+              :key="item"
+              type="button"
+              @click="openSection(`/app?query=${encodeURIComponent(item)}`)"
+            >
+              {{ item }}
+            </button>
           </div>
         </div>
-        <aside class="guest-boundary-card">
-          <span>游客权限</span>
-          <strong>公开内容只读</strong>
-          <ul>
-            <li>可进入探店、商家和管理板块查看</li>
-            <li>不能新建、编辑、删除或提交内容</li>
-            <li>登录后仍按账号角色授予操作权限</li>
-          </ul>
+        <aside class="discovery-panel">
+          <div class="discovery-panel__header">
+            <div>
+              <span>AI 为你发现</span>
+              <strong>今晚的灵感</strong>
+            </div>
+            <small>实时匹配</small>
+          </div>
+          <button
+            v-for="(item, index) in discoveryCards"
+            :key="item.title"
+            class="discovery-card"
+            type="button"
+            @click="openSection(`/app?scene=${scenes[index]?.key ?? 'date'}`)"
+          >
+            <span class="discovery-card__icon">{{ item.icon }}</span>
+            <span>
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.detail }}</small>
+            </span>
+            <em>{{ item.meta }} →</em>
+          </button>
+          <p class="discovery-panel__note">
+            基于位置、营业状态、口碑与偏好综合推荐
+          </p>
         </aside>
+      </section>
+
+      <section
+        class="service-strip"
+        aria-label="产品能力"
+      >
+        <div>
+          <span>01</span><strong>本地口碑</strong><small>结合真实点评与商家信息</small>
+        </div>
+        <div>
+          <span>02</span><strong>场景推荐</strong><small>预算、距离、人数都能说清</small>
+        </div>
+        <div>
+          <span>03</span><strong>有据可查</strong><small>每条建议都附来源依据</small>
+        </div>
       </section>
 
       <section
@@ -103,7 +159,7 @@ function login(): void {
             <span class="eyebrow">SCENE GUIDE</span>
             <h2>从今天的场景出发</h2>
           </div>
-          <p>以下内容和各业务板块均可直接浏览；执行操作时才会要求登录。</p>
+          <p>从真实需求开始，不必在长列表里反复筛选。</p>
         </div>
         <div class="scene-grid">
           <article
@@ -124,7 +180,7 @@ function login(): void {
               type="button"
               @click="openSection(`/app?scene=${scene.key}`)"
             >
-              按此场景进入探店 →
+              开始探索 <span>→</span>
             </button>
           </article>
         </div>
@@ -132,7 +188,7 @@ function login(): void {
     </main>
 
     <footer class="guest-footer">
-      <span>AI 推荐仅供决策参考，请以商家最新公示信息为准。</span>
+      <span>游客可浏览公开内容；登录后可开启对话、保存偏好与提交反馈。</span>
       <a
         href="/health/ready"
         target="_blank"

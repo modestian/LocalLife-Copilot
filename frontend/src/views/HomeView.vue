@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 
 import { getReadiness } from '@/api/health'
 import ConversationWorkspace from '@/components/ConversationWorkspace.vue'
+import ProductTopBar from '@/components/ProductTopBar.vue'
 import StatusCard from '@/components/StatusCard.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -11,7 +11,6 @@ type ApiState = 'checking' | 'ready' | 'unavailable'
 
 const apiState = ref<ApiState>('checking')
 const authStore = useAuthStore()
-const router = useRouter()
 
 onMounted(async () => {
   try {
@@ -21,35 +20,11 @@ onMounted(async () => {
   }
 })
 
-async function logout(): Promise<void> {
-  await authStore.logout()
-  await router.replace({ name: 'root' })
-}
-
-function login(): void {
-  void router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
-}
 </script>
 
 <template>
   <main class="home-page">
-    <div class="topline">
-      <span class="eyebrow">LOCAL LIFE · AI COPILOT</span>
-      <el-button
-        v-if="authStore.isAuthenticated"
-        text
-        @click="logout"
-      >
-        退出登录
-      </el-button>
-      <el-button
-        v-else
-        type="primary"
-        @click="login"
-      >
-        登录以进行操作
-      </el-button>
-    </div>
+    <ProductTopBar active="discover" />
     <h1>一句话，找到此刻想去的地方</h1>
     <p
       v-if="authStore.currentUser"

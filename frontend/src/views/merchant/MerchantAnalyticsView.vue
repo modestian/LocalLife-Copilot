@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import MerchantAnalyticsDashboard from '@/components/MerchantAnalyticsDashboard.vue'
 import MerchantInsightWorkbench from '@/components/MerchantInsightWorkbench.vue'
+import ProductTopBar from '@/components/ProductTopBar.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
@@ -51,11 +52,6 @@ function openAdminMerchant(): void {
   if (merchantId) void router.push({ name: 'merchant-home', params: { merchantId } })
 }
 
-async function logout(): Promise<void> {
-  await authStore.logout()
-  await router.replace({ name: 'root' })
-}
-
 watch(routeMerchantId, (value) => {
   adminMerchantInput.value = value
 }, { immediate: true })
@@ -63,23 +59,7 @@ watch(routeMerchantId, (value) => {
 
 <template>
   <main class="merchant-page">
-    <header class="merchant-header">
-      <router-link
-        class="merchant-brand"
-        to="/"
-      >
-        LOCAL LIFE · AI COPILOT
-      </router-link>
-      <div>
-        <span v-if="authStore.currentUser">{{ authStore.currentUser.display_name }}</span>
-        <button
-          type="button"
-          @click="logout"
-        >
-          退出登录
-        </button>
-      </div>
-    </header>
+    <ProductTopBar active="merchant" />
 
     <section class="merchant-hero">
       <div>
@@ -162,18 +142,19 @@ watch(routeMerchantId, (value) => {
 
 <style scoped>
 .merchant-page { width: min(1160px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0 80px; }
-.merchant-header { display: flex; justify-content: space-between; gap: 24px; align-items: center; border-bottom: 1px solid rgb(74 54 42 / 12%); padding-bottom: 22px; }
+.merchant-header { display: flex; justify-content: space-between; gap: 24px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 22px; }
 .merchant-brand { color: var(--brand); font-size: .74rem; font-weight: 900; letter-spacing: .14em; text-decoration: none; }
 .merchant-header > div { display: flex; gap: 14px; align-items: center; color: #695b51; font-size: .78rem; }
 .merchant-header button { border: 0; padding: 6px; background: transparent; color: #9d3423; cursor: pointer; font-weight: 800; }
 .merchant-hero { display: grid; grid-template-columns: 1fr minmax(260px, 340px); gap: 48px; align-items: end; padding: 58px 0 36px; }
 .merchant-hero h1 { margin: 14px 0 16px; font-size: clamp(3rem, 7vw, 5.6rem); }
 .merchant-hero p { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.75; }
-.merchant-switcher { display: grid; gap: 8px; border: 1px solid rgb(74 54 42 / 12%); border-radius: 15px; padding: 17px; background: rgb(255 255 255 / 62%); }
+.merchant-switcher { display: grid; gap: 8px; border: 1px solid var(--line); border-radius: 15px; padding: 17px; background: var(--surface); box-shadow: 0 12px 32px rgb(73 53 40 / 6%); }
 .merchant-switcher label, .merchant-switcher > span { color: #695b51; font-size: .72rem; font-weight: 800; }
 .merchant-switcher select, .merchant-switcher input { width: 100%; min-height: 40px; border: 1px solid #d9ccc1; border-radius: 9px; padding: 8px 10px; background: #fffdfa; color: #392d26; }
 .merchant-switcher > div { display: grid; grid-template-columns: 1fr auto; gap: 7px; }
-.merchant-switcher button { border: 1px solid var(--brand); border-radius: 9px; padding: 7px 12px; background: var(--brand); color: white; cursor: pointer; font-weight: 800; }
+.merchant-switcher button { border: 1px solid var(--brand); border-radius: 9px; padding: 7px 12px; background: var(--brand); color: white; cursor: pointer; font-weight: 800; box-shadow: 0 6px 14px rgb(176 60 39 / 16%); transition: transform .2s var(--ease-out), background .2s ease; }
+.merchant-switcher button:hover { background: var(--brand-strong); transform: translateY(-1px); }
 .merchant-switcher strong { overflow: hidden; color: #392d26; font-size: 1rem; text-overflow: ellipsis; }
 .merchant-switcher small { color: #88776c; font-size: .66rem; line-height: 1.5; }
 .access-state { border: 1px dashed #dfb7af; border-radius: 16px; padding: 46px 24px; background: #fff6f3; color: #8e3328; text-align: center; }

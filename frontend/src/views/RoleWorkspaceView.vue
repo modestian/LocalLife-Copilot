@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 
+import ProductTopBar from '@/components/ProductTopBar.vue'
 import { useAuthStore } from '@/stores/auth'
 
 interface WorkspaceEntry {
@@ -18,38 +18,12 @@ const props = defineProps<{
 }>()
 
 const authStore = useAuthStore()
-const router = useRouter()
 const workspaceEntries = computed(() => props.entries ?? (props.entry ? [props.entry] : []))
-
-async function logout(): Promise<void> {
-  await authStore.logout()
-  await router.replace({ name: 'root' })
-}
-
-function login(): void {
-  void router.push({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
-}
 </script>
 
 <template>
   <main class="home-page">
-    <div class="topline">
-      <span class="eyebrow">LOCAL LIFE · AI COPILOT</span>
-      <el-button
-        v-if="authStore.isAuthenticated"
-        text
-        @click="logout"
-      >
-        退出登录
-      </el-button>
-      <el-button
-        v-else
-        type="primary"
-        @click="login"
-      >
-        登录以进行操作
-      </el-button>
-    </div>
+    <ProductTopBar active="admin" />
     <h1>{{ title }}</h1>
     <p
       v-if="authStore.currentUser"
