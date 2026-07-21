@@ -41,6 +41,7 @@ def test_identity_metadata_contains_required_tables() -> None:
         "messages",
         "model_definitions",
         "model_deployments",
+        "model_deployment_routes",
         "model_versions",
         "outbox_events",
         "permissions",

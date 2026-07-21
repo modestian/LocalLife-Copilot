@@ -4,6 +4,7 @@ from io import BytesIO
 
 import pytest
 
+from app.core.observability import MetricsRegistry
 from app.etl.embeddings import BatchedEmbedder, EmbeddingError, HttpEmbeddingProvider
 
 
@@ -51,6 +52,34 @@ def test_http_embedding_provider_uses_gateway_contract_and_response_indexes(monk
 
     assert provider.embed(["a", "b"]) == [[1.0], [2.0]]
     assert captured == {"body": {"model": "model-v1", "input": ["a", "b"]}, "timeout": 3}
+
+
+def test_http_embedding_provider_records_production_model_metrics(monkeypatch) -> None:
+    registry = MetricsRegistry()
+
+    def fake_urlopen(request, timeout):
+        del request, timeout
+        return BytesIO(
+            json.dumps(
+                {
+                    "data": [{"index": 0, "embedding": [1.0]}],
+                    "usage": {"prompt_tokens": 7},
+                }
+            ).encode()
+        )
+
+    monkeypatch.setattr("app.etl.embeddings.urlopen", fake_urlopen)
+    provider = HttpEmbeddingProvider(
+        "http://gateway/v1/embeddings",
+        model="embedding-v1",
+        timeout_seconds=3,
+        metrics_registry=registry,
+    )
+
+    assert provider.embed(["hello"]) == [[1.0]]
+    output = registry.render_prometheus()
+    assert 'model="embedding-v1",result="SUCCEEDED"} 1' in output
+    assert 'model="embedding-v1",type="prompt"} 7' in output
 
 
 def test_batched_embedder_rejects_wrong_dimension() -> None:

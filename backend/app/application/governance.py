@@ -60,6 +60,7 @@ class DeploymentRequest:
     traffic_percent: int
     deployed_by: UUID
     reason: str
+    request_id: str = "internal"
 
     def validate(self) -> None:
         if not self.scene.strip():

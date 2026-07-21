@@ -6,7 +6,8 @@ from uuid import UUID
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.application.audit import AuditFilter, AuditRecord
+from app.application.audit import AuditFilter, AuditRecord, ChatLogFilter, ChatLogRecord
+from app.infrastructure.db.models.conversations import Conversation, Message
 from app.infrastructure.db.models.governance import AuditLog
 
 
@@ -46,6 +47,49 @@ class SQLAlchemyAuditRepository:
         async with self._session_factory() as session:
             rows = (await session.scalars(statement.limit(limit))).all()
         return [_to_record(row) for row in rows]
+
+    async def query_chat_logs(
+        self, filters: ChatLogFilter, *, limit: int, offset: int
+    ) -> list[ChatLogRecord]:
+        conditions = []
+        if filters.user_id is not None:
+            conditions.append(Conversation.owner_user_id == filters.user_id)
+        if filters.conversation_id is not None:
+            conditions.append(Message.conversation_id == filters.conversation_id)
+        if filters.start_time is not None:
+            conditions.append(Message.created_at >= filters.start_time)
+        if filters.end_time is not None:
+            conditions.append(Message.created_at <= filters.end_time)
+        if filters.status is not None:
+            conditions.append(Message.status == filters.status)
+        statement = (
+            select(Message, Conversation.owner_user_id)
+            .join(Conversation, Conversation.id == Message.conversation_id)
+            .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        if conditions:
+            statement = statement.where(*conditions)
+        async with self._session_factory() as session:
+            rows = (await session.execute(statement)).all()
+        return [
+            ChatLogRecord(
+                message_id=message.id,
+                conversation_id=message.conversation_id,
+                user_id=owner_user_id,
+                request_id=message.request_id,
+                role=message.role,
+                status=message.status,
+                model_version_id=message.model_version_id,
+                prompt_tokens=message.prompt_tokens,
+                completion_tokens=message.completion_tokens,
+                latency_ms=message.latency_ms,
+                error_code=message.error_code,
+                created_at=message.created_at,
+            )
+            for message, owner_user_id in rows
+        ]
 
 
 def _to_record(row: AuditLog) -> AuditRecord:

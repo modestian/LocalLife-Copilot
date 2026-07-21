@@ -18,6 +18,7 @@ from app.api.content_safety import router as content_safety_router
 from app.api.conversations import router as conversations_router
 from app.api.datasets import router as datasets_router
 from app.api.feedback import router as feedback_router
+from app.api.governance import router as governance_router
 from app.api.health import router as health_router
 from app.api.knowledge import router as knowledge_router
 from app.api.observability import audit_router, metrics_router
@@ -25,7 +26,7 @@ from app.api.search import router as search_router
 from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
 from app.application.analytics import AnalyticsService
-from app.application.audit import AuditQueryService
+from app.application.audit import AuditQueryService, ChatLogQueryService
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
 from app.application.content_safety import ContentSafetyService
@@ -46,6 +47,7 @@ from app.infrastructure.db.repositories.content_safety import SQLAlchemyContentS
 from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
 from app.infrastructure.db.repositories.dataset import SQLAlchemyDatasetRepository
 from app.infrastructure.db.repositories.feedback import SQLAlchemyFeedbackRepository
+from app.infrastructure.db.repositories.governance import SQLAlchemyGovernanceRepository
 from app.infrastructure.db.repositories.knowledge import SQLAlchemyKnowledgeRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
 from app.infrastructure.db.repositories.tasks import SQLAlchemyTaskRepository
@@ -98,7 +100,10 @@ def create_app(
         app.state.content_safety_service = ContentSafetyService(
             SQLAlchemyContentSafetyRepository(session_factory)
         )
-        app.state.audit_service = AuditQueryService(SQLAlchemyAuditRepository(session_factory))
+        audit_repository = SQLAlchemyAuditRepository(session_factory)
+        app.state.audit_service = AuditQueryService(audit_repository)
+        app.state.chat_log_service = ChatLogQueryService(audit_repository)
+        app.state.governance_repository = SQLAlchemyGovernanceRepository(session_factory)
 
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
@@ -120,6 +125,7 @@ def create_app(
             app_settings.model_gateway_embedding_url,
             model=app_settings.embedding_model,
             timeout_seconds=app_settings.dependency_timeout_seconds,
+            metrics_registry=app.state.metrics_registry,
         )
         embedder = BatchedEmbedder(
             embedding_provider,
@@ -174,6 +180,7 @@ def create_app(
     app.include_router(audit_router, prefix=app_settings.api_v1_prefix)
     app.include_router(datasets_router, prefix=app_settings.api_v1_prefix)
     app.include_router(feedback_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(governance_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     app.include_router(search_router, prefix=app_settings.api_v1_prefix)
     app.include_router(knowledge_router, prefix=app_settings.api_v1_prefix)

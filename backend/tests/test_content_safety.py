@@ -1,5 +1,6 @@
 """Acceptance tests for TK-103-02 sensitive-word checks and rejection auditing."""
 
+import asyncio
 from dataclasses import replace
 from uuid import UUID
 
@@ -8,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.content_safety import get_content_safety_service, router
+from app.api.conversations import router as conversations_router
 from app.api.dependencies.authorization import get_current_principal
 from app.application.authorization import AuthorizationPrincipal, RoleInfo
 from app.application.content_safety import (
@@ -276,6 +278,50 @@ def test_detection_endpoint_stops_sensitive_output(
     assert response.status_code == 422
     assert response.json()["code"] == "SENSITIVE_OUTPUT_STOPPED"
     assert "unsafe model output" not in response.text
+
+
+def test_conversation_write_enforces_input_safety_before_persistence(
+    safety_service: ContentSafetyService, safety_repo: InMemoryContentSafetyRepository
+) -> None:
+    class ConversationRepositoryStub:
+        def __init__(self) -> None:
+            self.append_calls = 0
+
+        async def append_message(self, *args: object, **kwargs: object) -> None:
+            del args, kwargs
+            self.append_calls += 1
+            raise AssertionError("blocked content must not be persisted")
+
+    principal = _principal()
+    repository = ConversationRepositoryStub()
+    app = FastAPI()
+    settings = Settings()
+    app.state.content_safety_service = safety_service
+    app.state.conversation_repository = repository
+    install_api_contract(app, settings)
+    app.include_router(conversations_router, prefix=settings.api_v1_prefix)
+    app.dependency_overrides[get_current_principal] = lambda: principal
+
+    asyncio.run(
+        safety_service.create_rule(
+            word="blocked",
+            scope=SensitiveRuleScope.INPUT,
+            match_type=SensitiveMatchType.CONTAINS,
+            severity="HIGH",
+            created_by=principal.user_id,
+        )
+    )
+    with TestClient(app) as client:
+        response = client.post(
+            f"/api/v1/conversations/{uuid7()}/messages",
+            json={"role": "USER", "content": "this is blocked"},
+            headers={"X-Request-ID": "conversation-safety"},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "SENSITIVE_INPUT_REJECTED"
+    assert repository.append_calls == 0
+    assert safety_repo.audits[0]["request_id"] == "conversation-safety"
 
 
 def test_content_safety_tables_and_constraints_are_registered() -> None:

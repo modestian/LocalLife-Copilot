@@ -22,6 +22,7 @@ from app.infrastructure.db import Base
 from app.infrastructure.db.models import (
     ModelDefinition,
     ModelDeployment,
+    ModelDeploymentRoute,
     ModelVersion,
     PromptDefinition,
     PromptVersion,
@@ -65,6 +66,12 @@ def test_definition_codes_are_unique() -> None:
     )
     assert "uq_model_definitions_code" in _constraint_names(
         ModelDefinition.__table__, UniqueConstraint
+    )
+
+
+def test_model_deployment_route_is_a_unique_concurrency_lock_anchor() -> None:
+    assert "uq_model_deployment_routes_key" in _constraint_names(
+        ModelDeploymentRoute.__table__, UniqueConstraint
     )
 
 
