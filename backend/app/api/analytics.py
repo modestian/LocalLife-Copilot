@@ -3,14 +3,14 @@
 import json
 from datetime import datetime
 from typing import Annotated, Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.dependencies.authorization import (
     CurrentPrincipal,
     require_permission,
-    require_query_resource_access,
     require_resource_access,
 )
 from app.application.analytics import AnalyticsService
@@ -24,11 +24,7 @@ merchant_read_dependency = require_resource_access(
     "READ",
     path_parameter="merchant_id",
 )
-merchant_compare_dependency = require_query_resource_access(
-    ResourceType.MERCHANT,
-    "READ",
-    query_parameter="merchant_ids",
-)
+merchant_compare_dependency = require_permission("MERCHANT", "READ")
 
 router = APIRouter(
     prefix="/merchants/{merchant_id}/analytics",
@@ -36,7 +32,7 @@ router = APIRouter(
     dependencies=[Depends(merchant_read_dependency)],
 )
 compare_router = APIRouter(
-    prefix="/analytics",
+    prefix="/merchants",
     tags=["analytics"],
     dependencies=[Depends(merchant_compare_dependency)],
 )
@@ -101,92 +97,76 @@ class ReputationBucket(BaseModel):
     trend: str
 
 
-class ComparisonSummary(BaseModel):
+class ComparisonRequest(BaseModel):
+    merchant_ids: list[str] = Field(min_length=2, max_length=4)
+    start_date: datetime | None = None
+    end_date: datetime | None = None
+
+
+class ComparisonMerchantMetric(BaseModel):
     merchant_id: str
-    positive: int
-    neutral: int
-    negative: int
-    total: int
+    merchant_name: str
+    sample_count: int
     positive_rate: float
-    negative_rate: float
-
-
-class AspectComparisonRow(BaseModel):
-    aspect: str
-    merchants: list[dict]
-
-
-class ReasonComparisonRow(BaseModel):
-    reason: str
-    merchants: list[dict]
+    avg_rating: float | None = None
+    aspect_counts: dict[str, int]
+    negative_reason_counts: dict[str, int]
 
 
 class ComparisonResult(BaseModel):
-    merchants: list[str]
-    summary: list[ComparisonSummary]
-    aspect_comparison: list[AspectComparisonRow]
-    negative_reason_comparison: list[ReasonComparisonRow]
+    period_start: str
+    period_end: str
+    metric_definition: str
+    minimum_sample_size: int
+    insufficient_data: bool
+    merchants: list[ComparisonMerchantMetric]
 
 
-class ReplyRequest(BaseModel):
-    review_text: str
-    sentiment: str
+class ReplySuggestionRequest(BaseModel):
+    tone: str = "EMPATHETIC"
     aspect_labels: list[str] = []
-    negative_reasons: list[str] = []
-    model_version: str = "unknown"
+    prohibited_commitments: list[str] = []
 
 
-class ReplyResponse(BaseModel):
-    reply_text: str
-    template_id: str
-    compliance_passed: bool
+class ReplySuggestionResponse(BaseModel):
+    draft: str
     model_version: str
     prompt_version: str
     generated_at: str
     evidence_review_ids: list[str] = []
-    violations: list[str] = []
 
 
-class EvidenceItem(BaseModel):
+class EvidenceReview(BaseModel):
     review_id: str
     review_text: str
-    sentiment: str
-    aspect_labels: list[str]
-    negative_reasons: list[str]
-    review_date: str | None = None
+    sentiment: str | None = None
+    reviewed_at: str | None = None
 
 
-class RecommendationItem(BaseModel):
-    recommendation_id: str
-    category: str
-    priority: str
+class BusinessSuggestionItem(BaseModel):
+    id: str
     title: str
-    description: str
-    related_aspect: str | None = None
-    related_negative_reason: str | None = None
+    content: str
     confidence: float
-    evidence: list[EvidenceItem] = []
+    period_start: str
+    period_end: str
+    evidence_review_ids: list[str] = []
+    evidence_reviews: list[EvidenceReview] = []
 
 
-class RecommendationSummary(BaseModel):
-    total_reviews: int
-    positive: int
-    neutral: int
-    negative: int
-    positive_rate: float
-    negative_rate: float
-    data_confidence: float
+class BusinessSuggestionRequest(BaseModel):
+    focus_aspects: list[str] = []
+    start_date: datetime | None = None
+    end_date: datetime | None = None
 
 
-class RecommendationReportDTO(BaseModel):
-    merchant_id: str
+class BusinessSuggestionResult(BaseModel):
+    suggestions: list[BusinessSuggestionItem]
+    insufficient_data: bool
+    evidence_conflict: bool = False
     model_version: str
     prompt_version: str
     generated_at: str
-    evidence_review_ids: list[str]
-    summary: RecommendationSummary
-    recommendations: list[RecommendationItem]
-    low_sample_warning: bool
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +181,6 @@ _LimitParam = Annotated[int, Query(ge=1, le=200)]
 _OffsetParam = Annotated[int, Query(ge=0)]
 _TopNParam = Annotated[int, Query(ge=1, le=20)]
 _MinMentionsParam = Annotated[int, Query(ge=1, le=100)]
-_MerchantIdsParam = Annotated[list[str], Query(min_length=2, max_length=4)]
 
 
 # ---------------------------------------------------------------------------
@@ -350,30 +329,28 @@ async def reputation_change(
     return success_response(request, [ReputationBucket(**row).model_dump() for row in data])
 
 
-@compare_router.get("/compare")
+@compare_router.post("/compare")
 async def compare_merchants(
     request: Request,
     service: AnalyticsServiceDependency,
-    merchant_ids: _MerchantIdsParam,
-    start_date: _DateParam = None,
-    end_date: _DateParam = None,
+    body: ComparisonRequest,
 ) -> dict[str, Any]:
     """Compare 2-4 merchants under the same time window and metrics."""
     try:
         data = await service.compare_merchants(
-            merchant_ids,
-            start_date=start_date,
-            end_date=end_date,
+            body.merchant_ids,
+            start_date=body.start_date,
+            end_date=body.end_date,
         )
     except ValueError as exc:
         raise AppError(400, "INVALID_PARAMETER", str(exc)) from exc
     result = ComparisonResult(
-        merchants=data["merchants"],
-        summary=[ComparisonSummary(**s) for s in data["summary"]],
-        aspect_comparison=[AspectComparisonRow(**a) for a in data["aspect_comparison"]],
-        negative_reason_comparison=[
-            ReasonComparisonRow(**r) for r in data["negative_reason_comparison"]
-        ],
+        period_start=data["period_start"],
+        period_end=data["period_end"],
+        metric_definition=data["metric_definition"],
+        minimum_sample_size=data["minimum_sample_size"],
+        insufficient_data=data["insufficient_data"],
+        merchants=[ComparisonMerchantMetric(**m) for m in data["merchants"]],
     )
     return success_response(request, result.model_dump())
 
@@ -389,36 +366,48 @@ _reply_generator = ReplyGenerator()
 async def generate_reply(
     review_id: str,
     request: Request,
-    body: ReplyRequest,
+    service: AnalyticsServiceDependency,
+    body: ReplySuggestionRequest,
 ) -> dict[str, Any]:
     """Generate a compliant review reply for the given review data."""
-    if not body.review_text or not body.review_text.strip():
-        raise AppError(400, "INVALID_PARAMETER", "review_text must not be empty")
-    valid_sentiments = {"POSITIVE", "NEUTRAL", "NEGATIVE"}
-    if body.sentiment not in valid_sentiments:
+    valid_tones = {"EMPATHETIC", "PROFESSIONAL", "CONCISE"}
+    if body.tone not in valid_tones:
         raise AppError(
             400,
             "INVALID_PARAMETER",
-            f"sentiment must be one of {valid_sentiments}, got {body.sentiment!r}",
+            f"tone must be one of {valid_tones}, got {body.tone!r}",
         )
 
-    result = _reply_generator.generate(
-        review_text=body.review_text,
-        sentiment=body.sentiment,
-        aspect_labels=body.aspect_labels,
-        negative_reasons=body.negative_reasons,
-        review_id=review_id,
-        model_version=body.model_version,
+    try:
+        review_uuid = UUID(review_id)
+    except ValueError as exc:
+        raise AppError(422, "VALIDATION_ERROR", "review_id 格式无效") from exc
+
+    review = await service.find_review_by_id(review_uuid)
+    if review is None:
+        raise AppError(404, "NOT_FOUND", "点评不存在或无访问权限")
+
+    aspect_labels = (
+        body.aspect_labels if body.aspect_labels else _parse_json_field(review.aspect_labels)
     )
-    response = ReplyResponse(
-        reply_text=result.reply_text,
-        template_id=result.template_id,
-        compliance_passed=result.compliance_passed,
+    negative_reasons = _parse_json_field(review.negative_reasons)
+
+    result = _reply_generator.generate(
+        review_text=review.review_text,
+        sentiment=review.sentiment,
+        aspect_labels=aspect_labels,
+        negative_reasons=negative_reasons,
+        review_id=review_id,
+        model_version=getattr(review, "model_version", "unknown"),
+        tone=body.tone,
+        prohibited_commitments=body.prohibited_commitments,
+    )
+    response = ReplySuggestionResponse(
+        draft=result.reply_text,
         model_version=result.model_version,
         prompt_version=result.prompt_version,
         generated_at=result.generated_at.isoformat(),
         evidence_review_ids=result.evidence_review_ids,
-        violations=result.violations,
     )
     return success_response(request, response.model_dump())
 
@@ -433,59 +422,49 @@ async def merchant_recommendations(
     merchant_id: str,
     request: Request,
     service: AnalyticsServiceDependency,
-    start_date: _DateParam = None,
-    end_date: _DateParam = None,
+    body: BusinessSuggestionRequest,
 ) -> dict[str, Any]:
     """Generate business recommendations with evidence and confidence."""
     try:
         report = await service.generate_recommendations(
             merchant_id,
-            start_date=start_date,
-            end_date=end_date,
+            focus_aspects=body.focus_aspects or None,
+            start_date=body.start_date,
+            end_date=body.end_date,
         )
     except ValueError as exc:
         raise AppError(400, "INVALID_PARAMETER", str(exc)) from exc
 
-    dto = RecommendationReportDTO(
-        merchant_id=report.merchant_id,
-        model_version=report.model_version,
-        prompt_version=report.prompt_version,
-        generated_at=report.generated_at.isoformat(),
-        evidence_review_ids=report.evidence_review_ids,
-        summary=RecommendationSummary(
-            total_reviews=report.summary["total_reviews"],
-            positive=report.summary["positive"],
-            neutral=report.summary["neutral"],
-            negative=report.summary["negative"],
-            positive_rate=report.summary["positive_rate"],
-            negative_rate=report.summary["negative_rate"],
-            data_confidence=report.summary["data_confidence"],
-        ),
-        recommendations=[
-            RecommendationItem(
-                recommendation_id=rec.recommendation_id,
-                category=rec.category,
-                priority=rec.priority,
+    period_start = body.start_date.isoformat() if body.start_date else ""
+    period_end = body.end_date.isoformat() if body.end_date else ""
+
+    dto = BusinessSuggestionResult(
+        suggestions=[
+            BusinessSuggestionItem(
+                id=rec.recommendation_id,
                 title=rec.title,
-                description=rec.description,
-                related_aspect=rec.related_aspect,
-                related_negative_reason=rec.related_negative_reason,
+                content=rec.description,
                 confidence=rec.confidence,
-                evidence=[
-                    EvidenceItem(
+                period_start=period_start,
+                period_end=period_end,
+                evidence_review_ids=[ev.review_id for ev in rec.evidence],
+                evidence_reviews=[
+                    EvidenceReview(
                         review_id=ev.review_id,
                         review_text=ev.review_text,
                         sentiment=ev.sentiment,
-                        aspect_labels=ev.aspect_labels,
-                        negative_reasons=ev.negative_reasons,
-                        review_date=ev.review_date,
+                        reviewed_at=ev.review_date,
                     )
                     for ev in rec.evidence
                 ],
             )
             for rec in report.recommendations
         ],
-        low_sample_warning=report.low_sample_warning,
+        insufficient_data=report.low_sample_warning,
+        evidence_conflict=False,
+        model_version=report.model_version,
+        prompt_version=report.prompt_version,
+        generated_at=report.generated_at.isoformat(),
     )
     return success_response(request, dto.model_dump())
 

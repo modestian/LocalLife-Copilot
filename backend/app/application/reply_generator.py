@@ -336,6 +336,8 @@ class ReplyGenerator:
         negative_reasons: list[str] | None = None,
         review_id: str | None = None,
         model_version: str = "unknown",
+        tone: str = "EMPATHETIC",
+        prohibited_commitments: list[str] | None = None,
     ) -> ReplyResult:
         """Generate a review reply.
 
@@ -347,6 +349,8 @@ class ReplyGenerator:
             negative_reasons: Negative reason codes (only for NEGATIVE).
             review_id: Original review ID for traceability.
             model_version: Sentiment model version for traceability.
+            tone: Reply tone — EMPATHETIC, PROFESSIONAL or CONCISE.
+            prohibited_commitments: Additional prohibited phrases to check.
 
         Returns:
             ReplyResult with reply_text, template_id, compliance status,
@@ -361,7 +365,16 @@ class ReplyGenerator:
         template = self._select_template(sentiment, reasons)
         reply_text = self._fill_template(template, aspects)
 
+        # Apply tone adjustment
+        reply_text = self._apply_tone(reply_text, tone)
+
+        # Check compliance including prohibited_commitments
         violations = check_compliance(reply_text)
+        if prohibited_commitments:
+            for commitment in prohibited_commitments:
+                if commitment and commitment in reply_text:
+                    violations.append(f"包含禁用承诺: {commitment}")
+
         return ReplyResult(
             reply_text=reply_text,
             template_id=template.template_id,
@@ -371,6 +384,18 @@ class ReplyGenerator:
             evidence_review_ids=[review_id] if review_id else [],
             violations=violations,
         )
+
+    def _apply_tone(self, text: str, tone: str) -> str:
+        """Apply tone adjustments to the reply text."""
+        if tone == "CONCISE":
+            # Trim to first sentence for concise tone
+            for sep in ("。", "！", "？"):
+                idx = text.find(sep)
+                if idx != -1:
+                    return text[: idx + 1]
+            return text
+        # EMPATHETIC and PROFESSIONAL use the full template text as-is
+        return text
 
     def _select_template(self, sentiment: str, negative_reasons: list[str]) -> ReplyTemplate:
         """Select the best-matching template for the given inputs."""

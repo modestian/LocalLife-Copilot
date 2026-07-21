@@ -10,6 +10,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
+from uuid import UUID
 
 import pytest
 from fastapi import FastAPI
@@ -203,6 +204,9 @@ class InMemoryAnalyticsRepository:
                 r["merchant_id"] = mid
             result.extend(r for r in reasons)
         return result
+
+    async def find_review_by_id(self, review_id: UUID) -> FakeReviewAnalysis | None:
+        return next((r for r in self._records if r.id == review_id), None)
 
     async def drill_down_reviews(
         self,
@@ -472,11 +476,11 @@ class TestPermissionIsolation:
     async def test_comparison_summary_contains_sample_size(
         self, multi_service: AnalyticsService
     ) -> None:
-        """Each merchant summary must include total (sample size)."""
+        """Each merchant metric must include sample_count."""
         result = await multi_service.compare_merchants(["M001", "M002"])
-        for s in result["summary"]:
-            assert "total" in s
-            assert s["total"] > 0
+        for m in result["merchants"]:
+            assert "sample_count" in m
+            assert m["sample_count"] > 0
 
     @pytest.mark.asyncio
     async def test_comparison_same_time_window(self, multi_service: AnalyticsService) -> None:
@@ -487,8 +491,12 @@ class TestPermissionIsolation:
             ["M001", "M002"], start_date=start, end_date=end
         )
         # Both merchants' data should be filtered by the same date range
-        m001_total = next(s["total"] for s in result["summary"] if s["merchant_id"] == "M001")
-        m002_total = next(s["total"] for s in result["summary"] if s["merchant_id"] == "M002")
+        m001_total = next(
+            m["sample_count"] for m in result["merchants"] if m["merchant_id"] == "M001"
+        )
+        m002_total = next(
+            m["sample_count"] for m in result["merchants"] if m["merchant_id"] == "M002"
+        )
         # All records are on 2025-07-01, so both should have data
         assert m001_total == 18
         assert m002_total == 9
@@ -529,9 +537,12 @@ class TestPermissionIsolation:
     # ------------------------------------------------------------------
 
     def test_api_comparison_no_raw_review_text(self) -> None:
-        """POST /api/v1/analytics/compare must not leak raw review text."""
+        """POST /api/v1/merchants/compare must not leak raw review text."""
         client = _create_test_client(_multi_merchant_records())
-        response = client.get("/api/v1/analytics/compare?merchant_ids=M001&merchant_ids=M002")
+        response = client.post(
+            "/api/v1/merchants/compare",
+            json={"merchant_ids": ["M001", "M002"]},
+        )
         assert response.status_code == 200
         body_str = response.text
         assert "味道很好" not in body_str
