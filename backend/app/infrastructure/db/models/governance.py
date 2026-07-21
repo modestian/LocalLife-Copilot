@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -178,6 +179,66 @@ class ModelDeployment(Base):
     )
 
 
+class SensitiveWordRule(Base):
+    """A versioned sensitive-word rule; prior versions remain traceable."""
+
+    __tablename__ = "sensitive_word_rules"
+    __table_args__ = (
+        UniqueConstraint(
+            "normalized_word", "scope", "version_no", name="uq_sensitive_rules_word_scope_version"
+        ),
+        CheckConstraint("version_no > 0", name="version_no"),
+        CheckConstraint("scope IN ('INPUT', 'OUTPUT', 'BOTH')", name="scope"),
+        CheckConstraint("match_type IN ('CONTAINS', 'EXACT')", name="match_type"),
+        CheckConstraint("severity IN ('LOW', 'MEDIUM', 'HIGH')", name="severity"),
+        Index("ix_sensitive_rules_enabled_scope", "enabled", "scope"),
+        MYSQL_TABLE_OPTIONS,
+    )
+
+    id: Mapped[UUID] = mapped_column(UUIDBinary(), primary_key=True, default=uuid7)
+    word: Mapped[str] = mapped_column(String(200), nullable=False)
+    normalized_word: Mapped[str] = mapped_column(String(200), nullable=False)
+    scope: Mapped[str] = mapped_column(String(16), nullable=False)
+    match_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    version_no: Mapped[int] = mapped_column(UNSIGNED_INTEGER, nullable=False)
+    enabled: Mapped[bool] = mapped_column(nullable=False, default=True, server_default="1")
+    created_by: Mapped[UUID] = mapped_column(
+        UUIDBinary(), ForeignKey("users.id", name="fk_sensitive_rules_creator"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DATETIME_6, nullable=False, default=utc_now, server_default=text("CURRENT_TIMESTAMP(6)")
+    )
+
+
+class AuditLog(Base):
+    """Append-only security and business audit event."""
+
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        CheckConstraint("result IN ('SUCCEEDED', 'FAILED', 'BLOCKED')", name="result"),
+        Index("ix_audit_logs_actor_created", "actor_id", "created_at"),
+        Index("ix_audit_logs_resource_created", "resource_type", "resource_id", "created_at"),
+        MYSQL_TABLE_OPTIONS,
+    )
+
+    id: Mapped[UUID] = mapped_column(UUIDBinary(), primary_key=True, default=uuid7)
+    actor_id: Mapped[UUID] = mapped_column(
+        UUIDBinary(), ForeignKey("users.id", name="fk_audit_logs_actor"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    resource_id: Mapped[UUID | None] = mapped_column(UUIDBinary(), nullable=True)
+    request_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    ip_address: Mapped[bytes | None] = mapped_column(LargeBinary(16), nullable=True)
+    result: Mapped[str] = mapped_column(String(16), nullable=False)
+    before_summary_json: Mapped[dict[str, object] | None] = mapped_column(JSON_TYPE, nullable=True)
+    after_summary_json: Mapped[dict[str, object] | None] = mapped_column(JSON_TYPE, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DATETIME_6, nullable=False, default=utc_now, server_default=text("CURRENT_TIMESTAMP(6)")
+    )
+
+
 def _reject_changes(target: object, fields: tuple[str, ...]) -> None:
     state = inspect(target)
     if state.persistent and any(state.attrs[field].history.has_changes() for field in fields):
@@ -234,3 +295,27 @@ def _protect_model_version(mapper: object, connection: object, target: ModelVers
             "created_by",
         ),
     )
+
+
+@event.listens_for(SensitiveWordRule, "before_update")
+def _protect_sensitive_rule(mapper: object, connection: object, target: SensitiveWordRule) -> None:
+    del mapper, connection
+    _reject_changes(
+        target,
+        (
+            "word",
+            "normalized_word",
+            "scope",
+            "match_type",
+            "severity",
+            "version_no",
+            "created_by",
+        ),
+    )
+
+
+@event.listens_for(AuditLog, "before_update")
+@event.listens_for(AuditLog, "before_delete")
+def _protect_audit_log(mapper: object, connection: object, target: AuditLog) -> None:
+    del mapper, connection, target
+    raise ValueError("audit logs are append-only")
