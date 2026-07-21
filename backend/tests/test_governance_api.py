@@ -162,8 +162,11 @@ def _client(repository: GovernanceStub, *, admin: bool = True) -> TestClient:
 
 def test_production_application_exposes_documented_governance_routes() -> None:
     app = create_app(readiness_checks={})
+    schema = app.openapi()
     route_methods = {
-        (route.path, method) for route in app.routes for method in getattr(route, "methods", set())
+        (path, method.upper())
+        for path, methods in schema.get("paths", {}).items()
+        for method in methods
     }
     assert {
         ("/api/v1/prompts", "POST"),
