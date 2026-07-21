@@ -8,11 +8,13 @@ from app.infrastructure.db.models.feedback import (
     FeedbackAudit,
 )
 from app.infrastructure.db.models.governance import (
+    AuditLog,
     ModelDefinition,
     ModelDeployment,
     ModelVersion,
     PromptDefinition,
     PromptVersion,
+    SensitiveWordRule,
 )
 from app.infrastructure.db.models.identity import (
     Department,
@@ -29,6 +31,7 @@ from app.infrastructure.db.models.sentiment import ReviewAnalysis
 from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 
 __all__ = [
+    "AuditLog",
     "AsyncTask",
     "Chunk",
     "Conversation",
@@ -54,6 +57,7 @@ __all__ = [
     "ReviewAnalysis",
     "Role",
     "RolePermission",
+    "SensitiveWordRule",
     "User",
     "UserRole",
 ]

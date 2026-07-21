@@ -13,6 +13,7 @@ from app.api.analytics import compare_router as analytics_compare_router
 from app.api.analytics import reviews_router as analytics_reviews_router
 from app.api.analytics import router as analytics_router
 from app.api.auth import router as auth_router
+from app.api.content_safety import router as content_safety_router
 from app.api.conversations import router as conversations_router
 from app.api.datasets import router as datasets_router
 from app.api.feedback import router as feedback_router
@@ -24,6 +25,7 @@ from app.api.users import router as users_router
 from app.application.analytics import AnalyticsService
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
+from app.application.content_safety import ContentSafetyService
 from app.application.dataset_service import DatasetService
 from app.application.feedback import FeedbackService
 from app.application.knowledge import KnowledgeService
@@ -35,6 +37,7 @@ from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.infrastructure.cache.conversations import RedisConversationMemory
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
 from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
+from app.infrastructure.db.repositories.content_safety import SQLAlchemyContentSafetyRepository
 from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
 from app.infrastructure.db.repositories.dataset import SQLAlchemyDatasetRepository
 from app.infrastructure.db.repositories.feedback import SQLAlchemyFeedbackRepository
@@ -86,6 +89,9 @@ def create_app(
         app.state.feedback_service = FeedbackService(feedback_repository)
         dataset_repository = SQLAlchemyDatasetRepository(session_factory)
         app.state.dataset_service = DatasetService(feedback_repository, dataset_repository)
+        app.state.content_safety_service = ContentSafetyService(
+            SQLAlchemyContentSafetyRepository(session_factory)
+        )
 
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
@@ -152,6 +158,7 @@ def create_app(
     app.include_router(analytics_reviews_router, prefix=app_settings.api_v1_prefix)
     app.include_router(auth_router, prefix=app_settings.api_v1_prefix)
     app.include_router(conversations_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(content_safety_router, prefix=app_settings.api_v1_prefix)
     app.include_router(datasets_router, prefix=app_settings.api_v1_prefix)
     app.include_router(feedback_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
