@@ -45,7 +45,9 @@ class RedisConversationMemory:
 
     async def load(self, conversation_id: UUID, owner_user_id: UUID) -> list[MessageView]:
         # The cache is consulted only after the fact repository proves ownership.
-        await self._repository.get_conversation(conversation_id, owner_user_id)
+        conversation = await self._repository.get_conversation(conversation_id, owner_user_id)
+        if conversation.memory_backend == "MYSQL":
+            return await self._load_from_repository(conversation_id, owner_user_id)
         key = self._key(conversation_id)
         try:
             cached = await self._redis.get(key)
@@ -55,13 +57,7 @@ class RedisConversationMemory:
         except Exception:  # Redis failure must not make durable history unavailable.
             pass
 
-        loader = getattr(self._repository, "list_recent_messages", None)
-        if loader is not None:
-            messages = await loader(conversation_id, owner_user_id, limit=self._window_size)
-        else:
-            messages = await self._repository.list_messages(
-                conversation_id, owner_user_id, limit=self._window_size
-            )
+        messages = await self._load_from_repository(conversation_id, owner_user_id)
         try:
             await self._redis.set(
                 key,
@@ -71,6 +67,16 @@ class RedisConversationMemory:
         except Exception:
             pass
         return messages
+
+    async def _load_from_repository(
+        self, conversation_id: UUID, owner_user_id: UUID
+    ) -> list[MessageView]:
+        loader = getattr(self._repository, "list_recent_messages", None)
+        if loader is not None:
+            return await loader(conversation_id, owner_user_id, limit=self._window_size)
+        return await self._repository.list_messages(
+            conversation_id, owner_user_id, limit=self._window_size
+        )
 
     async def invalidate(self, conversation_id: UUID) -> None:
         try:

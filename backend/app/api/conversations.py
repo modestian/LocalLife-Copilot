@@ -52,7 +52,7 @@ class TruncateDTO(BaseModel):
 
 
 def _conversation_data(row) -> dict[str, Any]:
-    settings = dict(row.settings)
+    settings = {key: value for key, value in row.settings.items() if not key.startswith("_")}
     return {
         "id": str(row.id),
         "owner_user_id": str(row.owner_user_id),
@@ -107,7 +107,7 @@ async def _not_found(coro):
 async def create_conversation(
     request: Request, body: ConversationCreateDTO, principal: CurrentPrincipal
 ) -> dict[str, Any]:
-    settings = {**body.settings}
+    settings = {key: value for key, value in body.settings.items() if not key.startswith("_")}
     if body.scenario is not None:
         settings["scenario"] = body.scenario
     settings["constraints"] = body.constraints
@@ -207,9 +207,8 @@ async def truncate_conversation(
     principal: CurrentPrincipal,
 ) -> dict[str, Any]:
     row = await _not_found(
-        _repository(request).truncate(conversation_id, principal.user_id, body.message_id)
+        request.app.state.agent_memory.truncate(conversation_id, principal.user_id, body.message_id)
     )
-    await request.app.state.conversation_memory.invalidate(conversation_id)
     return success_response(request, _conversation_data(row))
 
 

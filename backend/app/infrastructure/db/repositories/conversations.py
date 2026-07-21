@@ -1,7 +1,7 @@
 from collections import defaultdict
 from uuid import UUID
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.conversations import (
@@ -89,10 +89,11 @@ class SQLAlchemyConversationRepository:
                     sources = await _sources_for_messages(session, [existing.id])
                     return _message_view(existing, sources.get(existing.id, ()))
 
-            if payload.parent_message_id is not None:
+            parent_message_id = payload.parent_message_id or conversation.current_branch_message_id
+            if parent_message_id is not None:
                 parent_exists = await session.scalar(
                     select(Message.id).where(
-                        Message.id == payload.parent_message_id,
+                        Message.id == parent_message_id,
                         Message.conversation_id == conversation_id,
                     )
                 )
@@ -106,7 +107,7 @@ class SQLAlchemyConversationRepository:
             )
             row = Message(
                 conversation_id=conversation_id,
-                parent_message_id=payload.parent_message_id,
+                parent_message_id=parent_message_id,
                 sequence_no=(last_sequence or 0) + 1,
                 request_id=payload.request_id,
                 role=payload.role.value,
@@ -153,13 +154,18 @@ class SQLAlchemyConversationRepository:
         if after_sequence is not None and after_sequence < 0:
             raise ValueError("after_sequence must not be negative")
         async with self._session_factory() as session:
-            await _owned_conversation(session, conversation_id, owner_user_id)
-            statement = select(Message).where(Message.conversation_id == conversation_id)
-            if after_sequence is not None:
-                statement = statement.where(Message.sequence_no > after_sequence)
-            rows = (
-                await session.scalars(statement.order_by(Message.sequence_no).limit(limit))
+            conversation = await _owned_conversation(session, conversation_id, owner_user_id)
+            all_rows = (
+                await session.scalars(
+                    select(Message)
+                    .where(Message.conversation_id == conversation_id)
+                    .order_by(Message.sequence_no)
+                )
             ).all()
+            rows = _visible_branch_rows(all_rows, conversation.current_branch_message_id)
+            if after_sequence is not None:
+                rows = [row for row in rows if row.sequence_no > after_sequence]
+            rows = rows[:limit]
             sources = await _sources_for_messages(session, [row.id for row in rows])
             return [_message_view(row, sources.get(row.id, ())) for row in rows]
 
@@ -169,19 +175,15 @@ class SQLAlchemyConversationRepository:
         if not 1 <= limit <= 100:
             raise ValueError("limit must be between 1 and 100")
         async with self._session_factory() as session:
-            await _owned_conversation(session, conversation_id, owner_user_id)
-            rows = list(
-                reversed(
-                    (
-                        await session.scalars(
-                            select(Message)
-                            .where(Message.conversation_id == conversation_id)
-                            .order_by(Message.sequence_no.desc())
-                            .limit(limit)
-                        )
-                    ).all()
+            conversation = await _owned_conversation(session, conversation_id, owner_user_id)
+            all_rows = (
+                await session.scalars(
+                    select(Message)
+                    .where(Message.conversation_id == conversation_id)
+                    .order_by(Message.sequence_no)
                 )
-            )
+            ).all()
+            rows = _visible_branch_rows(all_rows, conversation.current_branch_message_id)[-limit:]
             sources = await _sources_for_messages(session, [row.id for row in rows])
             return [_message_view(row, sources.get(row.id, ())) for row in rows]
 
@@ -216,23 +218,43 @@ class SQLAlchemyConversationRepository:
             )
             if target is None:
                 raise MessageNotFound("truncate target not found in conversation")
-            later_ids = list(
-                await session.scalars(
-                    select(Message.id).where(
-                        Message.conversation_id == conversation_id,
-                        Message.sequence_no > target.sequence_no,
-                    )
-                )
-            )
-            if later_ids:
-                await session.execute(
-                    delete(MessageSource).where(MessageSource.message_id.in_(later_ids))
-                )
-                await session.execute(delete(Message).where(Message.id.in_(later_ids)))
+            # Truncation is a logical branch move. Historical messages and their
+            # sources remain durable for audit/recovery and can form another branch.
             conversation.current_branch_message_id = target.id
+            settings = dict(conversation.settings_json)
+            settings.pop("_memory_summary", None)
+            conversation.settings_json = settings
             conversation.updated_at = utc_now()
             await session.flush()
             return _conversation_view(conversation)
+
+
+def _visible_branch_rows(
+    rows: list[Message], current_branch_message_id: UUID | None
+) -> list[Message]:
+    """Return only ancestors of the current branch head, in conversation order.
+
+    Early installations created messages without parent pointers. When the current
+    head is such a legacy message, sequence order is used as a compatibility path.
+    """
+    if current_branch_message_id is None:
+        return []
+    by_id = {row.id: row for row in rows}
+    head = by_id.get(current_branch_message_id)
+    if head is None:
+        return []
+    if head.parent_message_id is None:
+        return [row for row in rows if row.sequence_no <= head.sequence_no]
+
+    visible: list[Message] = []
+    seen: set[UUID] = set()
+    cursor: Message | None = head
+    while cursor is not None and cursor.id not in seen:
+        visible.append(cursor)
+        seen.add(cursor.id)
+        cursor = by_id.get(cursor.parent_message_id) if cursor.parent_message_id else None
+    visible.reverse()
+    return visible
 
 
 async def _owned_conversation(
