@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from typing import Any, Self
 
@@ -148,6 +149,40 @@ class GroundedGenerationError(RuntimeError):
     """The model output violated the RAG contract."""
 
 
+@dataclass(frozen=True, slots=True)
+class CitationPolicy:
+    """Deterministic gate applied before and after grounded generation."""
+
+    min_evidence_score: float = 0.0
+    min_evidence_count: int = 1
+    min_text_overlap: float = 0.20
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.min_evidence_score) or not 0 <= self.min_evidence_score <= 1:
+            raise ValueError("min_evidence_score must be between 0 and 1")
+        if self.min_evidence_count <= 0:
+            raise ValueError("min_evidence_count must be positive")
+        if not 0 <= self.min_text_overlap <= 1:
+            raise ValueError("min_text_overlap must be between 0 and 1")
+
+
+@dataclass(frozen=True, slots=True)
+class CitationIssue:
+    code: str
+    claim: str
+    source_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CitationVerification:
+    sources: tuple[SourceCitation, ...]
+    issues: tuple[CitationIssue, ...] = ()
+
+    @property
+    def supported(self) -> bool:
+        return not self.issues
+
+
 GENERATE_GROUNDED_CONTRACT = NodeContract(
     name="generate_grounded",
     requires=frozenset({StateField.USER_QUERY, StateField.RETRIEVED_CHUNKS}),
@@ -169,6 +204,11 @@ _RECOMMENDATION_MARKERS = (
     "附近",
 )
 _SOURCE_ID_PATTERN = re.compile(r"E[1-9][0-9]*\Z")
+_INLINE_SOURCE_PATTERN = re.compile(r"\[(E[1-9][0-9]*)]")
+_CLAIM_SPLIT_PATTERN = re.compile(r"[\u3002\uff01!\uff1f?\uff1b;.\n]+")
+_TEXT_NORMALIZE_PATTERN = re.compile(r"[^0-9A-Za-z\u3400-\u9fff]+")
+_LATIN_TOKEN_PATTERN = re.compile(r"[0-9a-z]+")
+_HAN_CHARACTER_PATTERN = re.compile(r"[\u3400-\u9fff]")
 _SAFE_METADATA_FIELDS = (
     "merchant_name",
     "name",
@@ -207,17 +247,26 @@ class GroundedRAGGenerator:
         *,
         max_chunk_chars: int = 4000,
         max_total_evidence_chars: int = 16000,
+        citation_policy: CitationPolicy | None = None,
     ) -> None:
         if max_chunk_chars <= 0 or max_total_evidence_chars <= 0:
             raise ValueError("evidence character limits must be positive")
         self._model = model
         self._max_chunk_chars = max_chunk_chars
         self._max_total_evidence_chars = max_total_evidence_chars
+        self._citation_policy = citation_policy or CitationPolicy()
+        self._citation_verifier = CitationVerifier(self._citation_policy)
 
     def generate(self, state: ChatState) -> GroundedGeneration:
-        chunks = tuple(state.get("retrieved_chunks", ()))
+        eligible: dict[str, RetrievedChunk] = {}
+        for chunk in state.get("retrieved_chunks", ()):
+            if chunk.score >= self._citation_policy.min_evidence_score:
+                eligible.setdefault(chunk.chunk_id, chunk)
+        chunks = tuple(eligible.values())
         if not chunks:
             return _fallback("no_evidence")
+        if len(chunks) < self._citation_policy.min_evidence_count:
+            return _fallback("insufficient_evidence")
         mode = infer_generation_mode(state["user_query"])
         prompt, included = build_grounded_prompt(
             state["user_query"],
@@ -247,11 +296,14 @@ class GroundedRAGGenerator:
                 raise GroundedGenerationError("model must return exactly one prediction")
             prediction = predictions[0]
             output = _parse_output(prediction.structured, prediction.text)
-            _validate_grounding(output, mode, included)
-            source_map = {f"E{i}": chunk for i, chunk in enumerate(included, 1)}
-            sources = tuple(_citation(sid, source_map[sid]) for sid in output.all_source_ids())
+            verification = self._citation_verifier.verify(output, mode, included)
+            if not verification.supported:
+                return _fallback("unsupported_citations")
             return GroundedGeneration(
-                render_grounded_output(output), output, sources, prediction.model_version
+                render_grounded_output(output),
+                output,
+                verification.sources,
+                prediction.model_version,
             )
         except (GroundedGenerationError, RuntimeError, TypeError, ValueError):
             return _fallback("invalid_model_output")
@@ -307,7 +359,8 @@ def build_grounded_prompt(
             "content": content,
         }
         blocks.append(_escape(json.dumps(record, ensure_ascii=False, default=str)))
-        included.append(chunk)
+        # Persist exactly what the model saw, not text beyond the prompt boundary.
+        included.append(replace(chunk, content=content))
         used_chars += len(content)
     instruction = {
         GenerationMode.RECOMMENDATION: (
@@ -408,6 +461,198 @@ def _validate_grounding(
             raise GroundedGenerationError("recommendation merchant is unsupported")
 
 
+class CitationVerifier:
+    """Locate citations and reject claims that their referenced snapshots do not support."""
+
+    def __init__(self, policy: CitationPolicy | None = None) -> None:
+        self._policy = policy or CitationPolicy()
+
+    def verify(
+        self,
+        output: GroundedOutput,
+        expected_mode: GenerationMode,
+        chunks: Sequence[RetrievedChunk],
+    ) -> CitationVerification:
+        _validate_grounding(output, expected_mode, chunks)
+        source_map = {f"E{i}": chunk for i, chunk in enumerate(chunks, 1)}
+        issues: list[CitationIssue] = []
+
+        if output.response_type is GenerationMode.GROUNDED_ANSWER:
+            inline_ids = tuple(dict.fromkeys(_INLINE_SOURCE_PATTERN.findall(output.answer)))
+            if set(inline_ids) != set(output.source_ids):
+                issues.append(CitationIssue("citation_set_mismatch", output.answer, inline_ids))
+            issues.extend(self._verify_answer(output.answer, source_map))
+        elif output.response_type is GenerationMode.RECOMMENDATION:
+            for item in output.recommendations:
+                cited = tuple(source_map[source_id] for source_id in item.source_ids)
+                issues.extend(self._verify_recommendation(item, cited))
+        else:
+            summary = output.review_summary
+            if summary is None:  # pragma: no cover - shape validation already enforces this
+                raise GroundedGenerationError("missing review summary")
+            summary_ids = tuple(
+                dict.fromkeys(
+                    source_id
+                    for item in (
+                        *summary.highlights,
+                        *summary.drawbacks,
+                        *summary.recent_changes,
+                    )
+                    for source_id in item.source_ids
+                )
+            )
+            summary_chunks = tuple(source_map[source_id] for source_id in summary_ids)
+            if not _value_supported(
+                summary.merchant_name, ("merchant_name", "name"), summary_chunks
+            ):
+                issues.append(
+                    CitationIssue("unsupported_merchant_name", summary.merchant_name, summary_ids)
+                )
+            known_merchants = {
+                chunk.merchant_id for chunk in summary_chunks if chunk.merchant_id is not None
+            }
+            if (
+                summary.merchant_id
+                and known_merchants
+                and summary.merchant_id not in known_merchants
+            ):
+                issues.append(
+                    CitationIssue("unsupported_merchant_id", summary.merchant_id, summary_ids)
+                )
+            if not any(
+                chunk.data_updated_at == summary.data_updated_at for chunk in summary_chunks
+            ):
+                issues.append(
+                    CitationIssue(
+                        "unsupported_data_updated_at", summary.data_updated_at, summary_ids
+                    )
+                )
+            for item in (
+                *summary.highlights,
+                *summary.drawbacks,
+                *summary.recent_changes,
+            ):
+                cited = tuple(source_map[source_id] for source_id in item.source_ids)
+                if not _text_supported(item.text, cited, self._policy.min_text_overlap):
+                    issues.append(CitationIssue("unsupported_text", item.text, item.source_ids))
+
+        sources = tuple(
+            _citation(source_id, source_map[source_id]) for source_id in output.all_source_ids()
+        )
+        return CitationVerification(sources=sources if not issues else (), issues=tuple(issues))
+
+    def _verify_answer(
+        self, answer: str, source_map: Mapping[str, RetrievedChunk]
+    ) -> list[CitationIssue]:
+        issues: list[CitationIssue] = []
+        claims = tuple(
+            claim.strip() for claim in _CLAIM_SPLIT_PATTERN.split(answer) if claim.strip()
+        )
+        for claim in claims:
+            source_ids = tuple(dict.fromkeys(_INLINE_SOURCE_PATTERN.findall(claim)))
+            clean_claim = _INLINE_SOURCE_PATTERN.sub("", claim).strip()
+            if not source_ids:
+                issues.append(CitationIssue("missing_inline_citation", clean_claim))
+                continue
+            if any(source_id not in source_map for source_id in source_ids):
+                raise GroundedGenerationError("unknown inline evidence")
+            cited = tuple(source_map[source_id] for source_id in source_ids)
+            if not _text_supported(clean_claim, cited, self._policy.min_text_overlap):
+                issues.append(CitationIssue("unsupported_text", clean_claim, source_ids))
+        return issues
+
+    def _verify_recommendation(
+        self, item: RecommendationOutput, chunks: Sequence[RetrievedChunk]
+    ) -> list[CitationIssue]:
+        issues: list[CitationIssue] = []
+        checks = (
+            ("name", item.name, ("merchant_name", "name")),
+            ("category", item.category, ("category", "category_name")),
+            ("distance_meter", item.distance_meter, ("distance_meter",)),
+            ("avg_price_cent", item.avg_price_cent, ("avg_price_cent", "price_cent")),
+            ("rating", item.rating, ("rating",)),
+            (
+                "business_status",
+                item.business_status.value if item.business_status else None,
+                ("business_status",),
+            ),
+        )
+        for field_name, value, keys in checks:
+            if value is not None and not _value_supported(value, keys, chunks):
+                issues.append(
+                    CitationIssue(f"unsupported_{field_name}", str(value), item.source_ids)
+                )
+        if not any(chunk.data_updated_at == item.data_updated_at for chunk in chunks):
+            issues.append(
+                CitationIssue("unsupported_data_updated_at", item.data_updated_at, item.source_ids)
+            )
+        if not _text_supported(item.reason, chunks, self._policy.min_text_overlap):
+            issues.append(CitationIssue("unsupported_reason", item.reason, item.source_ids))
+        return issues
+
+
+def _value_supported(
+    value: object, metadata_keys: Sequence[str], chunks: Sequence[RetrievedChunk]
+) -> bool:
+    expected = _normalized_scalar(value)
+    for chunk in chunks:
+        for key in metadata_keys:
+            if key in chunk.metadata and _normalized_scalar(chunk.metadata[key]) == expected:
+                return True
+        if expected and expected in _normalize_text(chunk.content):
+            return True
+    return False
+
+
+def _normalized_scalar(value: object) -> str:
+    if isinstance(value, float):
+        return f"{value:g}".casefold()
+    return _normalize_text(str(value))
+
+
+def _text_supported(claim: str, chunks: Sequence[RetrievedChunk], min_overlap: float) -> bool:
+    normalized_claim = _normalize_text(claim)
+    if not normalized_claim:
+        return False
+    evidence_text = _evidence_text(chunks)
+    evidence = _normalize_text(evidence_text)
+    if normalized_claim in evidence:
+        return True
+    claim_units = _support_units(claim)
+    if not claim_units:
+        return normalized_claim in evidence
+    evidence_units = _support_units(evidence_text)
+    return len(claim_units & evidence_units) / len(claim_units) >= min_overlap
+
+
+def _evidence_text(chunks: Sequence[RetrievedChunk]) -> str:
+    return " ".join(
+        value
+        for chunk in chunks
+        for value in (
+            chunk.content,
+            *(
+                str(chunk.metadata[key])
+                for key in _SAFE_METADATA_FIELDS
+                if key in chunk.metadata and chunk.metadata[key] is not None
+            ),
+        )
+    )
+
+
+def _support_units(value: str) -> set[str]:
+    folded = value.casefold()
+    units = {f"word:{token}" for token in _LATIN_TOKEN_PATTERN.findall(folded)}
+    han = "".join(_HAN_CHARACTER_PATTERN.findall(folded))
+    size = 2 if len(han) >= 2 else 1
+    units.update(f"han:{han[index : index + size]}" for index in range(len(han) - size + 1))
+    return units
+
+
+def _normalize_text(value: str) -> str:
+    return _TEXT_NORMALIZE_PATTERN.sub("", value).casefold()
+
+
 def _citation(source_id: str, chunk: RetrievedChunk) -> SourceCitation:
     return SourceCitation(
         chunk_id=chunk.chunk_id,
@@ -415,6 +660,7 @@ def _citation(source_id: str, chunk: RetrievedChunk) -> SourceCitation:
         source_location=chunk.source_location,
         content_snapshot=chunk.content,
         score=chunk.score,
+        evidence_id=source_id,
     )
 
 
