@@ -116,7 +116,16 @@ class SQLAlchemySentimentRepository:
     async def find_review_by_id(self, review_id: UUID) -> ReviewAnalysis | None:
         """Look up a single review analysis by primary key."""
         async with self._session_factory() as session:
-            return await session.get(ReviewAnalysis, review_id)
+            statement = select(ReviewAnalysis).where(ReviewAnalysis.id == review_id)
+            if self._principal is not None:
+                allowed_ids = self._principal.authorized_resource_ids(ResourceType.MERCHANT, "READ")
+                if allowed_ids is not None:
+                    if not allowed_ids:
+                        return None
+                    statement = statement.where(
+                        ReviewAnalysis.merchant_id.in_(str(value) for value in allowed_ids)
+                    )
+            return await session.scalar(statement)
 
     # ------------------------------------------------------------------
     # Aggregation helpers

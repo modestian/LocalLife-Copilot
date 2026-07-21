@@ -94,4 +94,8 @@ class SQLAlchemyAuthRepository:
             ):
                 return False
             current.revoked_at = revoked_at
+            user = await session.get(User, current.user_id, with_for_update=True)
+            if user is None:
+                return False
+            user.access_tokens_valid_after = revoked_at
             return True

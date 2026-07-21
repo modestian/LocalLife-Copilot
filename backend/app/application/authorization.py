@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol, TypeVar
 from uuid import UUID
@@ -74,6 +75,7 @@ class AuthorizationPrincipal:
     roles: tuple[RoleInfo, ...]
     permissions: tuple[PermissionRule, ...]
     resource_grants: tuple[ResourceGrantRule, ...]
+    access_tokens_valid_after: datetime | None = None
 
     @property
     def is_platform_admin(self) -> bool:
@@ -133,6 +135,12 @@ class AuthorizationService:
         principal = await self._repository.load_principal(claims.user_id)
         if principal is None:
             raise AuthenticationRequired("inactive or missing user")
+        if principal.access_tokens_valid_after is not None:
+            valid_after = principal.access_tokens_valid_after
+            if valid_after.tzinfo is None:
+                valid_after = valid_after.replace(tzinfo=UTC)
+            if claims.issued_at <= valid_after:
+                raise AuthenticationRequired("revoked access token")
         return principal
 
 

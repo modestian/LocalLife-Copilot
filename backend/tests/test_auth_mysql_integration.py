@@ -6,10 +6,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.application.auth import AuthenticationError, AuthService
+from app.application.authorization import AuthenticationRequired, AuthorizationService
 from app.core.ids import uuid7
 from app.core.security import AccessTokenService, PasswordService, RefreshTokenService
 from app.infrastructure.db.models.identity import RefreshToken, User
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
+from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
 
 
 @pytest.mark.skipif(
@@ -37,16 +39,20 @@ async def test_mysql_refresh_rotation_and_revocation_are_persisted() -> None:
                 )
             )
 
+        access_tokens = AccessTokenService(
+            secret_key="integration-secret-key-with-at-least-32-bytes",
+            issuer="integration-issuer",
+            audience="integration-audience",
+            ttl=timedelta(minutes=30),
+        )
         service = AuthService(
             SQLAlchemyAuthRepository(session_factory),
             password_service,
-            AccessTokenService(
-                secret_key="integration-secret-key-with-at-least-32-bytes",
-                issuer="integration-issuer",
-                audience="integration-audience",
-                ttl=timedelta(minutes=30),
-            ),
+            access_tokens,
             refresh_ttl=timedelta(days=7),
+        )
+        authorization = AuthorizationService(
+            SQLAlchemyAuthorizationRepository(session_factory), access_tokens
         )
 
         original = await service.login(username, "integration-password")
@@ -60,6 +66,7 @@ async def test_mysql_refresh_rotation_and_revocation_are_persisted() -> None:
             assert stored_original.revoked_at is None
 
         replacement = await service.refresh(original.refresh_token)
+        assert (await authorization.authenticate(replacement.access_token)).user_id == user_id
         with pytest.raises(AuthenticationError):
             await service.refresh(original.refresh_token)
 
@@ -80,6 +87,11 @@ async def test_mysql_refresh_rotation_and_revocation_are_persisted() -> None:
             )
             assert stored_replacement is not None
             assert stored_replacement.revoked_at is not None
+            stored_user = await session.get(User, user_id)
+            assert stored_user is not None
+            assert stored_user.access_tokens_valid_after is not None
+        with pytest.raises(AuthenticationRequired, match="revoked access token"):
+            await authorization.authenticate(replacement.access_token)
     finally:
         async with session_factory() as session, session.begin():
             await session.execute(delete(User).where(User.id == user_id))

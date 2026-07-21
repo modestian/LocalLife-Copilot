@@ -19,7 +19,7 @@ async def _visible_task(request: Request, principal: CurrentPrincipal, task_id: 
         raise AppError(404, "NOT_FOUND", "任务不存在")
     if task.resource_type == "DOCUMENT":
         try:
-            knowledge_repository = request.app.state.knowledge_repository
+            knowledge_repository = request.app.state.knowledge_repository.scoped(principal)
             resource_id = await knowledge_repository.get_task_document_knowledge_base_id(
                 task.resource_id
             )

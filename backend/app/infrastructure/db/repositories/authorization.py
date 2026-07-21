@@ -122,6 +122,7 @@ class SQLAlchemyAuthorizationRepository:
                 ),
                 permissions=permissions,
                 resource_grants=grants,
+                access_tokens_valid_after=user.access_tokens_valid_after,
             )
 
     async def grant_user_resource(

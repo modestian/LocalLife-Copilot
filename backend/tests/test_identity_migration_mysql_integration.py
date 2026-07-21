@@ -27,6 +27,9 @@ def test_mysql_identity_migration_supports_downgrade_and_reupgrade() -> None:
     try:
         command.upgrade(config, "head")
         assert EXPECTED_TABLES <= set(inspect(engine).get_table_names())
+        assert "access_tokens_valid_after" in {
+            column["name"] for column in inspect(engine).get_columns("users")
+        }
 
         command.downgrade(config, "20260715_0001")
         table_names = set(inspect(engine).get_table_names())
@@ -35,6 +38,9 @@ def test_mysql_identity_migration_supports_downgrade_and_reupgrade() -> None:
         command.upgrade(config, "head")
         table_names = set(inspect(engine).get_table_names())
         assert EXPECTED_TABLES <= table_names
+        assert "access_tokens_valid_after" in {
+            column["name"] for column in inspect(engine).get_columns("users")
+        }
         with engine.connect() as connection:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")

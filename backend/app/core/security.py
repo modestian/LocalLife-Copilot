@@ -97,8 +97,10 @@ class AccessTokenService:
             "jti": str(uuid7()),
             "type": "access",
             "iat": issued_at,
+            "iat_us": int(issued_at.timestamp() * 1_000_000),
             "nbf": issued_at,
             "exp": expires_at,
+            "exp_us": int(expires_at.timestamp() * 1_000_000),
         }
         return EncodedAccessToken(
             value=jwt.encode(payload, self._secret_key, algorithm=self.ALGORITHM),
@@ -113,15 +115,32 @@ class AccessTokenService:
                 algorithms=[self.ALGORITHM],
                 audience=self._audience,
                 issuer=self._issuer,
-                options={"require": ["iss", "aud", "sub", "jti", "type", "iat", "nbf", "exp"]},
+                options={
+                    "require": [
+                        "iss",
+                        "aud",
+                        "sub",
+                        "jti",
+                        "type",
+                        "iat",
+                        "nbf",
+                        "exp",
+                    ]
+                },
             )
             if payload["type"] != "access":
                 raise InvalidAccessTokenError("unexpected token type")
             return AccessTokenClaims(
                 user_id=UUID(payload["sub"]),
                 token_id=UUID(payload["jti"]),
-                issued_at=datetime.fromtimestamp(payload["iat"], UTC),
-                expires_at=datetime.fromtimestamp(payload["exp"], UTC),
+                issued_at=datetime.fromtimestamp(
+                    payload.get("iat_us", payload["iat"] * 1_000_000) / 1_000_000,
+                    UTC,
+                ),
+                expires_at=datetime.fromtimestamp(
+                    payload.get("exp_us", payload["exp"] * 1_000_000) / 1_000_000,
+                    UTC,
+                ),
             )
         except (jwt.PyJWTError, KeyError, TypeError, ValueError) as exc:
             if isinstance(exc, InvalidAccessTokenError):

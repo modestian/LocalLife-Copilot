@@ -107,6 +107,7 @@ class User(TimestampMixin, VersionMixin, Base):
     )
     locked_until: Mapped[datetime | None] = mapped_column(DATETIME_6, nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DATETIME_6, nullable=True)
+    access_tokens_valid_after: Mapped[datetime | None] = mapped_column(DATETIME_6, nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DATETIME_6, nullable=True)
 
 
