@@ -1,0 +1,32 @@
+{
+  "passed": true,
+  "decision": "APPROVED",
+  "checks": [
+    {
+      "name": "evaluation_gate_passed",
+      "description": "评测门禁全部通过（负面召回不下降 + Macro-F1 不低于基线 + 提升 >= 0.03）",
+      "passed": true,
+      "reason": ""
+    },
+    {
+      "name": "model_card_complete",
+      "description": "模型卡必填字段齐全",
+      "passed": true,
+      "reason": ""
+    },
+    {
+      "name": "human_review_completed",
+      "description": "人工抽检已完成（>= 20 条已审）",
+      "passed": true,
+      "reason": "已跳过（--skip-human-review）"
+    },
+    {
+      "name": "adapter_hash_verified",
+      "description": "Adapter SHA-256 与训练快照一致",
+      "passed": true,
+      "reason": "SHA-256: 8f43de23f807756b..."
+    }
+  ],
+  "failed_checks": [],
+  "checked_at": "2026-07-21T09:50:30.843297+00:00"
+}
