@@ -18,6 +18,7 @@ coverage/
 # Model training artifacts
 backend/training/output/
 backend/training/models/
+backend/training/artifacts/
 *.safetensors
 *.bin
 *.pt
