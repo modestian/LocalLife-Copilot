@@ -71,12 +71,13 @@ class RollbackDTO(BaseModel):
     target_version_no: int = Field(ge=1)
 
 
-def _knowledge_service(request: Request) -> KnowledgeService:
-    return request.app.state.knowledge_service
+def _knowledge_repository(request: Request, principal: AuthorizationPrincipal | None = None):
+    repository = request.app.state.knowledge_repository
+    return repository.scoped(principal) if principal is not None else repository
 
 
-def _knowledge_repository(request: Request):
-    return request.app.state.knowledge_repository
+def _knowledge_service(request: Request, principal: AuthorizationPrincipal) -> KnowledgeService:
+    return KnowledgeService(_knowledge_repository(request, principal))
 
 
 def _task_repository(request: Request):
@@ -110,8 +111,11 @@ async def _authorize_document(
     action: str,
 ) -> UUID:
     try:
-        knowledge_base_id = await _knowledge_repository(request).get_document_knowledge_base_id(
-            document_id
+        knowledge_base_id = await _knowledge_repository(
+            request, principal
+        ).get_document_knowledge_base_id(
+            document_id,
+            action=action,
         )
     except DocumentNotFound as exc:
         raise AppError(404, "NOT_FOUND", "文档不存在") from exc
@@ -143,13 +147,20 @@ async def create_knowledge_base(
     principal: CurrentPrincipal,
 ) -> dict[str, Any]:
     _authorize_permission(principal, "KNOWLEDGE_BASE", "CREATE")
-    tenant_id = body.department_id or principal.department_id
+    if not principal.is_platform_admin and body.department_id not in {
+        None,
+        principal.department_id,
+    }:
+        raise AppError(403, "FORBIDDEN", "不能在其他租户下创建知识库")
+    if not principal.is_platform_admin and body.owner_id not in {None, principal.user_id}:
+        raise AppError(403, "FORBIDDEN", "不能为其他用户创建知识库")
+    tenant_id = body.department_id if principal.is_platform_admin else principal.department_id
     if tenant_id is None:
         raise AppError(422, "TENANT_REQUIRED", "创建知识库需要部门或租户上下文")
     try:
-        created = await _knowledge_service(request).create_knowledge_base(
+        created = await _knowledge_service(request, principal).create_knowledge_base(
             KnowledgeBaseInput(
-                owner_id=body.owner_id or principal.user_id,
+                owner_id=(body.owner_id or principal.user_id),
                 name=body.name,
                 embedding_model_version_id=body.embedding_model_id,
                 tenant_id=tenant_id,
@@ -183,7 +194,7 @@ async def list_knowledge_bases(
     effective_tenant_id = tenant_id if principal.is_platform_admin else principal.department_id
     if effective_tenant_id is None:
         raise AppError(422, "TENANT_REQUIRED", "平台管理员查询时需要部门上下文")
-    rows = await _knowledge_service(request).list_knowledge_bases(
+    rows = await _knowledge_service(request, principal).list_knowledge_bases(
         effective_tenant_id, limit=page_size, offset=(page - 1) * page_size
     )
     rows = filter_authorized_resources(
@@ -205,7 +216,7 @@ async def get_knowledge_base(
 ) -> dict[str, Any]:
     _authorize_knowledge_base(principal, knowledge_base_id, "READ")
     try:
-        row = await _knowledge_service(request).get_knowledge_base(knowledge_base_id)
+        row = await _knowledge_service(request, principal).get_knowledge_base(knowledge_base_id)
     except KnowledgeBaseNotFound as exc:
         raise AppError(404, "NOT_FOUND", "知识库不存在") from exc
     return success_response(request, _serialize(row))
@@ -220,7 +231,7 @@ async def update_knowledge_base(
 ) -> dict[str, Any]:
     _authorize_knowledge_base(principal, knowledge_base_id, "UPDATE")
     try:
-        row = await _knowledge_service(request).update_knowledge_base(
+        row = await _knowledge_service(request, principal).update_knowledge_base(
             knowledge_base_id, KnowledgeBasePatch(**body.model_dump())
         )
     except (KnowledgeBaseNotFound, ValueError) as exc:
@@ -257,7 +268,7 @@ async def list_documents(
 ) -> dict[str, Any]:
     _authorize_knowledge_base(principal, knowledge_base_id, "READ")
     try:
-        rows = await _knowledge_service(request).list_documents(
+        rows = await _knowledge_service(request, principal).list_documents(
             knowledge_base_id, limit=page_size, offset=(page - 1) * page_size
         )
     except KnowledgeBaseNotFound as exc:
@@ -273,7 +284,7 @@ async def reindex_knowledge_base(
     request: Request, knowledge_base_id: UUID, principal: CurrentPrincipal
 ) -> dict[str, Any]:
     _authorize_knowledge_base(principal, knowledge_base_id, "UPDATE")
-    rows = await _knowledge_service(request).list_documents(knowledge_base_id, limit=200)
+    rows = await _knowledge_service(request, principal).list_documents(knowledge_base_id, limit=200)
     if not rows:
         raise AppError(409, "NO_DOCUMENTS", "知识库没有可重建索引的文档")
     task_ids = [await _create_document_task(request, document.id, "REBUILD") for document in rows]
@@ -308,7 +319,7 @@ async def upload_documents(
         digest = hashlib.sha256(content).hexdigest()
         filename = Path(upload.filename or "upload.bin").name
         safe_name = re.sub(r"[^0-9A-Za-z._-]", "_", filename)[:200]
-        document = await _knowledge_service(request).create_document(
+        document = await _knowledge_service(request, principal).create_document(
             DocumentInput(
                 knowledge_base_id=knowledge_base_id,
                 source_type="FILE",
@@ -326,7 +337,7 @@ async def upload_documents(
         await run_in_threadpool(target.parent.mkdir, parents=True, exist_ok=True)
         await run_in_threadpool(target.write_bytes, content)
         parser_version = f"1-{uuid7()}" if force_new_version else "1"
-        await _knowledge_service(request).create_document_version_idempotent(
+        await _knowledge_service(request, principal).create_document_version_idempotent(
             DocumentVersionInput(
                 document_id=document.id,
                 file_uri=str(target),
@@ -363,8 +374,8 @@ async def get_document(
     request: Request, document_id: UUID, principal: CurrentPrincipal
 ) -> dict[str, Any]:
     await _authorize_document(request, principal, document_id, "READ")
-    document = await _knowledge_service(request).get_document(document_id)
-    versions = await _knowledge_repository(request).list_document_versions(document_id)
+    document = await _knowledge_service(request, principal).get_document(document_id)
+    versions = await _knowledge_repository(request, principal).list_document_versions(document_id)
     data = _serialize(document)
     data["versions"] = [
         {key: str(value) if isinstance(value, UUID) else value for key, value in row.items()}
@@ -381,7 +392,7 @@ async def update_document(
     principal: CurrentPrincipal,
 ) -> dict[str, Any]:
     await _authorize_document(request, principal, document_id, "UPDATE")
-    row = await _knowledge_service(request).update_document(
+    row = await _knowledge_service(request, principal).update_document(
         document_id, DocumentPatch(**body.model_dump())
     )
     return success_response(request, _serialize(row))
@@ -405,7 +416,9 @@ async def rollback_document(
 ) -> dict[str, Any]:
     await _authorize_document(request, principal, document_id, "UPDATE")
     try:
-        await _knowledge_service(request).rollback_document(document_id, body.target_version_no)
+        await _knowledge_service(request, principal).rollback_document(
+            document_id, body.target_version_no
+        )
     except InvalidRollbackTarget as exc:
         raise AppError(404, "VERSION_NOT_FOUND", "目标文档版本不存在") from exc
     task_id = await _create_document_task(request, document_id, "REBUILD")

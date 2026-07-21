@@ -1,8 +1,10 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import false, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.sql import ColumnElement, Select
 
+from app.application.authorization import AuthorizationPrincipal, ResourceScopeDenied, ResourceType
 from app.application.knowledge import (
     DocumentInput,
     DocumentNotFound,
@@ -23,10 +25,103 @@ from app.infrastructure.db.models.knowledge import Document, DocumentVersion, Kn
 
 
 class SQLAlchemyKnowledgeRepository:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        principal: AuthorizationPrincipal | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._principal = principal
+
+    def scoped(self, principal: AuthorizationPrincipal) -> "SQLAlchemyKnowledgeRepository":
+        """Return a request-scoped repository that enforces grants in every query."""
+        return type(self)(self._session_factory, principal=principal)
+
+    def _allowed_knowledge_base_ids(self, action: str) -> frozenset[UUID] | None:
+        if self._principal is None:
+            return None
+        return self._principal.authorized_resource_ids(ResourceType.KNOWLEDGE_BASE, action)
+
+    def _scope_statement(
+        self,
+        statement: Select,
+        *,
+        action: str,
+        resource_id_column: ColumnElement,
+    ) -> Select:
+        allowed_ids = self._allowed_knowledge_base_ids(action)
+        if allowed_ids is None:
+            return statement
+        if not allowed_ids:
+            return statement.where(false())
+        return statement.where(resource_id_column.in_(allowed_ids))
+
+    def _require_tenant(self, tenant_id: UUID) -> None:
+        if (
+            self._principal is not None
+            and not self._principal.is_platform_admin
+            and self._principal.department_id != tenant_id
+        ):
+            raise ResourceScopeDenied("tenant scope denied")
+
+    async def _active_knowledge_base(
+        self,
+        session: AsyncSession,
+        knowledge_base_id: UUID,
+        *,
+        action: str,
+        lock: bool = False,
+    ) -> KnowledgeBase:
+        statement = self._scope_statement(
+            select(KnowledgeBase).where(
+                KnowledgeBase.id == knowledge_base_id,
+                KnowledgeBase.deleted_at.is_(None),
+                KnowledgeBase.status != "DELETED",
+            ),
+            action=action,
+            resource_id_column=KnowledgeBase.id,
+        )
+        if lock:
+            statement = statement.with_for_update()
+        row = await session.scalar(statement)
+        if row is None:
+            raise KnowledgeBaseNotFound("knowledge base not found")
+        return row
+
+    async def _active_document(
+        self,
+        session: AsyncSession,
+        document_id: UUID,
+        *,
+        action: str,
+        lock: bool = False,
+    ) -> Document:
+        statement = self._scope_statement(
+            select(Document).where(
+                Document.id == document_id,
+                Document.deleted_at.is_(None),
+                Document.status != "DELETED",
+            ),
+            action=action,
+            resource_id_column=Document.knowledge_base_id,
+        )
+        if lock:
+            statement = statement.with_for_update()
+        row = await session.scalar(statement)
+        if row is None:
+            raise DocumentNotFound("document not found")
+        return row
 
     async def create_knowledge_base(self, payload: KnowledgeBaseInput) -> KnowledgeBaseView:
+        if self._principal is not None:
+            self._principal.require_permission(ResourceType.KNOWLEDGE_BASE.value, "CREATE")
+            self._require_tenant(payload.tenant_id)
+            if (
+                not self._principal.is_platform_admin
+                and payload.owner_id != self._principal.user_id
+            ):
+                raise ResourceScopeDenied("owner scope denied")
         async with self._session_factory() as session, session.begin():
             row = KnowledgeBase(
                 tenant_id=payload.tenant_id,
@@ -46,16 +141,20 @@ class SQLAlchemyKnowledgeRepository:
     async def list_knowledge_bases(
         self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[KnowledgeBaseView]:
+        self._require_tenant(tenant_id)
         async with self._session_factory() as session:
+            statement = self._scope_statement(
+                select(KnowledgeBase).where(
+                    KnowledgeBase.tenant_id == tenant_id,
+                    KnowledgeBase.deleted_at.is_(None),
+                    KnowledgeBase.status != "DELETED",
+                ),
+                action="READ",
+                resource_id_column=KnowledgeBase.id,
+            )
             rows = (
                 await session.scalars(
-                    select(KnowledgeBase)
-                    .where(
-                        KnowledgeBase.tenant_id == tenant_id,
-                        KnowledgeBase.deleted_at.is_(None),
-                        KnowledgeBase.status != "DELETED",
-                    )
-                    .order_by(KnowledgeBase.created_at.desc(), KnowledgeBase.id)
+                    statement.order_by(KnowledgeBase.created_at.desc(), KnowledgeBase.id)
                     .limit(limit)
                     .offset(offset)
                 )
@@ -64,13 +163,17 @@ class SQLAlchemyKnowledgeRepository:
 
     async def get_knowledge_base(self, knowledge_base_id: UUID) -> KnowledgeBaseView:
         async with self._session_factory() as session:
-            return _knowledge_base_view(await _active_knowledge_base(session, knowledge_base_id))
+            return _knowledge_base_view(
+                await self._active_knowledge_base(session, knowledge_base_id, action="READ")
+            )
 
     async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
     ) -> KnowledgeBaseView:
         async with self._session_factory() as session, session.begin():
-            row = await _active_knowledge_base(session, knowledge_base_id, lock=True)
+            row = await self._active_knowledge_base(
+                session, knowledge_base_id, action="UPDATE", lock=True
+            )
             if patch.name is not None:
                 row.name = patch.name.strip()
                 row.normalized_name = normalize_name(patch.name)
@@ -87,7 +190,9 @@ class SQLAlchemyKnowledgeRepository:
 
     async def delete_knowledge_base(self, knowledge_base_id: UUID) -> None:
         async with self._session_factory() as session, session.begin():
-            row = await _active_knowledge_base(session, knowledge_base_id, lock=True)
+            row = await self._active_knowledge_base(
+                session, knowledge_base_id, action="DELETE", lock=True
+            )
             now = utc_now()
             row.status = "DELETED"
             row.deleted_at = now
@@ -107,7 +212,7 @@ class SQLAlchemyKnowledgeRepository:
 
     async def create_document(self, payload: DocumentInput) -> DocumentView:
         async with self._session_factory() as session, session.begin():
-            await _active_knowledge_base(session, payload.knowledge_base_id)
+            await self._active_knowledge_base(session, payload.knowledge_base_id, action="UPDATE")
             existing = await session.scalar(
                 select(Document)
                 .where(
@@ -141,7 +246,7 @@ class SQLAlchemyKnowledgeRepository:
         self, knowledge_base_id: UUID, *, limit: int = 50, offset: int = 0
     ) -> list[DocumentView]:
         async with self._session_factory() as session:
-            await _active_knowledge_base(session, knowledge_base_id)
+            await self._active_knowledge_base(session, knowledge_base_id, action="READ")
             rows = (
                 await session.scalars(
                     select(Document)
@@ -159,25 +264,32 @@ class SQLAlchemyKnowledgeRepository:
 
     async def get_document(self, document_id: UUID) -> DocumentView:
         async with self._session_factory() as session:
-            return _document_view(await _active_document(session, document_id))
+            return _document_view(await self._active_document(session, document_id, action="READ"))
 
-    async def get_document_knowledge_base_id(self, document_id: UUID) -> UUID:
+    async def get_document_knowledge_base_id(
+        self, document_id: UUID, *, action: str = "READ"
+    ) -> UUID:
         async with self._session_factory() as session:
-            return (await _active_document(session, document_id)).knowledge_base_id
+            return (
+                await self._active_document(session, document_id, action=action)
+            ).knowledge_base_id
 
     async def get_task_document_knowledge_base_id(self, document_id: UUID) -> UUID:
         """Resolve task ownership even after its document was logically deleted."""
         async with self._session_factory() as session:
-            knowledge_base_id = await session.scalar(
-                select(Document.knowledge_base_id).where(Document.id == document_id)
+            statement = self._scope_statement(
+                select(Document.knowledge_base_id).where(Document.id == document_id),
+                action="READ",
+                resource_id_column=Document.knowledge_base_id,
             )
+            knowledge_base_id = await session.scalar(statement)
             if knowledge_base_id is None:
                 raise DocumentNotFound("document not found")
             return knowledge_base_id
 
     async def list_document_versions(self, document_id: UUID) -> list[dict[str, object]]:
         async with self._session_factory() as session:
-            await _active_document(session, document_id)
+            await self._active_document(session, document_id, action="READ")
             rows = (
                 await session.scalars(
                     select(DocumentVersion)
@@ -204,7 +316,7 @@ class SQLAlchemyKnowledgeRepository:
 
     async def update_document(self, document_id: UUID, patch: DocumentPatch) -> DocumentView:
         async with self._session_factory() as session, session.begin():
-            row = await _active_document(session, document_id, lock=True)
+            row = await self._active_document(session, document_id, action="UPDATE", lock=True)
             if patch.display_name is not None:
                 row.display_name = patch.display_name.strip()
             if patch.mime_type is not None:
@@ -218,7 +330,7 @@ class SQLAlchemyKnowledgeRepository:
 
     async def delete_document(self, document_id: UUID) -> None:
         async with self._session_factory() as session, session.begin():
-            row = await _active_document(session, document_id, lock=True)
+            row = await self._active_document(session, document_id, action="DELETE", lock=True)
             row.status = "DELETED"
             row.deleted_at = utc_now()
 
@@ -226,7 +338,9 @@ class SQLAlchemyKnowledgeRepository:
         self, payload: DocumentVersionInput
     ) -> DocumentVersionView:
         async with self._session_factory() as session, session.begin():
-            document = await _active_document(session, payload.document_id, lock=True)
+            document = await self._active_document(
+                session, payload.document_id, action="UPDATE", lock=True
+            )
             existing = await session.scalar(
                 select(DocumentVersion)
                 .where(
@@ -263,7 +377,7 @@ class SQLAlchemyKnowledgeRepository:
 
     async def rollback_document(self, document_id: UUID, target_version_no: int) -> DocumentView:
         async with self._session_factory() as session, session.begin():
-            document = await _active_document(session, document_id, lock=True)
+            document = await self._active_document(session, document_id, action="UPDATE", lock=True)
             target = await session.scalar(
                 select(DocumentVersion)
                 .where(
@@ -279,38 +393,6 @@ class SQLAlchemyKnowledgeRepository:
             document.last_error_code = None
             await session.flush()
             return _document_view(document)
-
-
-async def _active_knowledge_base(
-    session: AsyncSession, knowledge_base_id: UUID, *, lock: bool = False
-) -> KnowledgeBase:
-    statement = select(KnowledgeBase).where(
-        KnowledgeBase.id == knowledge_base_id,
-        KnowledgeBase.deleted_at.is_(None),
-        KnowledgeBase.status != "DELETED",
-    )
-    if lock:
-        statement = statement.with_for_update()
-    row = await session.scalar(statement)
-    if row is None:
-        raise KnowledgeBaseNotFound("knowledge base not found")
-    return row
-
-
-async def _active_document(
-    session: AsyncSession, document_id: UUID, *, lock: bool = False
-) -> Document:
-    statement = select(Document).where(
-        Document.id == document_id,
-        Document.deleted_at.is_(None),
-        Document.status != "DELETED",
-    )
-    if lock:
-        statement = statement.with_for_update()
-    row = await session.scalar(statement)
-    if row is None:
-        raise DocumentNotFound("document not found")
-    return row
 
 
 async def _mark_current_version(
