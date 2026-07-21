@@ -7,6 +7,13 @@ from app.infrastructure.db.models.feedback import (
     Feedback,
     FeedbackAudit,
 )
+from app.infrastructure.db.models.governance import (
+    ModelDefinition,
+    ModelDeployment,
+    ModelVersion,
+    PromptDefinition,
+    PromptVersion,
+)
 from app.infrastructure.db.models.identity import (
     Department,
     Permission,
@@ -35,8 +42,13 @@ __all__ = [
     "KnowledgeBase",
     "Message",
     "MessageSource",
+    "ModelDefinition",
+    "ModelDeployment",
+    "ModelVersion",
     "OutboxEvent",
     "Permission",
+    "PromptDefinition",
+    "PromptVersion",
     "RefreshToken",
     "ResourceGrant",
     "ReviewAnalysis",
