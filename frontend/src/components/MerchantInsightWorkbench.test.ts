@@ -29,22 +29,33 @@ describe('MerchantInsightWorkbench', () => {
       },
     ])
     vi.mocked(merchantInsightsApi.compare).mockReset().mockResolvedValue({
-      period_start: '2026-07-01T00:00:00',
-      period_end: '2026-07-31T00:00:00',
-      metric_definition: '同一时间窗内的公开点评聚合',
-      minimum_sample_size: 10,
-      insufficient_data: false,
-      merchants: [
+      merchants: ['merchant-self', 'competitor-a'],
+      summary: [
         {
           merchant_id: 'merchant-self',
-          merchant_name: '本店',
-          sample_count: 32,
+          positive: 24,
+          neutral: 4,
+          negative: 4,
+          total: 32,
           positive_rate: 0.75,
-          avg_rating: 4.3,
-          aspect_counts: { 服务: 12 },
-          negative_reason_counts: { 等位时间长: 4 },
+          negative_rate: 0.125,
         },
       ],
+      aspect_comparison: [{
+        aspect: '服务',
+        merchants: [{
+          merchant_id: 'merchant-self',
+          positive: 24,
+          neutral: 4,
+          negative: 4,
+          total: 32,
+          positive_rate: 0.75,
+        }],
+      }],
+      negative_reason_comparison: [{
+        reason: '等位时间长',
+        merchants: [{ merchant_id: 'merchant-self', count: 4 }],
+      }],
     })
     vi.mocked(merchantInsightsApi.getReplySuggestion).mockReset().mockResolvedValue({
       draft: '很抱歉让您久等了，我们会优化高峰时段的接待安排。',
@@ -81,27 +92,21 @@ describe('MerchantInsightWorkbench', () => {
     })
   })
 
-  it('requires two to four competitors and compares under one shared window', async () => {
+  it('uses a two-to-four merchant comparison and renders the backend aggregates', async () => {
     const wrapper = mount(MerchantInsightWorkbench, { props: { merchantId: 'merchant-self' } })
     await flushPromises()
     const competitorInput = wrapper.get('[placeholder="输入后添加"]')
 
     await competitorInput.setValue('competitor-a')
     await wrapper.find('.compare-form button[type="button"]').trigger('click')
-    await competitorInput.setValue('competitor-b')
-    await wrapper.find('.compare-form button[type="button"]').trigger('click')
-    await wrapper.get('.compare-form input[type="date"]').setValue('2026-07-01')
-    await wrapper.findAll('.compare-form input[type="date"]')[1]?.setValue('2026-07-31')
     await wrapper.get('.compare-form').trigger('submit')
     await flushPromises()
 
     expect(merchantInsightsApi.compare).toHaveBeenCalledWith({
-      merchant_ids: ['merchant-self', 'competitor-a', 'competitor-b'],
-      start_date: '2026-07-01T00:00:00',
-      end_date: '2026-08-01T00:00:00',
+      merchant_ids: ['merchant-self', 'competitor-a'],
     })
-    expect(wrapper.text()).toContain('本店')
-    expect(wrapper.text()).toContain('同一时间窗内的公开点评聚合')
+    expect(wrapper.text()).toContain('merchant-self')
+    expect(wrapper.text()).toContain('服务 32')
     expect(wrapper.text()).toContain('等位时间长 4')
   })
 
