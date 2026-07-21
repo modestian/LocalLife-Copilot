@@ -390,6 +390,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="报告输出目录（默认 evaluation/reports/{job_id}）",
     )
+    parser.add_argument(
+        "--skip-human-review",
+        action="store_true",
+        help="跳过人工抽检门禁（CI 环境使用）",
+    )
     return parser.parse_args()
 
 
@@ -509,6 +514,46 @@ def main():
         for sample in review_samples:
             f.write(json.dumps(sample, ensure_ascii=False) + "\n")
     print(f"   抽检样本保存到: {review_path} ({len(review_samples)} 条)")
+
+    # 8. 生成模型卡
+    print("\n8. 生成模型卡...")
+    from evaluation.model_card import ModelCardGenerator
+
+    # 加载完整训练快照
+    training_snapshot = {}
+    if snapshot_path.exists():
+        with snapshot_path.open(encoding="utf-8") as f:
+            training_snapshot = json.load(f)
+
+    card_gen = ModelCardGenerator(
+        job_id=args.job_id,
+        artifact_root=artifact_root,
+    )
+    card_result = card_gen.generate_and_save(
+        eval_report=report,
+        output_dir=json_path.parent,
+        training_snapshot=training_snapshot,
+        human_review_samples=review_samples,
+    )
+    print(f"   模型卡保存到: {card_result.output_path}")
+
+    # 9. 发布门禁检查
+    print("\n9. 发布门禁检查...")
+    from evaluation.publishing_gate import PublishingGate
+
+    gate_checker = PublishingGate()
+    gate_result = gate_checker.check_and_save(
+        model_card=card_result.card,
+        eval_report=report,
+        human_reviews=review_samples,
+        output_dir=json_path.parent,
+        training_snapshot=training_snapshot,
+        skip_human_review=args.skip_human_review,
+    )
+    for check in gate_result.checks:
+        status = "PASS" if check.passed else "FAIL"
+        print(f"   [{status}] {check.name}: {check.reason}")
+    print(f"   门禁决策: {gate_result.decision}")
 
     print("\n" + "=" * 60)
     print("评测完成")

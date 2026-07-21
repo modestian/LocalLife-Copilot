@@ -1,24 +1,24 @@
 {
   "job_id": "lora-001",
   "test_set": "backend/training/data/test.jsonl",
-  "evaluated_at": "2026-07-21T09:19:34.425001+00:00",
+  "evaluated_at": "2026-07-21T09:50:30.835391+00:00",
   "baseline": {
     "model": "uer/roberta-base-finetuned-dianping-chinese",
-    "accuracy": 0.2239,
-    "macro_f1": 0.122,
-    "macro_precision": 0.0746,
-    "macro_recall": 0.3333,
+    "accuracy": 0.3284,
+    "macro_f1": 0.2943,
+    "macro_precision": 0.4167,
+    "macro_recall": 0.4394,
     "per_class": {
       "NEGATIVE": {
-        "precision": 0.0,
-        "recall": 0.0,
-        "f1": 0.0,
+        "precision": 1.0,
+        "recall": 0.3182,
+        "f1": 0.4828,
         "support": 44
       },
       "NEUTRAL": {
-        "precision": 0.2239,
+        "precision": 0.25,
         "recall": 1.0,
-        "f1": 0.3659,
+        "f1": 0.4,
         "support": 30
       },
       "POSITIVE": {
@@ -30,8 +30,8 @@
     },
     "confusion_matrix": {
       "NEGATIVE": {
-        "NEGATIVE": 0,
-        "NEUTRAL": 44,
+        "NEGATIVE": 14,
+        "NEUTRAL": 30,
         "POSITIVE": 0
       },
       "NEUTRAL": {
@@ -47,14 +47,14 @@
     },
     "calibration": {
       "0.0-0.5": {
-        "count": 134,
-        "avg_confidence": 0.3853,
-        "accuracy": 0.2239
+        "count": 120,
+        "avg_confidence": 0.3792,
+        "accuracy": 0.25
       },
       "0.5-0.7": {
-        "count": 0,
-        "avg_confidence": 0.0,
-        "accuracy": 0.0
+        "count": 14,
+        "avg_confidence": 0.5414,
+        "accuracy": 1.0
       },
       "0.7-0.8": {
         "count": 0,
@@ -73,8 +73,8 @@
       }
     },
     "total": 134,
-    "correct": 30,
-    "negative_recall": 0.0
+    "correct": 44,
+    "negative_recall": 0.3182
   },
   "lora": {
     "model": "uer/roberta-base-finetuned-dianping-chinese",
@@ -152,46 +152,46 @@
     "negative_recall": 0.9773
   },
   "comparison": {
-    "macro_f1_delta": 0.8631,
-    "negative_recall_delta": 0.9773,
+    "macro_f1_delta": 0.6908,
+    "negative_recall_delta": 0.6591,
     "gate": {
       "gate_passed": true,
       "checks": [
         {
           "name": "negative_recall_not_decreased",
           "description": "关键负面召回不得下降",
-          "baseline_value": 0.0,
+          "baseline_value": 0.3182,
           "lora_value": 0.9773,
-          "delta": 0.9773,
+          "delta": 0.6591,
           "passed": true
         },
         {
           "name": "macro_f1_not_below_baseline",
           "description": "总体 Macro-F1 不得低于基线",
-          "baseline_value": 0.122,
+          "baseline_value": 0.2943,
           "lora_value": 0.9851,
-          "delta": 0.8631,
+          "delta": 0.6908,
           "passed": true
         },
         {
           "name": "macro_f1_improvement_ge_0.03",
           "description": "目标 Macro-F1 提升 ≥ 0.03",
-          "baseline_value": 0.122,
+          "baseline_value": 0.2943,
           "lora_value": 0.9851,
-          "delta": 0.8631,
+          "delta": 0.6908,
           "threshold": 0.03,
           "passed": true
         }
       ],
       "summary": {
-        "macro_f1_delta": 0.8631,
-        "negative_recall_delta": 0.9773,
+        "macro_f1_delta": 0.6908,
+        "negative_recall_delta": 0.6591,
         "all_passed": true
       }
     },
     "summary": {
-      "macro_f1_delta": 0.8631,
-      "negative_recall_delta": 0.9773,
+      "macro_f1_delta": 0.6908,
+      "negative_recall_delta": 0.6591,
       "all_passed": true
     }
   },
@@ -203,7 +203,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3875,
+        "baseline_confidence": 0.3667,
         "lora_confidence": null
       },
       {
@@ -212,7 +212,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3854,
+        "baseline_confidence": 0.3778,
         "lora_confidence": null
       },
       {
@@ -221,7 +221,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.4025,
+        "baseline_confidence": 0.4031,
         "lora_confidence": null
       },
       {
@@ -230,25 +230,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3907,
-        "lora_confidence": null
-      },
-      {
-        "index": 8,
-        "text": "体验下来，服务员态度很差，爱答不理的，仅供参考",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4322,
-        "lora_confidence": null
-      },
-      {
-        "index": 9,
-        "text": "肉质发柴，一看就不新鲜，店里太脏了，桌面都是油，个人感受哈",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4461,
+        "baseline_confidence": 0.3843,
         "lora_confidence": null
       },
       {
@@ -257,7 +239,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3837,
+        "baseline_confidence": 0.3716,
         "lora_confidence": null
       },
       {
@@ -266,7 +248,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3888,
+        "baseline_confidence": 0.3849,
         "lora_confidence": null
       },
       {
@@ -275,7 +257,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3914,
+        "baseline_confidence": 0.4244,
         "lora_confidence": null
       },
       {
@@ -284,16 +266,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3632,
-        "lora_confidence": null
-      },
-      {
-        "index": 16,
-        "text": "说实话，菜品都是温的，明显不是刚做的，没有停车位，找车位找了半天，仅供参考",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4377,
+        "baseline_confidence": 0.346,
         "lora_confidence": null
       },
       {
@@ -302,7 +275,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.36,
+        "baseline_confidence": 0.3418,
         "lora_confidence": null
       },
       {
@@ -311,7 +284,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3718,
+        "baseline_confidence": 0.3466,
         "lora_confidence": null
       },
       {
@@ -320,7 +293,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3856,
+        "baseline_confidence": 0.388,
         "lora_confidence": null
       },
       {
@@ -329,7 +302,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3786,
+        "baseline_confidence": 0.4362,
         "lora_confidence": null
       },
       {
@@ -338,7 +311,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3708,
+        "baseline_confidence": 0.351,
         "lora_confidence": null
       },
       {
@@ -347,7 +320,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3943,
+        "baseline_confidence": 0.395,
         "lora_confidence": null
       },
       {
@@ -356,7 +329,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3967,
+        "baseline_confidence": 0.4033,
         "lora_confidence": null
       },
       {
@@ -365,7 +338,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3704,
+        "baseline_confidence": 0.3653,
         "lora_confidence": null
       },
       {
@@ -374,7 +347,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3699,
+        "baseline_confidence": 0.3523,
         "lora_confidence": null
       },
       {
@@ -383,7 +356,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3703,
+        "baseline_confidence": 0.3478,
         "lora_confidence": null
       },
       {
@@ -392,7 +365,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.4001,
+        "baseline_confidence": 0.3896,
         "lora_confidence": null
       },
       {
@@ -401,7 +374,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3937,
+        "baseline_confidence": 0.4208,
         "lora_confidence": null
       },
       {
@@ -410,7 +383,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3933,
+        "baseline_confidence": 0.4289,
         "lora_confidence": null
       },
       {
@@ -419,7 +392,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3868,
+        "baseline_confidence": 0.4642,
         "lora_confidence": null
       },
       {
@@ -428,7 +401,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3623,
+        "baseline_confidence": 0.3451,
         "lora_confidence": null
       },
       {
@@ -437,7 +410,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3942,
+        "baseline_confidence": 0.384,
         "lora_confidence": null
       },
       {
@@ -446,7 +419,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3844,
+        "baseline_confidence": 0.373,
         "lora_confidence": null
       },
       {
@@ -455,7 +428,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3905,
+        "baseline_confidence": 0.3984,
         "lora_confidence": null
       },
       {
@@ -464,25 +437,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3737,
-        "lora_confidence": null
-      },
-      {
-        "index": 39,
-        "text": "体验下来，环境嘈杂，用餐体验很差，可以参考一下",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4343,
-        "lora_confidence": null
-      },
-      {
-        "index": 40,
-        "text": "菜品很难吃，踩大雷了，环境嘈杂，用餐体验很差，可以参考一下",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4467,
+        "baseline_confidence": 0.4013,
         "lora_confidence": null
       },
       {
@@ -491,7 +446,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3723,
+        "baseline_confidence": 0.3506,
         "lora_confidence": null
       },
       {
@@ -500,7 +455,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.4035,
+        "baseline_confidence": 0.3999,
         "lora_confidence": null
       },
       {
@@ -509,7 +464,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3954,
+        "baseline_confidence": 0.3838,
         "lora_confidence": null
       },
       {
@@ -518,7 +473,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3663,
+        "baseline_confidence": 0.3443,
         "lora_confidence": null
       },
       {
@@ -527,7 +482,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3954,
+        "baseline_confidence": 0.3698,
         "lora_confidence": null
       },
       {
@@ -536,7 +491,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3812,
+        "baseline_confidence": 0.3866,
         "lora_confidence": null
       },
       {
@@ -545,7 +500,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3894,
+        "baseline_confidence": 0.385,
         "lora_confidence": null
       },
       {
@@ -554,7 +509,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.4031,
+        "baseline_confidence": 0.4013,
         "lora_confidence": null
       },
       {
@@ -563,25 +518,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.399,
-        "lora_confidence": null
-      },
-      {
-        "index": 55,
-        "text": "出餐效率极低，饿到没胃口",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4462,
-        "lora_confidence": null
-      },
-      {
-        "index": 56,
-        "text": "讲真，食材不新鲜，吃着有异味，地面脏兮兮的，环境一言难尽，下次再试试别的",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4464,
+        "baseline_confidence": 0.3882,
         "lora_confidence": null
       },
       {
@@ -590,7 +527,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3731,
+        "baseline_confidence": 0.3882,
         "lora_confidence": null
       },
       {
@@ -599,7 +536,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.381,
+        "baseline_confidence": 0.4382,
         "lora_confidence": null
       },
       {
@@ -608,7 +545,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3832,
+        "baseline_confidence": 0.3682,
         "lora_confidence": null
       },
       {
@@ -617,7 +554,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4153,
+        "baseline_confidence": 0.473,
         "lora_confidence": null
       },
       {
@@ -626,7 +563,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3962,
+        "baseline_confidence": 0.4251,
         "lora_confidence": null
       },
       {
@@ -635,7 +572,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3675,
+        "baseline_confidence": 0.3537,
         "lora_confidence": null
       },
       {
@@ -644,7 +581,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3693,
+        "baseline_confidence": 0.4031,
         "lora_confidence": null
       },
       {
@@ -653,7 +590,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.374,
+        "baseline_confidence": 0.4309,
         "lora_confidence": null
       },
       {
@@ -662,7 +599,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3534,
+        "baseline_confidence": 0.4278,
         "lora_confidence": null
       },
       {
@@ -671,16 +608,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3929,
-        "lora_confidence": null
-      },
-      {
-        "index": 72,
-        "text": "讲真，淡得像没放盐，一点味道都没有，下次再试试别的",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4206,
+        "baseline_confidence": 0.3847,
         "lora_confidence": null
       },
       {
@@ -689,7 +617,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3733,
+        "baseline_confidence": 0.3429,
         "lora_confidence": null
       },
       {
@@ -698,7 +626,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3945,
+        "baseline_confidence": 0.3847,
         "lora_confidence": null
       },
       {
@@ -707,7 +635,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3976,
+        "baseline_confidence": 0.3888,
         "lora_confidence": null
       },
       {
@@ -716,7 +644,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3642,
+        "baseline_confidence": 0.3433,
         "lora_confidence": null
       },
       {
@@ -725,16 +653,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3852,
-        "lora_confidence": null
-      },
-      {
-        "index": 82,
-        "text": "体验下来，味道太差了，完全没法吃，可以参考一下",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.446,
+        "baseline_confidence": 0.3603,
         "lora_confidence": null
       },
       {
@@ -743,16 +662,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3912,
-        "lora_confidence": null
-      },
-      {
-        "index": 84,
-        "text": "整体来说，服务员态度很差，爱答不理的，蔬菜都蔫了，明显放了很久，仅供参考",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4395,
+        "baseline_confidence": 0.4213,
         "lora_confidence": null
       },
       {
@@ -761,16 +671,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3639,
-        "lora_confidence": null
-      },
-      {
-        "index": 86,
-        "text": "讲真，店里太脏了，桌面都是油，订单做错了，还不给退换，仅供参考",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4463,
+        "baseline_confidence": 0.3441,
         "lora_confidence": null
       },
       {
@@ -779,7 +680,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3769,
+        "baseline_confidence": 0.4247,
         "lora_confidence": null
       },
       {
@@ -788,16 +689,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3802,
-        "lora_confidence": null
-      },
-      {
-        "index": 89,
-        "text": "体验下来，食材不新鲜，吃着有异味",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4465,
+        "baseline_confidence": 0.3688,
         "lora_confidence": null
       },
       {
@@ -806,7 +698,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4128,
+        "baseline_confidence": 0.4784,
         "lora_confidence": null
       },
       {
@@ -815,7 +707,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3676,
+        "baseline_confidence": 0.4462,
         "lora_confidence": null
       },
       {
@@ -824,7 +716,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.4081,
+        "baseline_confidence": 0.4091,
         "lora_confidence": null
       },
       {
@@ -833,7 +725,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3693,
+        "baseline_confidence": 0.3517,
         "lora_confidence": null
       },
       {
@@ -842,7 +734,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.381,
+        "baseline_confidence": 0.4194,
         "lora_confidence": null
       },
       {
@@ -851,7 +743,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.366,
+        "baseline_confidence": 0.3476,
         "lora_confidence": null
       },
       {
@@ -860,7 +752,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3553,
+        "baseline_confidence": 0.4391,
         "lora_confidence": null
       },
       {
@@ -869,7 +761,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3796,
+        "baseline_confidence": 0.4494,
         "lora_confidence": null
       },
       {
@@ -878,7 +770,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3642,
+        "baseline_confidence": 0.3435,
         "lora_confidence": null
       },
       {
@@ -887,7 +779,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3737,
+        "baseline_confidence": 0.4552,
         "lora_confidence": null
       },
       {
@@ -896,7 +788,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.392,
+        "baseline_confidence": 0.3857,
         "lora_confidence": null
       },
       {
@@ -905,7 +797,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3742,
+        "baseline_confidence": 0.3911,
         "lora_confidence": null
       },
       {
@@ -914,7 +806,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3699,
+        "baseline_confidence": 0.3612,
         "lora_confidence": null
       },
       {
@@ -923,7 +815,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.366,
+        "baseline_confidence": 0.3379,
         "lora_confidence": null
       },
       {
@@ -932,7 +824,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3928,
+        "baseline_confidence": 0.3679,
         "lora_confidence": null
       },
       {
@@ -941,7 +833,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3586,
+        "baseline_confidence": 0.4496,
         "lora_confidence": null
       },
       {
@@ -950,7 +842,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3692,
+        "baseline_confidence": 0.3405,
         "lora_confidence": null
       },
       {
@@ -959,7 +851,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3607,
+        "baseline_confidence": 0.3613,
         "lora_confidence": null
       },
       {
@@ -968,7 +860,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3961,
+        "baseline_confidence": 0.3971,
         "lora_confidence": null
       },
       {
@@ -977,7 +869,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3674,
+        "baseline_confidence": 0.3512,
         "lora_confidence": null
       },
       {
@@ -986,7 +878,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3579,
+        "baseline_confidence": 0.3452,
         "lora_confidence": null
       },
       {
@@ -995,7 +887,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3792,
+        "baseline_confidence": 0.3619,
         "lora_confidence": null
       },
       {
@@ -1004,7 +896,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3586,
+        "baseline_confidence": 0.3423,
         "lora_confidence": null
       },
       {
@@ -1013,7 +905,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3928,
+        "baseline_confidence": 0.3753,
         "lora_confidence": null
       },
       {
@@ -1022,7 +914,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.4011,
+        "baseline_confidence": 0.3786,
         "lora_confidence": null
       },
       {
@@ -1031,7 +923,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3722,
+        "baseline_confidence": 0.3461,
         "lora_confidence": null
       },
       {
@@ -1040,7 +932,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.365,
+        "baseline_confidence": 0.3377,
         "lora_confidence": null
       },
       {
@@ -1049,7 +941,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.4134,
+        "baseline_confidence": 0.4025,
         "lora_confidence": null
       },
       {
@@ -1058,16 +950,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3898,
-        "lora_confidence": null
-      },
-      {
-        "index": 127,
-        "text": "个人感觉，菜量小得离谱，性价比极低，仅供参考",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.4251,
+        "baseline_confidence": 0.3945,
         "lora_confidence": null
       },
       {
@@ -1076,7 +959,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3952,
+        "baseline_confidence": 0.4145,
         "lora_confidence": null
       },
       {
@@ -1085,7 +968,7 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.3735,
+        "baseline_confidence": 0.36,
         "lora_confidence": null
       },
       {
@@ -1094,16 +977,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3725,
-        "lora_confidence": null
-      },
-      {
-        "index": 131,
-        "text": "讲真，设备故障，影响用餐体验",
-        "true": "NEGATIVE",
-        "baseline_pred": "NEUTRAL",
-        "lora_pred": "NEGATIVE",
-        "baseline_confidence": 0.444,
+        "baseline_confidence": 0.3526,
         "lora_confidence": null
       },
       {
@@ -1112,7 +986,7 @@
         "true": "POSITIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.378,
+        "baseline_confidence": 0.3509,
         "lora_confidence": null
       }
     ],
@@ -1124,14 +998,14 @@
         "true": "NEGATIVE",
         "baseline_pred": "NEUTRAL",
         "lora_pred": "POSITIVE",
-        "baseline_confidence": 0.3629,
+        "baseline_confidence": 0.3454,
         "lora_confidence": 0.9814
       }
     ],
     "error_direction_stats": {
       "baseline": {
         "POSITIVE→NEUTRAL": 60,
-        "NEGATIVE→NEUTRAL": 44
+        "NEGATIVE→NEUTRAL": 30
       },
       "lora": {
         "NEGATIVE→POSITIVE": 1,
@@ -1157,13 +1031,13 @@
     },
     "summary": {
       "total_test_samples": 134,
-      "baseline_errors": 104,
+      "baseline_errors": 90,
       "lora_errors": 2,
-      "improvements": 102,
+      "improvements": 88,
       "regressions": 0,
       "disagreements": 1,
-      "net_improvement": 102
+      "net_improvement": 88
     }
   },
-  "error_analysis_report": "   总测试样本: 134\n   基线错分数: 104\n   LoRA 错分数: 2\n   改善样本（基线错→LoRA对）: 102\n   退化样本（基线对→LoRA错）: 0\n   预测不一致（两模型预测不同）: 1\n   净改善: 102\n\n   错分方向统计:\n     基线:\n       POSITIVE→NEUTRAL: 60\n       NEGATIVE→NEUTRAL: 44\n     LoRA:\n       NEGATIVE→POSITIVE: 1\n       POSITIVE→NEUTRAL: 1\n\n   高置信度错分（≥0.8）:\n     基线: 0 条\n     LoRA: 2 条\n\n   改善样本详情（102 条）:\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，不用排队，到店就有座，蔬菜脆嫩，吃得出很新鲜...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，店员很亲切，有需求都及时响应，菜品种类很多，选择空间大，个人感受哈...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 体验下来，蔬菜脆嫩，吃得出很新鲜，菜品种类很多，选择空间大，办事效率很高，加菜撤盘都很快，下次再试试别的...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 整体来说，价格很实惠，人均不高，打包盒质量很好，不会软塌塌的...\n     [NEGATIVE 基线→NEUTRAL LoRA→正确] 体验下来，服务员态度很差，爱答不理的，仅供参考...\n     [NEGATIVE 基线→NEUTRAL LoRA→正确] 肉质发柴，一看就不新鲜，店里太脏了，桌面都是油，个人感受哈...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 整体来说，出餐效率很高，赶时间也没问题，定价合理，不会虚高，可以参考一下...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，氛围安静，用餐体验很好...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 个人感觉，分量实打实，不会偷工减料，位置很好找，地铁出来就到，店员很亲切，有需求都及时响应，可以参考一下...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 说实话，店内设备很新，空调很足，办事效率很高，加菜撤盘都很快..."
+  "error_analysis_report": "   总测试样本: 134\n   基线错分数: 90\n   LoRA 错分数: 2\n   改善样本（基线错→LoRA对）: 88\n   退化样本（基线对→LoRA错）: 0\n   预测不一致（两模型预测不同）: 1\n   净改善: 88\n\n   错分方向统计:\n     基线:\n       POSITIVE→NEUTRAL: 60\n       NEGATIVE→NEUTRAL: 30\n     LoRA:\n       NEGATIVE→POSITIVE: 1\n       POSITIVE→NEUTRAL: 1\n\n   高置信度错分（≥0.8）:\n     基线: 0 条\n     LoRA: 2 条\n\n   改善样本详情（88 条）:\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，不用排队，到店就有座，蔬菜脆嫩，吃得出很新鲜...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，店员很亲切，有需求都及时响应，菜品种类很多，选择空间大，个人感受哈...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 体验下来，蔬菜脆嫩，吃得出很新鲜，菜品种类很多，选择空间大，办事效率很高，加菜撤盘都很快，下次再试试别的...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 整体来说，价格很实惠，人均不高，打包盒质量很好，不会软塌塌的...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 整体来说，出餐效率很高，赶时间也没问题，定价合理，不会虚高，可以参考一下...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，氛围安静，用餐体验很好...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 个人感觉，分量实打实，不会偷工减料，位置很好找，地铁出来就到，店员很亲切，有需求都及时响应，可以参考一下...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 说实话，店内设备很新，空调很足，办事效率很高，加菜撤盘都很快...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，菜单很丰富，下次还想试试别的，停车免费，这点很加分，可以参考一下...\n     [NEGATIVE 基线→NEUTRAL LoRA→正确] 体验下来，配送员走错路，等了好久才到，个人感受哈..."
 }
