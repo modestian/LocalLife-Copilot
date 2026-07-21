@@ -69,6 +69,23 @@ class SQLAlchemyGovernanceRepository:
 
     async def publish_prompt(self, prompt_version_id: UUID, *, published_by: UUID) -> PromptVersion:
         async with self._session_factory() as session, session.begin():
+            target_definition_id = await session.scalar(
+                select(PromptVersion.prompt_definition_id).where(
+                    PromptVersion.id == prompt_version_id
+                )
+            )
+            if target_definition_id is None:
+                raise GovernanceResourceNotFound("prompt version not found")
+            # Every publication for one prompt definition uses the same lock anchor.
+            # Locking the definition before any version row prevents two different
+            # drafts from being published concurrently and avoids inverted lock order.
+            definition = await session.scalar(
+                select(PromptDefinition)
+                .where(PromptDefinition.id == target_definition_id)
+                .with_for_update()
+            )
+            if definition is None:
+                raise GovernanceResourceNotFound("prompt definition not found")
             target = await session.scalar(
                 select(PromptVersion).where(PromptVersion.id == prompt_version_id).with_for_update()
             )
@@ -101,18 +118,25 @@ class SQLAlchemyGovernanceRepository:
     ) -> PromptVersion:
         """Publish historical content as a new version without mutating history."""
         async with self._session_factory() as session, session.begin():
+            target_definition_id = await session.scalar(
+                select(PromptVersion.prompt_definition_id).where(
+                    PromptVersion.id == prompt_version_id
+                )
+            )
+            if target_definition_id is None:
+                raise GovernanceResourceNotFound("prompt rollback target not found")
+            definition = await session.scalar(
+                select(PromptDefinition)
+                .where(PromptDefinition.id == target_definition_id)
+                .with_for_update()
+            )
+            if definition is None:
+                raise GovernanceResourceNotFound("prompt definition not found")
             target = await session.scalar(
                 select(PromptVersion).where(PromptVersion.id == prompt_version_id).with_for_update()
             )
             if target is None:
                 raise GovernanceResourceNotFound("prompt rollback target not found")
-            definition = await session.scalar(
-                select(PromptDefinition)
-                .where(PromptDefinition.id == target.prompt_definition_id)
-                .with_for_update()
-            )
-            if definition is None:
-                raise GovernanceResourceNotFound("prompt definition not found")
             latest = await session.scalar(
                 select(func.max(PromptVersion.version_no)).where(
                     PromptVersion.prompt_definition_id == target.prompt_definition_id
