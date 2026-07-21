@@ -1,12 +1,17 @@
-"""OpenAI-compatible, non-streaming Chat Completions transport."""
+"""OpenAI-compatible Chat Completions transport."""
 
 from __future__ import annotations
 
+import asyncio
+import json
+import time
+from contextlib import suppress
 from typing import Any, Literal, Self
 from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agents.contracts import RetrievalScope
@@ -56,20 +61,13 @@ class ChatCompletionRequestDTO(BaseModel):
         return self
 
 
-@router.post("/chat/completions")
+@router.post("/chat/completions", response_model=None)
 async def create_chat_completion(
     request: Request,
     body: ChatCompletionRequestDTO,
     principal: CurrentPrincipal,
-) -> dict[str, Any]:
+) -> dict[str, Any] | StreamingResponse:
     """Run one turn and return a parseable ``chat.completion`` object."""
-    if body.stream:
-        raise AppError(
-            400,
-            "STREAMING_NOT_IMPLEMENTED",
-            "Streaming is not available on this endpoint yet",
-            [{"field": "stream", "reason": "not_implemented"}],
-        )
     if body.model != SUPPORTED_MODEL:
         raise AppError(
             404,
@@ -92,6 +90,25 @@ async def create_chat_completion(
         await _seed_history(request, conversation_id, principal.user_id, body.messages[:-1])
 
     scope = _retrieval_scope(principal, body.knowledge_base_ids)
+    if body.stream:
+        return StreamingResponse(
+            _stream_completion(
+                request=request,
+                runtime=runtime,
+                conversation_id=conversation_id,
+                owner_user_id=principal.user_id,
+                query=body.messages[-1].content,
+                retrieval_scope=scope,
+                request_id=get_request_id(request),
+                model=body.model,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
     try:
         result = await runtime.run(
             conversation_id=conversation_id,
@@ -111,6 +128,145 @@ async def create_chat_completion(
         raise AppError(504, "CHAT_TIMEOUT", "The chat request timed out") from exc
 
     return _completion_data(result.message, conversation_id, body.model)
+
+
+async def _stream_completion(
+    *,
+    request: Request,
+    runtime,
+    conversation_id: UUID,
+    owner_user_id: UUID,
+    query: str,
+    retrieval_scope: RetrievalScope,
+    request_id: str,
+    model: str,
+):
+    """Emit OpenAI-compatible chunks and always cancel unfinished downstream work."""
+    stream_id = f"chatcmpl-{request_id}"
+    yield _sse_data(
+        _chunk_data(
+            stream_id=stream_id,
+            model=model,
+            conversation_id=conversation_id,
+            delta={"role": "assistant", "content": ""},
+        )
+    )
+    task = asyncio.create_task(
+        runtime.run(
+            conversation_id=conversation_id,
+            owner_user_id=owner_user_id,
+            query=query,
+            retrieval_scope=retrieval_scope,
+            request_id=request_id,
+        )
+    )
+    try:
+        while not task.done():
+            if await request.is_disconnected():
+                task.cancel()
+                return
+            await asyncio.wait({task}, timeout=0.1)
+        result = task.result()
+        message = result.message
+        for part in _text_chunks(message.content):
+            yield _sse_data(
+                _chunk_data(
+                    stream_id=stream_id,
+                    model=model,
+                    conversation_id=conversation_id,
+                    delta={"content": part},
+                )
+            )
+        yield _sse_data(
+            _chunk_data(
+                stream_id=stream_id,
+                model=model,
+                conversation_id=conversation_id,
+                delta={},
+                finish_reason="stop",
+                metadata={
+                    "message_id": str(message.id),
+                    "sources": [_source_data(source) for source in message.sources],
+                    "usage": _usage_data(message),
+                },
+            )
+        )
+        yield "data: [DONE]\n\n"
+    except asyncio.CancelledError:
+        task.cancel()
+        raise
+    except Exception as exc:
+        yield _sse_data({"error": _stream_error(exc)})
+        yield "data: [DONE]\n\n"
+    finally:
+        if not task.done():
+            task.cancel()
+        with suppress(asyncio.CancelledError, Exception):
+            await task
+
+
+def _chunk_data(
+    *,
+    stream_id: str,
+    model: str,
+    conversation_id: UUID,
+    delta: dict[str, str],
+    finish_reason: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    data: dict[str, Any] = {
+        "id": stream_id,
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [{"index": 0, "delta": delta, "finish_reason": finish_reason}],
+        "conversation_id": str(conversation_id),
+    }
+    if metadata is not None:
+        data["metadata"] = metadata
+    return data
+
+
+def _sse_data(payload: dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}\n\n"
+
+
+def _text_chunks(content: str, size: int = 64):
+    for offset in range(0, len(content), size):
+        yield content[offset : offset + size]
+
+
+def _usage_data(message) -> dict[str, int]:
+    prompt_tokens = message.prompt_tokens or 0
+    completion_tokens = message.completion_tokens or 0
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+
+
+def _stream_error(exc: Exception) -> dict[str, Any]:
+    if isinstance(exc, ConversationNotFound):
+        return {
+            "message": "The conversation does not exist or is not accessible",
+            "type": "invalid_request_error",
+            "param": "conversation_id",
+            "code": "conversation_not_found",
+        }
+    if isinstance(exc, TimeoutError):
+        return {
+            "message": "The chat request timed out",
+            "type": "server_error",
+            "param": None,
+            "code": "chat_timeout",
+        }
+    return {
+        "message": "The chat service failed while streaming the response",
+        "type": "server_error",
+        "param": None,
+        "code": "chat_stream_error",
+    }
 
 
 def _completion_data(message, conversation_id: UUID, model: str) -> dict[str, Any]:

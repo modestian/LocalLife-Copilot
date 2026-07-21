@@ -30,6 +30,7 @@ from app.api.openai import router as openai_router
 from app.api.search import router as search_router
 from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
+from app.api.websocket_chat import router as websocket_chat_router
 from app.application.analytics import AnalyticsService
 from app.application.audit import AuditQueryService, ChatLogQueryService
 from app.application.auth import AuthService
@@ -38,6 +39,7 @@ from app.application.content_safety import ContentSafetyService
 from app.application.dataset_service import DatasetService
 from app.application.feedback import FeedbackService
 from app.application.knowledge import KnowledgeService
+from app.application.websocket_tokens import WebSocketTokenService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
 from app.core.observability import MetricsRegistry, configure_json_logging
@@ -111,6 +113,8 @@ def create_app(
         app.state.governance_repository = SQLAlchemyGovernanceRepository(session_factory)
 
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
+        app.state.websocket_token_service = WebSocketTokenService(redis_client)
+        app.state.websocket_heartbeat_interval = 30.0
         knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
         conversation_repository = SQLAlchemyConversationRepository(session_factory)
         app.state.knowledge_repository = knowledge_repository
@@ -197,6 +201,7 @@ def create_app(
     app.include_router(search_router, prefix=app_settings.api_v1_prefix)
     app.include_router(knowledge_router, prefix=app_settings.api_v1_prefix)
     app.include_router(tasks_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(websocket_chat_router, prefix=app_settings.api_v1_prefix)
     app.include_router(metrics_router)
     app.include_router(openai_router)
     return app

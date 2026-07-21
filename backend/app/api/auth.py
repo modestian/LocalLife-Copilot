@@ -5,6 +5,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 
+from app.api.dependencies.authorization import CurrentPrincipal
 from app.application.auth import AuthenticationError, AuthService, TokenPair
 from app.core.api import success_response
 from app.core.errors import AppError
@@ -27,6 +28,11 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     refresh_expires_in: int
+
+
+class WebSocketTokenResponse(BaseModel):
+    ws_token: str
+    expires_in: int
 
 
 def get_auth_service(request: Request) -> AuthService:
@@ -67,6 +73,18 @@ async def logout(
     except AuthenticationError as exc:
         raise AppError(401, "AUTH_INVALID_REFRESH_TOKEN", "刷新令牌无效或已过期") from exc
     return success_response(request)
+
+
+@router.post("/ws-token")
+async def issue_websocket_token(request: Request, principal: CurrentPrincipal) -> dict[str, Any]:
+    service = getattr(request.app.state, "websocket_token_service", None)
+    if service is None:
+        raise AppError(503, "CHAT_RUNTIME_UNAVAILABLE", "WebSocket chat is unavailable")
+    token = await service.issue(principal.user_id)
+    return success_response(
+        request,
+        WebSocketTokenResponse(ws_token=token, expires_in=service.ttl_seconds).model_dump(),
+    )
 
 
 def _token_response(pair: TokenPair) -> TokenResponse:
