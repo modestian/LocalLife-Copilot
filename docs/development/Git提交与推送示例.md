@@ -57,6 +57,20 @@ git commit
 - 检查通过：进入编辑器填写 Commit Message，保存后创建 Commit；
 - 检查失败：Commit 不会创建，按输出修复后重新暂存并再次执行 `git commit`。
 
+检查失败会如果有类似
+```
+All checks passed!
+Would reformat: app\agents\__init__.py
+Would reformat: app\agents\routing.py
+2 files would be reformatted, 162 files already formatted
+```
+
+则执行格式化整个项目：
+
+```
+python -m ruff format .
+```
+
 提交完成后检查：
 
 ```powershell
