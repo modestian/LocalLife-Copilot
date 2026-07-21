@@ -8,7 +8,11 @@ from opensearchpy import OpenSearch
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.agents.adapters import HybridSearchRetrieverAdapter
+from app.agents.generation import GroundedRAGGenerator
+from app.agents.local_model import ExtractiveModelAdapter
 from app.agents.memory import ConversationMemoryService
+from app.agents.runtime import ChatAgentRuntime
 from app.api.analytics import business_router as analytics_business_router
 from app.api.analytics import compare_router as analytics_compare_router
 from app.api.analytics import reviews_router as analytics_reviews_router
@@ -140,6 +144,13 @@ def create_app(
                     index=app_settings.opensearch_read_alias,
                 ),
             )
+        )
+        app.state.agent_runtime = ChatAgentRuntime(
+            repository=conversation_repository,
+            memory=app.state.agent_memory,
+            retriever=HybridSearchRetrieverAdapter(app.state.search_service),
+            generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+            safety=app.state.content_safety_service,
         )
         app.state.readiness_checks = build_readiness_checks(
             engine,

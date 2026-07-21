@@ -1,0 +1,237 @@
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock
+from uuid import UUID, uuid4
+
+from app.agents.contracts import RetrievalScope
+from app.agents.generation import GroundedRAGGenerator
+from app.agents.local_model import ExtractiveModelAdapter
+from app.agents.memory import MemoryWindow
+from app.agents.runtime import ChatAgentRuntime
+from app.agents.types import RetrievedChunk
+from app.application.content_safety import ContentCheckResult, ContentDirection
+from app.application.conversations import (
+    ConversationStatus,
+    ConversationView,
+    MessageRole,
+    MessageView,
+)
+
+
+def _conversation(*, settings: dict[str, object] | None = None) -> ConversationView:
+    now = datetime.now(UTC)
+    return ConversationView(
+        id=uuid4(),
+        owner_user_id=uuid4(),
+        title=None,
+        status=ConversationStatus.ACTIVE,
+        memory_backend="MYSQL",
+        current_branch_message_id=None,
+        settings=settings or {},
+        version=1,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _message(conversation_id: UUID, role: MessageRole, content: str) -> MessageView:
+    return MessageView(
+        id=uuid4(),
+        conversation_id=conversation_id,
+        parent_message_id=None,
+        sequence_no=1,
+        request_id=None,
+        role=role,
+        content=content,
+        status="COMPLETED",  # type: ignore[arg-type]
+        model_version_id=None,
+        prompt_tokens=None,
+        completion_tokens=None,
+        latency_ms=None,
+        error_code=None,
+        created_at=datetime.now(UTC),
+    )
+
+
+class RecordingRepository:
+    def __init__(self, conversation: ConversationView) -> None:
+        self.conversation = conversation
+        self.payloads = []
+        self.settings_updates: list[dict[str, object]] = []
+
+    async def get_conversation(self, conversation_id: UUID, owner_user_id: UUID):
+        assert conversation_id == self.conversation.id
+        assert owner_user_id == self.conversation.owner_user_id
+        return self.conversation
+
+    async def append_message(self, conversation_id: UUID, owner_user_id: UUID, payload):
+        self.payloads.append(payload)
+        return _message(conversation_id, payload.role, payload.content)
+
+    async def update_settings(
+        self, conversation_id: UUID, owner_user_id: UUID, settings: dict[str, object]
+    ):
+        self.settings_updates.append(settings)
+        return self.conversation
+
+
+class RecordingRetriever:
+    def __init__(self) -> None:
+        self.requests = []
+        self.chunk = RetrievedChunk(
+            chunk_id=str(uuid4()),
+            content="蜀香小馆提供川菜，环境安静，适合两人用餐。",
+            score=0.95,
+            source_location="reviews/shuxiang/1",
+            merchant_id="merchant-shuxiang",
+            data_updated_at="2026-07-21T08:00:00Z",
+            metadata={
+                "merchant_name": "蜀香小馆",
+                "category": "川菜",
+                "avg_price_cent": 8800,
+                "business_status": "OPEN",
+            },
+        )
+
+    def retrieve(self, request):
+        self.requests.append(request)
+        return (self.chunk,)
+
+
+def _runtime(conversation: ConversationView):
+    repository = RecordingRepository(conversation)
+    memory = AsyncMock()
+    memory.restore.return_value = MemoryWindow(conversation, (), "", None, 0)
+    retriever = RecordingRetriever()
+    runtime = ChatAgentRuntime(
+        repository=repository,  # type: ignore[arg-type]
+        memory=memory,
+        retriever=retriever,
+        generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+    )
+    return runtime, repository, memory, retriever
+
+
+def _scope() -> RetrievalScope:
+    return RetrievalScope(
+        tenant_id="tenant-1",
+        knowledge_base_ids=frozenset({"kb-1"}),
+        resource_scopes=frozenset({"KNOWLEDGE_BASE:kb-1"}),
+    )
+
+
+async def test_runtime_asks_for_missing_conditions_and_persists_turn() -> None:
+    conversation = _conversation()
+    runtime, repository, _memory, retriever = _runtime(conversation)
+
+    result = await runtime.run(
+        conversation_id=conversation.id,
+        owner_user_id=conversation.owner_user_id,
+        query="推荐附近安静的川菜",
+        retrieval_scope=_scope(),
+        request_id="turn-1",
+    )
+
+    assert "人均预算" in result.message.content
+    assert "用餐人数" in result.message.content
+    assert not retriever.requests
+    assert [payload.role for payload in repository.payloads] == [
+        MessageRole.USER,
+        MessageRole.ASSISTANT,
+    ]
+
+
+async def test_runtime_restores_constraints_then_retrieves_generates_and_cites() -> None:
+    conversation = _conversation(
+        settings={
+            "constraints": {
+                "distance_meter_lte": 1000,
+                "cuisines": ["川菜"],
+                "atmospheres": ["安静"],
+            }
+        }
+    )
+    runtime, repository, _memory, retriever = _runtime(conversation)
+
+    result = await runtime.run(
+        conversation_id=conversation.id,
+        owner_user_id=conversation.owner_user_id,
+        query="两个人，人均 100 元以内",
+        retrieval_scope=_scope(),
+        request_id="turn-2",
+    )
+
+    assert "蜀香小馆" in result.message.content
+    assert repository.payloads[-1].sources[0].source_location_snapshot == "reviews/shuxiang/1"
+    assert retriever.requests[0].constraints.cuisines == ("川菜",)
+    assert retriever.requests[0].constraints.party_size == 2
+    assert retriever.requests[0].constraints.budget_cent_per_person_lte == 10000
+    assert repository.settings_updates[-1]["constraints"]["party_size"] == 2
+
+
+class EmptyRetriever:
+    def retrieve(self, _request):
+        return ()
+
+
+class BlockingInputSafety:
+    async def check(self, *, content, direction, actor_id, request_id, conversation_id):
+        del content, actor_id, request_id, conversation_id
+        allowed = direction is ContentDirection.OUTPUT
+        return ContentCheckResult(
+            allowed=allowed,
+            direction=direction,
+            matched_rule_ids=() if allowed else (uuid4(),),
+            decision="ALLOW" if allowed else "BLOCK_INPUT",
+        )
+
+
+async def test_runtime_persists_low_evidence_fallback_without_sources() -> None:
+    conversation = _conversation(
+        settings={"constraints": {"budget_cent_per_person_lte": 10000, "party_size": 2}}
+    )
+    repository = RecordingRepository(conversation)
+    memory = AsyncMock()
+    memory.restore.return_value = MemoryWindow(conversation, (), "", None, 0)
+    runtime = ChatAgentRuntime(
+        repository=repository,  # type: ignore[arg-type]
+        memory=memory,
+        retriever=EmptyRetriever(),
+        generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+    )
+
+    result = await runtime.run(
+        conversation_id=conversation.id,
+        owner_user_id=conversation.owner_user_id,
+        query="推荐川菜餐厅",
+        retrieval_scope=_scope(),
+        request_id="no-result",
+    )
+
+    assert "当前资料不足" in result.message.content
+    assert repository.payloads[-1].sources == ()
+
+
+async def test_blocked_input_is_not_persisted_and_safe_refusal_is_persisted() -> None:
+    conversation = _conversation()
+    repository = RecordingRepository(conversation)
+    memory = AsyncMock()
+    memory.restore.return_value = MemoryWindow(conversation, (), "", None, 0)
+    runtime = ChatAgentRuntime(
+        repository=repository,  # type: ignore[arg-type]
+        memory=memory,
+        retriever=EmptyRetriever(),
+        generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+        safety=BlockingInputSafety(),  # type: ignore[arg-type]
+    )
+
+    result = await runtime.run(
+        conversation_id=conversation.id,
+        owner_user_id=conversation.owner_user_id,
+        query="受限输入",
+        retrieval_scope=_scope(),
+        request_id="blocked-input",
+    )
+
+    assert "受限内容" in result.message.content
+    assert [payload.role for payload in repository.payloads] == [MessageRole.ASSISTANT]
+    assert repository.payloads[0].sources == ()

@@ -67,7 +67,8 @@ def load_dataset(path: Path) -> tuple[dict[str, Any], str]:
         raise ValueError("each benchmark category must contain at least five cases")
     for case in cases:
         _validate_case(case)
-    return dataset, hashlib.sha256(raw).hexdigest()
+    canonical = json.dumps(dataset, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return dataset, hashlib.sha256(canonical).hexdigest()
 
 
 def _validate_case(case: Mapping[str, Any]) -> None:

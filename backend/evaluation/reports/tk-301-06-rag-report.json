@@ -1,8 +1,8 @@
 {
   "task_id": "TK-301-06",
-  "generated_at": "2026-07-21T07:23:06.528324+00:00",
+  "generated_at": "2026-07-21T08:18:22.921169+00:00",
   "dataset_version": "tk-301-06-v1",
-  "dataset_sha256": "fe9a35ac12e6b4264d234e1f98d173c154e5e9920ae8366ab7d9bbdac293536d",
+  "dataset_sha256": "1353615078d2a36011216698e8502db6d83f0c6cabaa06f97783a8bea07e75fc",
   "case_count": 20,
   "category_counts": {
     "citation": 5,
