@@ -589,15 +589,15 @@ function formatTime(value: string): string {
 </template>
 
 <style scoped>
-.conversation-workspace { display: grid; grid-template-rows: minmax(0, 1fr); grid-template-columns: 280px minmax(0, 1fr); height: clamp(560px, 72vh, 720px); overflow: hidden; border: 1px solid var(--line); border-radius: 22px; background: rgb(255 254 252 / 82%); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
-.conversation-sidebar { display: flex; min-height: 0; flex-direction: column; overflow: hidden; padding: 20px; border-right: 1px solid #e7dbd0; background: linear-gradient(160deg, #fbf4ed, #f4ebe2); }
+.conversation-workspace { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 720px; overflow: hidden; border: 1px solid var(--line); border-radius: 22px; background: rgb(255 254 252 / 82%); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
+.conversation-sidebar { overflow: hidden; padding: 20px; border-right: 1px solid #e7dbd0; background: linear-gradient(160deg, #fbf4ed, #f4ebe2); }
 .conversation-sidebar__heading, .conversation-main__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .conversation-sidebar__heading span, .conversation-main__heading > div > span { color: #c34833; font-size: .67rem; font-weight: 800; letter-spacing: .12em; }
 .conversation-sidebar h2, .conversation-main h2 { margin: 4px 0 0; color: #2c211b; font-size: 1.25rem; }
 .conversation-sidebar__heading button { border: 0; border-radius: 8px; padding: 7px 9px; background: var(--brand); color: white; cursor: pointer; font: inherit; font-size: .75rem; font-weight: 700; box-shadow: 0 6px 14px rgb(176 60 39 / 18%); transition: transform .2s var(--ease-out), background .2s ease; }
 .conversation-sidebar__heading button:hover { background: var(--brand-strong); transform: translateY(-1px); }
 .conversation-sidebar__state { margin: 24px 0; color: #7b6d63; font-size: .82rem; line-height: 1.6; }
-.conversation-list { display: grid; flex: 1; min-height: 0; gap: 7px; margin: 20px -6px 0 0; overflow-y: auto; padding: 0 6px 0 0; list-style: none; overscroll-behavior: contain; scrollbar-color: #d4b7aa transparent; scrollbar-width: thin; }
+.conversation-list { display: grid; max-height: min(560px, calc(100dvh - 230px)); gap: 7px; margin: 20px -6px 0 0; overflow-y: auto; padding: 0 6px 0 0; list-style: none; overscroll-behavior: contain; scrollbar-color: #d4b7aa transparent; scrollbar-width: thin; }
 .conversation-list::-webkit-scrollbar { width: 5px; }
 .conversation-list::-webkit-scrollbar-thumb { border-radius: 999px; background: #d4b7aa; }
 .conversation-list::-webkit-scrollbar-track { background: transparent; }
@@ -652,6 +652,6 @@ function formatTime(value: string): string {
 .composer > small { color: #88786d; font-size: .68rem; }
 @keyframes message-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 @media (max-width: 900px) { .conversation-workspace { grid-template-columns: 220px minmax(0, 1fr); } .condition-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 680px) { .conversation-workspace { display: block; height: auto; } .conversation-sidebar { display: block; border-right: 0; border-bottom: 1px solid #e7dbd0; overflow: visible; } .conversation-list { display: flex; overflow-x: auto; overflow-y: hidden; } .conversation-list li { min-width: 190px; } .conversation-main { padding: 18px; } .scene-grid { grid-template-columns: 1fr; } .chat-message { max-width: 92%; } .chat-message :deep(.recommendation-results) { width: 100%; } }
+@media (max-width: 680px) { .conversation-workspace { display: block; min-height: auto; } .conversation-sidebar { border-right: 0; border-bottom: 1px solid #e7dbd0; overflow: visible; } .conversation-list { display: flex; max-height: none; overflow-x: auto; overflow-y: hidden; } .conversation-list li { min-width: 190px; } .conversation-main { padding: 18px; } .scene-grid { grid-template-columns: 1fr; } .chat-message { max-width: 92%; } .chat-message :deep(.recommendation-results) { width: 100%; } }
 @media (max-width: 430px) { .condition-grid { grid-template-columns: 1fr 1fr; } .open-now-option { grid-column: span 2; } .composer__input { align-items: stretch; flex-direction: column; } .composer__input button { width: 100%; } }
 </style>
