@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 
 import KnowledgeDocumentWorkspace from '@/components/KnowledgeDocumentWorkspace.vue'
+import ProductTopBar from '@/components/ProductTopBar.vue'
 import RetrievalDebugPanel from '@/components/RetrievalDebugPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
@@ -12,7 +13,6 @@ import {
 } from '@/utils/knowledge-base-permissions'
 
 const route = useRoute()
-const router = useRouter()
 const authStore = useAuthStore()
 const store = useKnowledgeBaseStore()
 const id = computed(() => String(route.params.id))
@@ -97,44 +97,12 @@ async function save(): Promise<void> {
   }
 }
 
-function login(): void {
-  void router.push({ name: 'login', query: { redirect: route.fullPath } })
-}
-
 onMounted(() => store.loadDetail(id.value))
 </script>
 
 <template>
   <main class="kb-detail-page">
-    <header class="detail-header">
-      <div>
-        <router-link
-          class="detail-header__brand"
-          to="/"
-        >
-          LOCAL LIFE · AI COPILOT
-        </router-link>
-        <p class="detail-header__breadcrumb">
-          <router-link to="/admin">
-            管理板块
-          </router-link>
-          <span>/</span>
-          <router-link :to="{ name: 'knowledge-bases' }">
-            知识库
-          </router-link>
-          <span>/</span>
-          详情
-        </p>
-      </div>
-      <button
-        v-if="!authStore.isAuthenticated"
-        class="button button--primary"
-        type="button"
-        @click="login"
-      >
-        登录以进行操作
-      </button>
-    </header>
+    <ProductTopBar active="admin" />
 
     <section
       v-if="store.loading"
@@ -335,17 +303,17 @@ onMounted(() => store.loadDetail(id.value))
 </template>
 
 <style scoped>
-.kb-detail-page { width: min(1060px, calc(100% - 48px)); margin: 0 auto; padding: 32px 0 72px; }
-.detail-header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding-bottom: 24px; border-bottom: 1px solid rgb(74 54 42 / 12%); }
-.detail-header__brand { color: var(--brand); font-size: .74rem; font-weight: 900; letter-spacing: .14em; text-decoration: none; }
+.kb-detail-page { width: min(1060px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0 72px; }
+.detail-header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding-bottom: 22px; border-bottom: 1px solid #e8e8e8; }
+.detail-header__brand { color: #28231f; font-size: .76rem; font-weight: 900; letter-spacing: .07em; text-decoration: none; }
 .detail-header__breadcrumb { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; color: #7b6d63; font-size: .82rem; }
-.detail-hero { display: flex; justify-content: space-between; gap: 40px; align-items: end; padding: 64px 0 36px; }
-.detail-hero h1 { margin: 14px 0; font-size: clamp(2.8rem, 7vw, 5.4rem); }
+.detail-hero { display: flex; justify-content: space-between; gap: 40px; align-items: end; padding: 46px 0 30px; }
+.detail-hero h1 { margin: 14px 0; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: clamp(2.25rem, 5vw, 4rem); font-weight: 800; letter-spacing: -.065em; }
 .detail-hero p { max-width: 700px; margin: 0; color: var(--muted); line-height: 1.7; }
 .detail-hero__chips { display: flex; gap: 8px; }
 .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 9px; padding: 8px 14px; cursor: pointer; font-weight: 800; text-decoration: none; }
 .button:disabled { cursor: not-allowed; opacity: .48; }
-.button--primary { border: 1px solid var(--brand); background: var(--brand); color: white; }
+.button--primary { border: 1px solid var(--brand); background: linear-gradient(135deg, #ff7b43, #ec4b30); color: white; box-shadow: 0 7px 16px rgb(176 60 39 / 14%); }
 .button--secondary { border: 1px solid #d9ccc1; background: #fffdfa; color: #6c5042; }
 .status-chip, .permission-chip { display: inline-flex; border-radius: 999px; padding: 5px 9px; background: #eee5dc; color: #695b51; font-size: .7rem; font-weight: 900; }
 .status-chip.is-active, .permission-chip.is-allowed { background: #e4f2e9; color: #2c704b; }
@@ -354,11 +322,11 @@ onMounted(() => store.loadDetail(id.value))
 .permission-panel { display: flex; gap: 8px 20px; flex-wrap: wrap; margin-bottom: 20px; border-left: 3px solid var(--brand); padding: 12px 16px; background: rgb(255 255 255 / 52%); color: var(--muted); }
 .permission-panel strong { color: #9d3423; }
 .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-.stat-grid article { border: 1px solid rgb(74 54 42 / 12%); border-radius: 14px; padding: 20px; background: rgb(255 255 255 / 64%); }
+.stat-grid article { border: 1px solid #ebe6e1; border-radius: 14px; padding: 20px; background: #fff; box-shadow: 0 9px 22px rgb(65 47 34 / 4%); }
 .stat-grid span { display: block; color: #77675d; font-size: .78rem; }
 .stat-grid strong { display: block; margin-top: 12px; font-family: Georgia, serif; font-size: 2rem; }
 .stat-grid article.has-error { border-color: #e3b3aa; background: #fff4f1; color: #9e3c30; }
-.edit-panel, .metadata-panel { margin-top: 24px; border: 1px solid rgb(74 54 42 / 12%); border-radius: 16px; padding: 24px; background: rgb(255 255 255 / 64%); }
+.edit-panel, .metadata-panel { margin-top: 24px; border: 1px solid #ebe6e1; border-radius: 14px; padding: 24px; background: #fff; box-shadow: 0 10px 26px rgb(65 47 34 / 4%); }
 .section-title { display: flex; justify-content: space-between; gap: 24px; align-items: end; margin-bottom: 22px; color: #7b6d63; font-size: .78rem; }
 .section-title h2 { margin: 8px 0 0; color: #2c211b; font-size: 1.45rem; }
 .edit-panel form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }

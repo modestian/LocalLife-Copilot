@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import ProductTopBar from '@/components/ProductTopBar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import type { KnowledgeBaseStatus } from '@/types/knowledge-base'
@@ -64,50 +65,20 @@ async function changePage(nextPage: number): Promise<void> {
   await load()
 }
 
-function login(): void {
-  void router.push({ name: 'login', query: { redirect: route.fullPath } })
-}
-
 onMounted(load)
 </script>
 
 <template>
   <main class="kb-page">
-    <header class="kb-page__header">
-      <div>
-        <router-link
-          class="kb-page__brand"
-          to="/"
-        >
-          LOCAL LIFE · AI COPILOT
-        </router-link>
-        <p class="kb-page__breadcrumb">
-          <router-link to="/admin">
-            管理板块
-          </router-link>
-          <span>/</span>
-          知识库
-        </p>
-      </div>
-      <div class="kb-page__header-actions">
-        <span :class="['permission-chip', { 'is-readonly': !authStore.isAuthenticated }]">
-          {{ authStore.isAuthenticated ? '按资源授权' : '游客只读' }}
-        </span>
-        <button
-          v-if="!authStore.isAuthenticated"
-          class="button button--primary"
-          type="button"
-          @click="login"
-        >
-          登录以进行操作
-        </button>
-      </div>
-    </header>
+    <ProductTopBar active="admin" />
 
     <section class="kb-page__intro">
       <span class="eyebrow">KNOWLEDGE BASES</span>
       <h1>知识库管理</h1>
       <p>浏览知识库状态、文档与 Chunk 规模；编辑入口根据角色权限和资源授权动态开放。</p>
+      <span :class="['permission-chip', { 'is-readonly': !authStore.isAuthenticated }]">
+        {{ authStore.isAuthenticated ? '按资源授权' : '游客只读' }}
+      </span>
     </section>
 
     <form
@@ -263,31 +234,33 @@ onMounted(load)
 </template>
 
 <style scoped>
-.kb-page { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 32px 0 72px; }
-.kb-page__header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding-bottom: 24px; border-bottom: 1px solid rgb(74 54 42 / 12%); }
-.kb-page__brand { color: var(--brand); font-size: .74rem; font-weight: 900; letter-spacing: .14em; text-decoration: none; }
+.kb-page { width: min(1180px, calc(100% - 48px)); margin: 0 auto; padding: 28px 0 72px; }
+.kb-page__header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; padding-bottom: 22px; border-bottom: 1px solid #e8e8e8; }
+.kb-page__brand { color: #28231f; font-size: .76rem; font-weight: 900; letter-spacing: .07em; text-decoration: none; }
 .kb-page__breadcrumb { display: flex; gap: 8px; margin: 12px 0 0; color: #7b6d63; font-size: .82rem; }
 .kb-page__header-actions { display: flex; gap: 12px; align-items: center; }
-.kb-page__intro { padding: 58px 0 34px; }
-.kb-page__intro h1 { margin: 12px 0; font-size: clamp(2.8rem, 7vw, 5.4rem); }
+.kb-page__intro { padding: 46px 0 30px; }
+.kb-page__intro h1 { margin: 12px 0; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: clamp(2.25rem, 5vw, 4rem); font-weight: 800; letter-spacing: -.065em; }
 .kb-page__intro p { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.7; }
-.filter-panel { display: grid; grid-template-columns: minmax(240px, 1fr) 220px auto; gap: 16px; align-items: end; padding: 20px; border: 1px solid rgb(74 54 42 / 12%); border-radius: 16px; background: rgb(255 255 255 / 62%); }
+.filter-panel { display: grid; grid-template-columns: minmax(240px, 1fr) 220px auto; gap: 16px; align-items: end; padding: 20px; border: 1px solid #ebe6e1; border-radius: 14px; background: #fff; box-shadow: 0 10px 26px rgb(65 47 34 / 4%); }
 .filter-panel label { display: grid; gap: 7px; color: #695b51; font-size: .8rem; font-weight: 800; }
 .filter-panel input, .filter-panel select { width: 100%; min-height: 42px; border: 1px solid #d9ccc1; border-radius: 9px; padding: 8px 11px; background: #fffdfa; color: #392d26; font: inherit; }
 .button { min-height: 40px; border-radius: 9px; padding: 8px 14px; cursor: pointer; font-weight: 800; }
 .button:disabled { cursor: not-allowed; opacity: .48; }
-.button--primary { border: 1px solid var(--brand); background: var(--brand); color: white; }
+.button--primary { border: 1px solid var(--brand); background: linear-gradient(135deg, #ff7b43, #ec4b30); color: white; box-shadow: 0 7px 16px rgb(176 60 39 / 14%); }
 .button--secondary { border: 1px solid #d9ccc1; background: #fffdfa; color: #6c5042; }
 .readonly-banner { display: flex; gap: 8px 20px; flex-wrap: wrap; margin: 18px 0; border-left: 3px solid var(--brand); padding: 12px 16px; background: rgb(255 255 255 / 52%); color: var(--muted); }
 .readonly-banner strong { color: #9d3423; }
 .state-panel { margin-top: 20px; border: 1px dashed #d5c6b9; border-radius: 14px; padding: 48px 24px; background: rgb(255 255 255 / 48%); color: #695b51; text-align: center; }
 .state-panel p { margin: 8px 0 18px; }
 .state-panel--error { border-color: #e3b3aa; background: #fff4f1; color: #8e3328; }
-.kb-table-wrap { overflow-x: auto; margin-top: 20px; border: 1px solid rgb(74 54 42 / 12%); border-radius: 16px; background: rgb(255 255 255 / 68%); }
+.kb-table-wrap { overflow-x: auto; margin-top: 20px; border: 1px solid #ebe6e1; border-radius: 14px; background: #fff; box-shadow: 0 10px 26px rgb(65 47 34 / 4%); }
 .kb-table { width: 100%; min-width: 940px; border-collapse: collapse; text-align: left; }
-.kb-table th { padding: 13px 16px; background: #eee5dc; color: #695b51; font-size: .74rem; letter-spacing: .04em; }
-.kb-table td { border-top: 1px solid #eee3d9; padding: 17px 16px; color: #4e4139; font-size: .86rem; vertical-align: top; }
-.kb-table__name { display: block; color: #8f3021; font-size: .95rem; font-weight: 900; }
+.kb-table th { padding: 13px 16px; background: #faf8f6; color: #81776f; font-size: .72rem; letter-spacing: .04em; }
+.kb-table td { border-top: 1px solid #f0ece8; padding: 17px 16px; color: #4e4139; font-size: .86rem; vertical-align: top; }
+.kb-table tbody tr { transition: background .18s ease; }
+.kb-table tbody tr:hover { background: #fff9f6; }
+.kb-table__name { display: block; color: #b5412b; font-size: .95rem; font-weight: 900; }
 .kb-table td small { display: block; max-width: 340px; margin-top: 6px; overflow: hidden; color: #827268; text-overflow: ellipsis; white-space: nowrap; }
 .status-chip, .permission-chip { display: inline-flex; border-radius: 999px; padding: 5px 9px; background: #eee5dc; color: #695b51; font-size: .7rem; font-weight: 900; white-space: nowrap; }
 .status-chip.is-active, .permission-chip.is-allowed { background: #e4f2e9; color: #2c704b; }
