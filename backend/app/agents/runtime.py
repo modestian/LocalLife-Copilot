@@ -148,9 +148,7 @@ class ChatAgentRuntime:
         self, state: ChatState, runtime: Runtime[ChatRunContext]
     ) -> dict[str, object]:
         context = runtime.context
-        window = await self._memory.restore(
-            UUID(state["conversation_id"]), context.owner_user_id
-        )
+        window = await self._memory.restore(UUID(state["conversation_id"]), context.owner_user_id)
         recent = [
             message
             for message in window.messages
@@ -205,9 +203,7 @@ class ChatAgentRuntime:
         )
         return {"answer": _GENERAL_ANSWER, "sources": ()}
 
-    def _tool_guard(
-        self, _state: ChatState, runtime: Runtime[ChatRunContext]
-    ) -> dict[str, object]:
+    def _tool_guard(self, _state: ChatState, runtime: Runtime[ChatRunContext]) -> dict[str, object]:
         runtime.context.generation = GroundedGeneration(
             _TOOL_HANDOFF_ANSWER, None, (), None, "tool_handoff"
         )
@@ -219,9 +215,7 @@ class ChatAgentRuntime:
         answer = state.get("answer", "")
         if not answer:
             return {}
-        safety = await self._check_safety(
-            answer, ContentDirection.OUTPUT, state, runtime.context
-        )
+        safety = await self._check_safety(answer, ContentDirection.OUTPUT, state, runtime.context)
         if safety.decision is SafetyDecision.BLOCK:
             runtime.context.generation = GroundedGeneration(
                 _BLOCKED_OUTPUT_ANSWER, None, (), None, "blocked_output"
@@ -296,9 +290,7 @@ def _constraints_from_settings(settings: dict[str, object]) -> ChatConstraints |
     try:
         return ChatConstraints(
             distance_meter_lte=_optional_int(value.get("distance_meter_lte")),
-            budget_cent_per_person_lte=_optional_int(
-                value.get("budget_cent_per_person_lte")
-            ),
+            budget_cent_per_person_lte=_optional_int(value.get("budget_cent_per_person_lte")),
             cuisines=_string_tuple(value.get("cuisines")),
             atmospheres=_string_tuple(value.get("atmospheres")),
             scenes=_string_tuple(value.get("scenes")),

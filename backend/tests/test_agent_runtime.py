@@ -167,6 +167,7 @@ async def test_runtime_restores_constraints_then_retrieves_generates_and_cites()
     assert retriever.requests[0].constraints.budget_cent_per_person_lte == 10000
     assert repository.settings_updates[-1]["constraints"]["party_size"] == 2
 
+
 class EmptyRetriever:
     def retrieve(self, _request):
         return ()
