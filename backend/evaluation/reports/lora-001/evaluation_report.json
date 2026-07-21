@@ -1,0 +1,1169 @@
+{
+  "job_id": "lora-001",
+  "test_set": "backend/training/data/test.jsonl",
+  "evaluated_at": "2026-07-21T09:19:34.425001+00:00",
+  "baseline": {
+    "model": "uer/roberta-base-finetuned-dianping-chinese",
+    "accuracy": 0.2239,
+    "macro_f1": 0.122,
+    "macro_precision": 0.0746,
+    "macro_recall": 0.3333,
+    "per_class": {
+      "NEGATIVE": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 44
+      },
+      "NEUTRAL": {
+        "precision": 0.2239,
+        "recall": 1.0,
+        "f1": 0.3659,
+        "support": 30
+      },
+      "POSITIVE": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 60
+      }
+    },
+    "confusion_matrix": {
+      "NEGATIVE": {
+        "NEGATIVE": 0,
+        "NEUTRAL": 44,
+        "POSITIVE": 0
+      },
+      "NEUTRAL": {
+        "NEGATIVE": 0,
+        "NEUTRAL": 30,
+        "POSITIVE": 0
+      },
+      "POSITIVE": {
+        "NEGATIVE": 0,
+        "NEUTRAL": 60,
+        "POSITIVE": 0
+      }
+    },
+    "calibration": {
+      "0.0-0.5": {
+        "count": 134,
+        "avg_confidence": 0.3853,
+        "accuracy": 0.2239
+      },
+      "0.5-0.7": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      },
+      "0.7-0.8": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      },
+      "0.8-0.9": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      },
+      "0.9-1.0": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      }
+    },
+    "total": 134,
+    "correct": 30,
+    "negative_recall": 0.0
+  },
+  "lora": {
+    "model": "uer/roberta-base-finetuned-dianping-chinese",
+    "adapter_sha256": "8f43de23f807756bcf9ae416c37ffddb26ed14f151469012144f67d87b2256b6",
+    "accuracy": 0.9851,
+    "macro_f1": 0.9851,
+    "macro_precision": 0.9837,
+    "macro_recall": 0.9869,
+    "per_class": {
+      "NEGATIVE": {
+        "precision": 1.0,
+        "recall": 0.9773,
+        "f1": 0.9885,
+        "support": 44
+      },
+      "NEUTRAL": {
+        "precision": 0.9677,
+        "recall": 1.0,
+        "f1": 0.9836,
+        "support": 30
+      },
+      "POSITIVE": {
+        "precision": 0.9833,
+        "recall": 0.9833,
+        "f1": 0.9833,
+        "support": 60
+      }
+    },
+    "confusion_matrix": {
+      "NEGATIVE": {
+        "NEGATIVE": 43,
+        "NEUTRAL": 0,
+        "POSITIVE": 1
+      },
+      "NEUTRAL": {
+        "NEGATIVE": 0,
+        "NEUTRAL": 30,
+        "POSITIVE": 0
+      },
+      "POSITIVE": {
+        "NEGATIVE": 0,
+        "NEUTRAL": 1,
+        "POSITIVE": 59
+      }
+    },
+    "calibration": {
+      "0.0-0.5": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      },
+      "0.5-0.7": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      },
+      "0.7-0.8": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      },
+      "0.8-0.9": {
+        "count": 0,
+        "avg_confidence": 0.0,
+        "accuracy": 0.0
+      },
+      "0.9-1.0": {
+        "count": 134,
+        "avg_confidence": 0.9848,
+        "accuracy": 0.9851
+      }
+    },
+    "total": 134,
+    "correct": 132,
+    "negative_recall": 0.9773
+  },
+  "comparison": {
+    "macro_f1_delta": 0.8631,
+    "negative_recall_delta": 0.9773,
+    "gate": {
+      "gate_passed": true,
+      "checks": [
+        {
+          "name": "negative_recall_not_decreased",
+          "description": "关键负面召回不得下降",
+          "baseline_value": 0.0,
+          "lora_value": 0.9773,
+          "delta": 0.9773,
+          "passed": true
+        },
+        {
+          "name": "macro_f1_not_below_baseline",
+          "description": "总体 Macro-F1 不得低于基线",
+          "baseline_value": 0.122,
+          "lora_value": 0.9851,
+          "delta": 0.8631,
+          "passed": true
+        },
+        {
+          "name": "macro_f1_improvement_ge_0.03",
+          "description": "目标 Macro-F1 提升 ≥ 0.03",
+          "baseline_value": 0.122,
+          "lora_value": 0.9851,
+          "delta": 0.8631,
+          "threshold": 0.03,
+          "passed": true
+        }
+      ],
+      "summary": {
+        "macro_f1_delta": 0.8631,
+        "negative_recall_delta": 0.9773,
+        "all_passed": true
+      }
+    },
+    "summary": {
+      "macro_f1_delta": 0.8631,
+      "negative_recall_delta": 0.9773,
+      "all_passed": true
+    }
+  },
+  "error_analysis": {
+    "improvements": [
+      {
+        "index": 1,
+        "text": "讲真，不用排队，到店就有座，蔬菜脆嫩，吃得出很新鲜",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3875,
+        "lora_confidence": null
+      },
+      {
+        "index": 2,
+        "text": "讲真，店员很亲切，有需求都及时响应，菜品种类很多，选择空间大，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3854,
+        "lora_confidence": null
+      },
+      {
+        "index": 4,
+        "text": "体验下来，蔬菜脆嫩，吃得出很新鲜，菜品种类很多，选择空间大，办事效率很高，加菜撤盘都很快，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.4025,
+        "lora_confidence": null
+      },
+      {
+        "index": 5,
+        "text": "整体来说，价格很实惠，人均不高，打包盒质量很好，不会软塌塌的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3907,
+        "lora_confidence": null
+      },
+      {
+        "index": 8,
+        "text": "体验下来，服务员态度很差，爱答不理的，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4322,
+        "lora_confidence": null
+      },
+      {
+        "index": 9,
+        "text": "肉质发柴，一看就不新鲜，店里太脏了，桌面都是油，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4461,
+        "lora_confidence": null
+      },
+      {
+        "index": 10,
+        "text": "整体来说，出餐效率很高，赶时间也没问题，定价合理，不会虚高，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3837,
+        "lora_confidence": null
+      },
+      {
+        "index": 13,
+        "text": "讲真，氛围安静，用餐体验很好",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3888,
+        "lora_confidence": null
+      },
+      {
+        "index": 14,
+        "text": "个人感觉，分量实打实，不会偷工减料，位置很好找，地铁出来就到，店员很亲切，有需求都及时响应，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3914,
+        "lora_confidence": null
+      },
+      {
+        "index": 15,
+        "text": "说实话，店内设备很新，空调很足，办事效率很高，加菜撤盘都很快",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3632,
+        "lora_confidence": null
+      },
+      {
+        "index": 16,
+        "text": "说实话，菜品都是温的，明显不是刚做的，没有停车位，找车位找了半天，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4377,
+        "lora_confidence": null
+      },
+      {
+        "index": 17,
+        "text": "讲真，菜单很丰富，下次还想试试别的，停车免费，这点很加分，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.36,
+        "lora_confidence": null
+      },
+      {
+        "index": 18,
+        "text": "体验下来，配送员走错路，等了好久才到，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3718,
+        "lora_confidence": null
+      },
+      {
+        "index": 19,
+        "text": "说实话，没有停车位，找车位找了半天，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3856,
+        "lora_confidence": null
+      },
+      {
+        "index": 20,
+        "text": "个人感觉，海鲜不新鲜，吃完肚子不舒服，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3786,
+        "lora_confidence": null
+      },
+      {
+        "index": 21,
+        "text": "整体来说，分量很足，两个人吃完全够，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3708,
+        "lora_confidence": null
+      },
+      {
+        "index": 22,
+        "text": "说实话，味道很不错，鲜香入味，办事效率很高，加菜撤盘都很快，整体体验很棒，推荐大家来，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3943,
+        "lora_confidence": null
+      },
+      {
+        "index": 23,
+        "text": "说实话，环境很清静，不会吵得慌，服务态度很棒，全程很贴心，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3967,
+        "lora_confidence": null
+      },
+      {
+        "index": 25,
+        "text": "体验下来，音乐放得太大声，闹得慌，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3704,
+        "lora_confidence": null
+      },
+      {
+        "index": 26,
+        "text": "体验下来，外卖包装很严实，到手还是热的，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3699,
+        "lora_confidence": null
+      },
+      {
+        "index": 28,
+        "text": "整体来说，音乐放得太大声，闹得慌，分量太少了，根本不够吃，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3703,
+        "lora_confidence": null
+      },
+      {
+        "index": 29,
+        "text": "装修很有特色，拍照很出片，经常有折扣，性价比更高了",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.4001,
+        "lora_confidence": null
+      },
+      {
+        "index": 30,
+        "text": "体验下来，口味很棒，符合我的预期，店内很宽敞，坐着很舒服，经常有折扣，性价比更高了，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3937,
+        "lora_confidence": null
+      },
+      {
+        "index": 31,
+        "text": "整体来说，各方面都不错，没有踩雷，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3933,
+        "lora_confidence": null
+      },
+      {
+        "index": 32,
+        "text": "讲真，环境嘈杂，用餐体验很差，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3868,
+        "lora_confidence": null
+      },
+      {
+        "index": 33,
+        "text": "品类齐全，想吃的基本都有，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3623,
+        "lora_confidence": null
+      },
+      {
+        "index": 34,
+        "text": "个人感觉，套餐搭配很合理，不用自己纠结点什么，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3942,
+        "lora_confidence": null
+      },
+      {
+        "index": 35,
+        "text": "说实话，响应及时，不用喊半天没人来，卫生做得很好，餐具都很干爽，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3844,
+        "lora_confidence": null
+      },
+      {
+        "index": 37,
+        "text": "环境卫生达标，吃得放心，食材很新鲜，海鲜都是活的，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3905,
+        "lora_confidence": null
+      },
+      {
+        "index": 38,
+        "text": "分量太少了，根本不够吃，还没到打烊时间就关门了",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3737,
+        "lora_confidence": null
+      },
+      {
+        "index": 39,
+        "text": "体验下来，环境嘈杂，用餐体验很差，可以参考一下",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4343,
+        "lora_confidence": null
+      },
+      {
+        "index": 40,
+        "text": "菜品很难吃，踩大雷了，环境嘈杂，用餐体验很差，可以参考一下",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4467,
+        "lora_confidence": null
+      },
+      {
+        "index": 41,
+        "text": "整体来说，经常有折扣，性价比更高了，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3723,
+        "lora_confidence": null
+      },
+      {
+        "index": 42,
+        "text": "装修很有特色，拍照很出片，上菜速度很快，没等多久，店里很干净，桌面地面都整洁，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.4035,
+        "lora_confidence": null
+      },
+      {
+        "index": 43,
+        "text": "体验下来，沙发座很软，久坐也不累，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3954,
+        "lora_confidence": null
+      },
+      {
+        "index": 44,
+        "text": "整体来说，座位太少了，等了半小时都没位置，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3663,
+        "lora_confidence": null
+      },
+      {
+        "index": 45,
+        "text": "讲真，会员福利不错，充值很值，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3954,
+        "lora_confidence": null
+      },
+      {
+        "index": 46,
+        "text": "体验下来，桌椅布局合理，用餐很舒适，空间布局合理，不会觉得压抑",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3812,
+        "lora_confidence": null
+      },
+      {
+        "index": 49,
+        "text": "说实话，充电插座很全，手机没电很方便，优惠活动很多，用券很划算，定价合理，不会虚高，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3894,
+        "lora_confidence": null
+      },
+      {
+        "index": 50,
+        "text": "讲真，菜单很丰富，下次还想试试别的，分量实打实，不会偷工减料，桌椅布局合理，用餐很舒适，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.4031,
+        "lora_confidence": null
+      },
+      {
+        "index": 53,
+        "text": "整体来说，会员福利不错，充值很值，分量实打实，不会偷工减料，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.399,
+        "lora_confidence": null
+      },
+      {
+        "index": 55,
+        "text": "出餐效率极低，饿到没胃口",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4462,
+        "lora_confidence": null
+      },
+      {
+        "index": 56,
+        "text": "讲真，食材不新鲜，吃着有异味，地面脏兮兮的，环境一言难尽，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4464,
+        "lora_confidence": null
+      },
+      {
+        "index": 57,
+        "text": "分量太少了，根本不够吃，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3731,
+        "lora_confidence": null
+      },
+      {
+        "index": 58,
+        "text": "各方面都不错，没有踩雷",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.381,
+        "lora_confidence": null
+      },
+      {
+        "index": 59,
+        "text": "说实话，套餐搭配很合理，不用自己纠结点什么",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3832,
+        "lora_confidence": null
+      },
+      {
+        "index": 61,
+        "text": "体验下来，等餐时间太久，催了好几次都没用",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4153,
+        "lora_confidence": null
+      },
+      {
+        "index": 62,
+        "text": "体验下来，菜品口感很好，咸淡适中，停车位充足，不用找半天车位，菜量很大，性价比拉满，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3962,
+        "lora_confidence": null
+      },
+      {
+        "index": 64,
+        "text": "个人感觉，等餐时间太久，催了好几次都没用，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3675,
+        "lora_confidence": null
+      },
+      {
+        "index": 65,
+        "text": "整体来说，没座了也不提前说，白跑一趟",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3693,
+        "lora_confidence": null
+      },
+      {
+        "index": 66,
+        "text": "整体来说，淡得像没放盐，一点味道都没有，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.374,
+        "lora_confidence": null
+      },
+      {
+        "index": 69,
+        "text": "讲真，服务员态度很差，爱答不理的，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3534,
+        "lora_confidence": null
+      },
+      {
+        "index": 71,
+        "text": "体验下来，菜单很丰富，下次还想试试别的，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3929,
+        "lora_confidence": null
+      },
+      {
+        "index": 72,
+        "text": "讲真，淡得像没放盐，一点味道都没有，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4206,
+        "lora_confidence": null
+      },
+      {
+        "index": 73,
+        "text": "讲真，口味一言难尽，再也不会点，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3733,
+        "lora_confidence": null
+      },
+      {
+        "index": 74,
+        "text": "个人感觉，桌椅布局合理，用餐很舒适，服务节奏把控得很好",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3945,
+        "lora_confidence": null
+      },
+      {
+        "index": 76,
+        "text": "店内设备很新，空调很足，优惠活动很多，用券很划算，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3976,
+        "lora_confidence": null
+      },
+      {
+        "index": 80,
+        "text": "体验下来，有专属停车场，停车很方便，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3642,
+        "lora_confidence": null
+      },
+      {
+        "index": 81,
+        "text": "服务节奏把控得很好，菜量很大，性价比拉满，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3852,
+        "lora_confidence": null
+      },
+      {
+        "index": 82,
+        "text": "体验下来，味道太差了，完全没法吃，可以参考一下",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.446,
+        "lora_confidence": null
+      },
+      {
+        "index": 83,
+        "text": "说实话，整体体验很棒，推荐大家来，打包很仔细，不会洒漏，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3912,
+        "lora_confidence": null
+      },
+      {
+        "index": 84,
+        "text": "整体来说，服务员态度很差，爱答不理的，蔬菜都蔫了，明显放了很久，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4395,
+        "lora_confidence": null
+      },
+      {
+        "index": 85,
+        "text": "个人感觉，店里太吵了，说话都听不清，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3639,
+        "lora_confidence": null
+      },
+      {
+        "index": 86,
+        "text": "讲真，店里太脏了，桌面都是油，订单做错了，还不给退换，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4463,
+        "lora_confidence": null
+      },
+      {
+        "index": 87,
+        "text": "停车免费，这点很加分，整体体验很棒，推荐大家来",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3769,
+        "lora_confidence": null
+      },
+      {
+        "index": 88,
+        "text": "环境很清静，不会吵得慌，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3802,
+        "lora_confidence": null
+      },
+      {
+        "index": 89,
+        "text": "体验下来，食材不新鲜，吃着有异味",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4465,
+        "lora_confidence": null
+      },
+      {
+        "index": 90,
+        "text": "个人感觉，有股怪味，明显坏了",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4128,
+        "lora_confidence": null
+      },
+      {
+        "index": 91,
+        "text": "体验下来，食材很新鲜，海鲜都是活的，套餐搭配很合理，不用自己纠结点什么，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3676,
+        "lora_confidence": null
+      },
+      {
+        "index": 92,
+        "text": "整体来说，综合感受很好，下次还会再来，优惠活动很多，用券很划算，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.4081,
+        "lora_confidence": null
+      },
+      {
+        "index": 94,
+        "text": "讲真，座位太少了，等了半小时都没位置，可以参考一下",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3693,
+        "lora_confidence": null
+      },
+      {
+        "index": 95,
+        "text": "体验下来，打包盒质量很好，不会软塌塌的，有专属停车场，停车很方便，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.381,
+        "lora_confidence": null
+      },
+      {
+        "index": 96,
+        "text": "说实话，服务节奏把控得很好",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.366,
+        "lora_confidence": null
+      },
+      {
+        "index": 97,
+        "text": "说实话，环境嘈杂，用餐体验很差，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3553,
+        "lora_confidence": null
+      },
+      {
+        "index": 98,
+        "text": "个人感觉，整体体验很棒，推荐大家来，环境很清静，不会吵得慌，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3796,
+        "lora_confidence": null
+      },
+      {
+        "index": 100,
+        "text": "音乐放得太大声，闹得慌，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3642,
+        "lora_confidence": null
+      },
+      {
+        "index": 101,
+        "text": "体验下来，菜端上来都凉了，影响口感，可以参考一下",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3737,
+        "lora_confidence": null
+      },
+      {
+        "index": 102,
+        "text": "说实话，性价比很高，这个价位能吃到这个品质很值，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.392,
+        "lora_confidence": null
+      },
+      {
+        "index": 103,
+        "text": "等餐时间太久，催了好几次都没用，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3742,
+        "lora_confidence": null
+      },
+      {
+        "index": 104,
+        "text": "说实话，价格太高了，完全不值这个价，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3699,
+        "lora_confidence": null
+      },
+      {
+        "index": 105,
+        "text": "整体来说，店里很安静，适合聊天，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.366,
+        "lora_confidence": null
+      },
+      {
+        "index": 106,
+        "text": "整体来说，卖相很棒，端上来就很有食欲",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3928,
+        "lora_confidence": null
+      },
+      {
+        "index": 107,
+        "text": "个人感觉，服务员态度很差，爱答不理的，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3586,
+        "lora_confidence": null
+      },
+      {
+        "index": 109,
+        "text": "说实话，分量太少了，根本不够吃，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3692,
+        "lora_confidence": null
+      },
+      {
+        "index": 112,
+        "text": "体验下来，停车位充足，不用找半天车位",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3607,
+        "lora_confidence": null
+      },
+      {
+        "index": 113,
+        "text": "环境很清静，不会吵得慌，店内很宽敞，坐着很舒服，菜量很大，性价比拉满，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3961,
+        "lora_confidence": null
+      },
+      {
+        "index": 114,
+        "text": "个人感觉，订单做错了，还不给退换，下次再试试别的",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3674,
+        "lora_confidence": null
+      },
+      {
+        "index": 115,
+        "text": "说实话，提前打烊，白跑一趟，可以参考一下",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3579,
+        "lora_confidence": null
+      },
+      {
+        "index": 116,
+        "text": "讲真，价格很实惠，人均不高，打包盒质量很好，不会软塌塌的，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3792,
+        "lora_confidence": null
+      },
+      {
+        "index": 118,
+        "text": "说实话，打包漏了，洒得袋子里都是",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3586,
+        "lora_confidence": null
+      },
+      {
+        "index": 120,
+        "text": "个人感觉，环境卫生达标，吃得放心，蔬菜脆嫩，吃得出很新鲜，桌椅布局合理，用餐很舒适，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3928,
+        "lora_confidence": null
+      },
+      {
+        "index": 121,
+        "text": "卖相很棒，端上来就很有食欲",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.4011,
+        "lora_confidence": null
+      },
+      {
+        "index": 122,
+        "text": "讲真，蔬菜脆嫩，吃得出很新鲜，个人感受哈",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3722,
+        "lora_confidence": null
+      },
+      {
+        "index": 124,
+        "text": "讲真，出餐效率很高，赶时间也没问题，装修很有格调，氛围感拉满",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.365,
+        "lora_confidence": null
+      },
+      {
+        "index": 125,
+        "text": "会员福利不错，充值很值，团购套餐分量足，很划算，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.4134,
+        "lora_confidence": null
+      },
+      {
+        "index": 126,
+        "text": "说实话，环境卫生达标，吃得放心，菜品摆盘很精致，拍照好看，味道很正宗，吃得出来是用心做的，可以参考一下",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3898,
+        "lora_confidence": null
+      },
+      {
+        "index": 127,
+        "text": "个人感觉，菜量小得离谱，性价比极低，仅供参考",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.4251,
+        "lora_confidence": null
+      },
+      {
+        "index": 128,
+        "text": "体验下来，店内很宽敞，坐着很舒服，打包盒质量很好，不会软塌塌的，下次再试试别的",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3952,
+        "lora_confidence": null
+      },
+      {
+        "index": 129,
+        "text": "说实话，优惠都是套路，实际根本没便宜，个人感受哈",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.3735,
+        "lora_confidence": null
+      },
+      {
+        "index": 130,
+        "text": "讲真，沙发座很软，久坐也不累",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3725,
+        "lora_confidence": null
+      },
+      {
+        "index": 131,
+        "text": "讲真，设备故障，影响用餐体验",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "NEGATIVE",
+        "baseline_confidence": 0.444,
+        "lora_confidence": null
+      },
+      {
+        "index": 133,
+        "text": "讲真，装修很有格调，氛围感拉满，不用排队，到店就有座，座位很宽敞，坐着不挤，仅供参考",
+        "true": "POSITIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.378,
+        "lora_confidence": null
+      }
+    ],
+    "regressions": [],
+    "disagreements": [
+      {
+        "index": 3,
+        "text": "个人感觉，停车场很远，走过来十分钟，可以参考一下",
+        "true": "NEGATIVE",
+        "baseline_pred": "NEUTRAL",
+        "lora_pred": "POSITIVE",
+        "baseline_confidence": 0.3629,
+        "lora_confidence": 0.9814
+      }
+    ],
+    "error_direction_stats": {
+      "baseline": {
+        "POSITIVE→NEUTRAL": 60,
+        "NEGATIVE→NEUTRAL": 44
+      },
+      "lora": {
+        "NEGATIVE→POSITIVE": 1,
+        "POSITIVE→NEUTRAL": 1
+      }
+    },
+    "high_confidence_errors": {
+      "baseline": [],
+      "lora": [
+        {
+          "index": 3,
+          "true": "NEGATIVE",
+          "pred": "POSITIVE",
+          "confidence": 0.9814
+        },
+        {
+          "index": 132,
+          "true": "POSITIVE",
+          "pred": "NEUTRAL",
+          "confidence": 0.9848
+        }
+      ]
+    },
+    "summary": {
+      "total_test_samples": 134,
+      "baseline_errors": 104,
+      "lora_errors": 2,
+      "improvements": 102,
+      "regressions": 0,
+      "disagreements": 1,
+      "net_improvement": 102
+    }
+  },
+  "error_analysis_report": "   总测试样本: 134\n   基线错分数: 104\n   LoRA 错分数: 2\n   改善样本（基线错→LoRA对）: 102\n   退化样本（基线对→LoRA错）: 0\n   预测不一致（两模型预测不同）: 1\n   净改善: 102\n\n   错分方向统计:\n     基线:\n       POSITIVE→NEUTRAL: 60\n       NEGATIVE→NEUTRAL: 44\n     LoRA:\n       NEGATIVE→POSITIVE: 1\n       POSITIVE→NEUTRAL: 1\n\n   高置信度错分（≥0.8）:\n     基线: 0 条\n     LoRA: 2 条\n\n   改善样本详情（102 条）:\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，不用排队，到店就有座，蔬菜脆嫩，吃得出很新鲜...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，店员很亲切，有需求都及时响应，菜品种类很多，选择空间大，个人感受哈...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 体验下来，蔬菜脆嫩，吃得出很新鲜，菜品种类很多，选择空间大，办事效率很高，加菜撤盘都很快，下次再试试别的...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 整体来说，价格很实惠，人均不高，打包盒质量很好，不会软塌塌的...\n     [NEGATIVE 基线→NEUTRAL LoRA→正确] 体验下来，服务员态度很差，爱答不理的，仅供参考...\n     [NEGATIVE 基线→NEUTRAL LoRA→正确] 肉质发柴，一看就不新鲜，店里太脏了，桌面都是油，个人感受哈...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 整体来说，出餐效率很高，赶时间也没问题，定价合理，不会虚高，可以参考一下...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 讲真，氛围安静，用餐体验很好...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 个人感觉，分量实打实，不会偷工减料，位置很好找，地铁出来就到，店员很亲切，有需求都及时响应，可以参考一下...\n     [POSITIVE 基线→NEUTRAL LoRA→正确] 说实话，店内设备很新，空调很足，办事效率很高，加菜撤盘都很快..."
+}

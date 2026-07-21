@@ -78,15 +78,21 @@ class LoRAAdapterLoader:
         )
 
         # 加载基础模型（num_labels=3，与训练时一致）
+        # ignore_mismatched_sizes=True 允许原始 2 类分类头被替换为 3 类
         base_model = AutoModelForSequenceClassification.from_pretrained(
             self.base_model_id,
             num_labels=len(SENTIMENT_LABELS),
+            ignore_mismatched_sizes=True,
         )
 
         # 叠加 LoRA adapter
         model = PeftModel.from_pretrained(base_model, str(self.adapter_dir))
         model = model.merge_and_unload() if device == "cpu" else model
         model.eval()
+
+        # 显式设置 3 分类标签映射（PEFT 合并后 id2label 可能被覆盖）
+        model.config.id2label = {i: label for i, label in enumerate(SENTIMENT_LABELS)}
+        model.config.label2id = {label: i for i, label in enumerate(SENTIMENT_LABELS)}
 
         # 加载 tokenizer
         tokenizer = AutoTokenizer.from_pretrained(str(self.tokenizer_dir))
@@ -145,6 +151,103 @@ class LoRAAdapterLoader:
         与 SentimentClassifier.predict_single 接口对齐，
         便于 evaluate_sentiment.py 中复用评测逻辑。
         """
+        from app.analytics.sentiment_classifier import SentimentResult
+
+        if not isinstance(text, str) or not text.strip():
+            return SentimentResult(
+                sentiment="NEUTRAL",
+                confidence=0.0,
+                model_version=self.model_version,
+            )
+
+        if self._pipeline is None:
+            self.load()
+
+        assert self._pipeline is not None
+
+        raw_output = self._pipeline(text.strip())
+        scores = _parse_pipeline_scores(raw_output)
+        clf = _get_calibrate_fn()
+        calibrated_label, top_score = clf(scores, text.strip())
+
+        return SentimentResult(
+            sentiment=calibrated_label,
+            confidence=top_score,
+            model_version=self.model_version,
+        )
+
+
+class BaselineModelLoader:
+    """加载基线模型（不带 LoRA adapter）并提供统一推理接口。
+
+    基线 = 基础模型以 num_labels=3 加载（分类头随机初始化），
+    与 LoRA 训练的起始状态完全一致，但不叠加 adapter。
+    这代表了"LoRA 训练前"的模型性能。
+    """
+
+    def __init__(
+        self,
+        base_model_id: str,
+        batch_size: int = 32,
+    ):
+        self.base_model_id = base_model_id
+        self.batch_size = batch_size
+        self._pipeline = None
+        self._model_version: str | None = None
+
+    @property
+    def model_version(self) -> str:
+        """返回模型版本标识。"""
+        if self._model_version is None:
+            raise RuntimeError("Model not loaded. Call load() first.")
+        return self._model_version
+
+    def load(self) -> None:
+        """加载基线模型（num_labels=3，与训练时一致）但不叠加 adapter。"""
+        import torch
+        from transformers import (
+            AutoModelForSequenceClassification,
+            AutoTokenizer,
+            pipeline,
+        )
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        logger.info(
+            "Loading baseline model: %s, device=%s",
+            self.base_model_id,
+            device,
+        )
+
+        # 以 num_labels=3 加载（与训练时一致，分类头随机初始化）
+        # ignore_mismatched_sizes=True 允许原始 2 类分类头被替换为 3 类
+        model = AutoModelForSequenceClassification.from_pretrained(
+            self.base_model_id,
+            num_labels=len(SENTIMENT_LABELS),
+            ignore_mismatched_sizes=True,
+        )
+        model.eval()
+
+        # 显式设置 3 分类标签映射
+        model.config.id2label = {i: label for i, label in enumerate(SENTIMENT_LABELS)}
+        model.config.label2id = {label: i for i, label in enumerate(SENTIMENT_LABELS)}
+
+        tokenizer = AutoTokenizer.from_pretrained(self.base_model_id)
+
+        self._pipeline = pipeline(
+            "text-classification",
+            model=model,
+            tokenizer=tokenizer,
+            device=0 if device == "cuda" else -1,
+            batch_size=self.batch_size,
+            top_k=None,
+        )
+
+        self._model_version = f"{self.base_model_id}@baseline"
+        logger.info("Baseline model loaded: %s", self._model_version)
+
+    def predict_single(self, text: str):
+        """单条推理，返回 SentimentResult。"""
         from app.analytics.sentiment_classifier import SentimentResult
 
         if not isinstance(text, str) or not text.strip():

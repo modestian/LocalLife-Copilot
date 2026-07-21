@@ -411,12 +411,12 @@ def main():
     tokenizer_dir = Path(args.tokenizer_dir) if args.tokenizer_dir else artifact_root / "tokenizer"
     snapshot_path = artifact_root / "config" / "training_snapshot.json"
 
-    # 2. 评测基线
+    # 2. 评测基线（base model 以 num_labels=3 加载，不叠加 adapter）
     print("\n2. 评测基线模型...")
-    from app.analytics.sentiment_classifier import SentimentClassifier
+    from evaluation.adapter_loader import BaselineModelLoader
 
-    baseline_clf = SentimentClassifier(model_name=args.base_model)
-    baseline_clf.load_model()
+    baseline_clf = BaselineModelLoader(base_model_id=args.base_model)
+    baseline_clf.load()
     baseline_result = evaluate_model_on_testset(test_data, baseline_clf)
     print(f"   基线 Macro-F1: {baseline_result['macro_f1']}")
     print(f"   基线 NEGATIVE Recall: {baseline_result['negative_recall']}")
