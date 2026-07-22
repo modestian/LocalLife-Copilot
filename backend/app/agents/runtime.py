@@ -16,7 +16,17 @@ from app.agents.memory import ConversationMemoryService
 from app.agents.persistence import GroundedResponsePersister
 from app.agents.routing import ClarificationPlanner, ConstraintExtractor, IntentRouter
 from app.agents.state import ChatState
-from app.agents.types import ChatConstraints, SafetyDecision, SafetyResult
+from app.agents.tools import (
+    KnowledgeSearchResult,
+    RegisteredToolPlanner,
+    ToolArgumentsInvalid,
+    ToolCallError,
+    ToolExecutionContext,
+    ToolExecutor,
+    ToolPlanner,
+)
+from app.agents.types import ChatConstraints, SafetyDecision, SafetyResult, SourceCitation
+from app.application.authorization import AuthorizationPrincipal
 from app.application.content_safety import ContentDirection, ContentSafetyService
 from app.application.conversations import (
     ConversationRepository,
@@ -28,6 +38,7 @@ from app.application.conversations import (
 
 _GENERAL_ANSWER = "你好！我可以帮你按距离、预算、菜系、氛围和用餐场景寻找商家。"
 _TOOL_HANDOFF_ANSWER = "这个请求需要调用受控工具；请通过已注册并授权的工具入口继续。"
+_TOOL_EMPTY_ANSWER = "受控工具未在当前授权范围内找到可用结果。"
 _BLOCKED_INPUT_ANSWER = "抱歉，这条请求包含受限内容，无法继续处理。"
 _BLOCKED_OUTPUT_ANSWER = "抱歉，生成结果未通过安全检查，请调整问题后重试。"
 
@@ -38,6 +49,7 @@ class ChatRunContext:
     retrieval_scope: RetrievalScope
     request_id: str
     parent_message_id: UUID | None
+    principal: AuthorizationPrincipal | None = None
     user_message: MessageView | None = None
     assistant_message: MessageView | None = None
     generation: GroundedGeneration | None = None
@@ -63,6 +75,8 @@ class ChatAgentRuntime:
         router: IntentRouter | None = None,
         extractor: ConstraintExtractor | None = None,
         clarification: ClarificationPlanner | None = None,
+        tool_executor: ToolExecutor | None = None,
+        tool_planner: ToolPlanner | None = None,
     ) -> None:
         self._repository = repository
         self._memory = memory
@@ -72,6 +86,8 @@ class ChatAgentRuntime:
         self._router = router or IntentRouter()
         self._extractor = extractor or ConstraintExtractor()
         self._clarification = clarification or ClarificationPlanner()
+        self._tool_executor = tool_executor
+        self._tool_planner = tool_planner or RegisteredToolPlanner()
         self._persister = GroundedResponsePersister(repository)
         self.graph = build_chat_graph(
             ChatGraphNodes(
@@ -98,16 +114,20 @@ class ChatAgentRuntime:
         query: str,
         retrieval_scope: RetrievalScope,
         request_id: str | None = None,
+        principal: AuthorizationPrincipal | None = None,
     ) -> ChatRunResult:
         normalized = query.strip()
         if not normalized:
             raise ValueError("query must not be blank")
         conversation = await self._repository.get_conversation(conversation_id, owner_user_id)
+        if principal is not None and principal.user_id != owner_user_id:
+            raise PermissionError("chat principal does not own this runtime request")
         context = ChatRunContext(
             owner_user_id=owner_user_id,
             retrieval_scope=retrieval_scope,
             request_id=request_id or str(uuid4()),
             parent_message_id=conversation.current_branch_message_id,
+            principal=principal,
         )
         result = await self.graph.ainvoke(
             {"conversation_id": str(conversation_id), "user_query": normalized},
@@ -203,11 +223,59 @@ class ChatAgentRuntime:
         )
         return {"answer": _GENERAL_ANSWER, "sources": ()}
 
-    def _tool_guard(self, _state: ChatState, runtime: Runtime[ChatRunContext]) -> dict[str, object]:
-        runtime.context.generation = GroundedGeneration(
-            _TOOL_HANDOFF_ANSWER, None, (), None, "tool_handoff"
+    async def _tool_guard(
+        self, state: ChatState, runtime: Runtime[ChatRunContext]
+    ) -> dict[str, object]:
+        context = runtime.context
+        if self._tool_executor is None:
+            context.generation = GroundedGeneration(
+                _TOOL_HANDOFF_ANSWER, None, (), None, "tool_runtime_unavailable"
+            )
+            return {"answer": _TOOL_HANDOFF_ANSWER, "sources": ()}
+
+        tool_context = ToolExecutionContext(
+            actor_id=context.owner_user_id,
+            request_id=context.request_id,
+            conversation_id=UUID(state["conversation_id"]),
+            retrieval_scope=context.retrieval_scope,
         )
-        return {"answer": _TOOL_HANDOFF_ANSWER, "sources": ()}
+        try:
+            invocation = self._tool_planner.plan(state["user_query"])
+        except ToolArgumentsInvalid as exc:
+            try:
+                await self._tool_executor.record_rejection(
+                    name="invalid.tool_call",
+                    arguments={},
+                    context=tool_context,
+                    error_code=exc.code,
+                )
+            except ToolCallError as audit_error:
+                exc = audit_error
+            generation = _tool_rejection_generation(exc.code)
+        else:
+            if context.principal is None:
+                await self._tool_executor.record_rejection(
+                    name=invocation.name,
+                    arguments=invocation.arguments,
+                    context=tool_context,
+                    error_code="TOOL_AUTHORIZATION_DENIED",
+                )
+                generation = _tool_rejection_generation("TOOL_AUTHORIZATION_DENIED")
+            else:
+                try:
+                    result = await self._tool_executor.invoke(
+                        invocation.name,
+                        invocation.arguments,
+                        principal=context.principal,
+                        context=tool_context,
+                    )
+                except ToolCallError as exc:
+                    generation = _tool_rejection_generation(exc.code)
+                else:
+                    generation = _tool_result_generation(invocation.name, result)
+
+        context.generation = generation
+        return {"answer": generation.answer, "sources": generation.sources}
 
     async def _output_guard(
         self, state: ChatState, runtime: Runtime[ChatRunContext]
@@ -281,6 +349,35 @@ class ChatAgentRuntime:
 
 def _assistant_request_id(request_id: str) -> str:
     return "assistant:" + hashlib.sha256(request_id.encode("utf-8")).hexdigest()[:32]
+
+
+def _tool_rejection_generation(code: str) -> GroundedGeneration:
+    answer = f"受控工具调用已拒绝（{code}）。"
+    return GroundedGeneration(answer, None, (), None, f"tool_rejected:{code}")
+
+
+def _tool_result_generation(name: str, result: object) -> GroundedGeneration:
+    if name != "knowledge.search" or not isinstance(result, KnowledgeSearchResult):
+        return _tool_rejection_generation("TOOL_RESULT_INVALID")
+    if not result.chunks:
+        return GroundedGeneration(_TOOL_EMPTY_ANSWER, None, (), f"tool:{name}", "tool_no_result")
+
+    sources = tuple(
+        SourceCitation(
+            chunk_id=chunk.chunk_id,
+            rank_no=rank,
+            source_location=chunk.source_location,
+            content_snapshot=chunk.content,
+            score=chunk.score,
+            evidence_id=f"S{rank}",
+        )
+        for rank, chunk in enumerate(result.chunks, start=1)
+    )
+    lines = ["受控工具查询结果："]
+    lines.extend(
+        f"- [S{rank}] {chunk.content.strip()}" for rank, chunk in enumerate(result.chunks, start=1)
+    )
+    return GroundedGeneration("\n".join(lines), None, sources, f"tool:{name}")
 
 
 def _constraints_from_settings(settings: dict[str, object]) -> ChatConstraints | None:
