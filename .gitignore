@@ -12,6 +12,7 @@ node_modules/
 dist/
 coverage/
 artifacts/tk-702-03/
+artifacts/tk-703-03/
 frontend/test-results/
 .idea/
 .vscode/
