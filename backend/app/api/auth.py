@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.api.dependencies.authorization import CurrentPrincipal
 from app.application.auth import AuthenticationError, AuthService, TokenPair
+from app.application.login_rate_limit import LoginRateLimiter, login_rate_limit_subject
 from app.core.api import success_response
 from app.core.errors import AppError
 
@@ -46,10 +47,20 @@ AuthServiceDependency = Annotated[AuthService, Depends(get_auth_service)]
 async def login(
     payload: LoginRequest, request: Request, service: AuthServiceDependency
 ) -> dict[str, Any]:
+    limiter: LoginRateLimiter = request.app.state.login_rate_limiter
+    client_ip = request.client.host if request.client is not None else "unknown"
+    subject = login_rate_limit_subject(payload.username, client_ip)
+    limit = await limiter.status(subject)
+    if limit.blocked:
+        raise _rate_limit_error(limit.retry_after_seconds)
     try:
         pair = await service.login(payload.username, payload.password)
     except AuthenticationError as exc:
+        limit = await limiter.record_failure(subject)
+        if limit.blocked:
+            raise _rate_limit_error(limit.retry_after_seconds) from exc
         raise AppError(401, "AUTH_INVALID_CREDENTIALS", "账号或密码错误") from exc
+    await limiter.reset(subject)
     return success_response(request, _token_response(pair).model_dump())
 
 
@@ -94,4 +105,13 @@ def _token_response(pair: TokenPair) -> TokenResponse:
         refresh_token=pair.refresh_token,
         expires_in=max(0, ceil((pair.access_expires_at - now).total_seconds())),
         refresh_expires_in=max(0, ceil((pair.refresh_expires_at - now).total_seconds())),
+    )
+
+
+def _rate_limit_error(retry_after_seconds: int) -> AppError:
+    return AppError(
+        429,
+        "AUTH_RATE_LIMITED",
+        "登录失败次数过多，请稍后重试",
+        headers={"Retry-After": str(max(1, retry_after_seconds))},
     )

@@ -39,6 +39,7 @@ from app.application.content_safety import ContentSafetyService
 from app.application.dataset_service import DatasetService
 from app.application.feedback import FeedbackService
 from app.application.knowledge import KnowledgeService
+from app.application.login_rate_limit import InMemoryLoginRateLimiter
 from app.application.websocket_tokens import WebSocketTokenService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
@@ -47,6 +48,7 @@ from app.core.readiness import ReadinessCheck, build_readiness_checks
 from app.core.security import AccessTokenService, PasswordService
 from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.infrastructure.cache.conversations import RedisConversationMemory
+from app.infrastructure.cache.login_rate_limit import RedisLoginRateLimiter
 from app.infrastructure.db.repositories.audit import SQLAlchemyAuditRepository
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
 from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
@@ -113,6 +115,11 @@ def create_app(
         app.state.governance_repository = SQLAlchemyGovernanceRepository(session_factory)
 
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
+        app.state.login_rate_limiter = RedisLoginRateLimiter(
+            redis_client,
+            max_attempts=app_settings.login_rate_limit_attempts,
+            window_seconds=app_settings.login_rate_limit_window_seconds,
+        )
         app.state.websocket_token_service = WebSocketTokenService(redis_client)
         app.state.websocket_heartbeat_interval = 30.0
         knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
@@ -176,6 +183,10 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = app_settings
+    app.state.login_rate_limiter = InMemoryLoginRateLimiter(
+        max_attempts=app_settings.login_rate_limit_attempts,
+        window_seconds=app_settings.login_rate_limit_window_seconds,
+    )
     app.state.metrics_registry = MetricsRegistry()
     install_api_contract(app, app_settings)
     app.add_middleware(
