@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import asdict, dataclass
+from typing import Protocol
 from uuid import UUID, uuid4
 
 from anyio import to_thread
@@ -43,12 +44,23 @@ _BLOCKED_INPUT_ANSWER = "抱歉，这条请求包含受限内容，无法继续�
 _BLOCKED_OUTPUT_ANSWER = "抱歉，生成结果未通过安全检查，请调整问题后重试。"
 
 
+class ModelRoutingDecision(Protocol):
+    model_version_id: UUID
+
+
+class ModelVersionRouter(Protocol):
+    async def resolve(
+        self, scene: str, environment: str, routing_key: str
+    ) -> ModelRoutingDecision | None: ...
+
+
 @dataclass(slots=True)
 class ChatRunContext:
     owner_user_id: UUID
     retrieval_scope: RetrievalScope
     request_id: str
     parent_message_id: UUID | None
+    model_version_id: UUID | None = None
     principal: AuthorizationPrincipal | None = None
     user_message: MessageView | None = None
     assistant_message: MessageView | None = None
@@ -77,6 +89,9 @@ class ChatAgentRuntime:
         clarification: ClarificationPlanner | None = None,
         tool_executor: ToolExecutor | None = None,
         tool_planner: ToolPlanner | None = None,
+        model_router: ModelVersionRouter | None = None,
+        model_scene: str = "chat",
+        model_environment: str = "development",
     ) -> None:
         self._repository = repository
         self._memory = memory
@@ -88,6 +103,9 @@ class ChatAgentRuntime:
         self._clarification = clarification or ClarificationPlanner()
         self._tool_executor = tool_executor
         self._tool_planner = tool_planner or RegisteredToolPlanner()
+        self._model_router = model_router
+        self._model_scene = model_scene
+        self._model_environment = model_environment
         self._persister = GroundedResponsePersister(repository)
         self.graph = build_chat_graph(
             ChatGraphNodes(
@@ -122,11 +140,22 @@ class ChatAgentRuntime:
         conversation = await self._repository.get_conversation(conversation_id, owner_user_id)
         if principal is not None and principal.user_id != owner_user_id:
             raise PermissionError("chat principal does not own this runtime request")
+        effective_request_id = request_id or str(uuid4())
+        model_version_id = None
+        if self._model_router is not None:
+            routing = await self._model_router.resolve(
+                self._model_scene,
+                self._model_environment,
+                f"{owner_user_id}:{conversation_id}:{effective_request_id}",
+            )
+            if routing is not None:
+                model_version_id = routing.model_version_id
         context = ChatRunContext(
             owner_user_id=owner_user_id,
             retrieval_scope=retrieval_scope,
-            request_id=request_id or str(uuid4()),
+            request_id=effective_request_id,
             parent_message_id=conversation.current_branch_message_id,
+            model_version_id=model_version_id,
             principal=principal,
         )
         result = await self.graph.ainvoke(
@@ -314,6 +343,7 @@ class ChatAgentRuntime:
             generation,
             request_id=_assistant_request_id(context.request_id),
             parent_message_id=context.parent_message_id,
+            model_version_id=context.model_version_id,
         )
         constraints = state.get("constraints")
         if constraints is not None:

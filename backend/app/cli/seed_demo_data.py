@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Final
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
 from app.cli.create_test_user import ROLE_NAMES
@@ -50,6 +50,10 @@ MERCHANT_SHUXIANG_ID: Final = UUID("70200000-0000-4000-8000-000000000021")
 MODEL_DEFINITION_ID: Final = UUID("70200000-0000-4000-8000-000000000030")
 MODEL_VERSION_V1_ID: Final = UUID("70200000-0000-4000-8000-000000000031")
 MODEL_VERSION_V2_ID: Final = UUID("70200000-0000-4000-8000-000000000032")
+CHAT_MODEL_DEFINITION_ID: Final = UUID("70200000-0000-4000-8000-000000000033")
+CHAT_MODEL_VERSION_ID: Final = UUID("70200000-0000-4000-8000-000000000034")
+CHAT_MODEL_DEPLOYMENT_ID: Final = UUID("70200000-0000-4000-8000-000000000091")
+CHAT_MODEL_VERSION: Final = "local-extractive-rag-v1"
 DOCUMENT_QINGHE_ID: Final = UUID("70200000-0000-4000-8000-000000000040")
 DOCUMENT_SHUXIANG_ID: Final = UUID("70200000-0000-4000-8000-000000000041")
 DOCUMENT_QINGHE_VERSION_ID: Final = UUID("70200000-0000-4000-8000-000000000042")
@@ -597,7 +601,7 @@ async def _seed_feedback(session: AsyncSession, user: User) -> None:
             role="ASSISTANT",
             content="适合。资料显示双人小菜套餐分量充足；午餐高峰建议错峰以避开排队。",
             status="COMPLETED",
-            model_version_id=MODEL_VERSION_V2_ID,
+            model_version_id=CHAT_MODEL_VERSION_ID,
             prompt_tokens=24,
             completion_tokens=36,
             latency_ms=120,
@@ -651,6 +655,73 @@ async def _seed_feedback(session: AsyncSession, user: User) -> None:
         )
 
 
+async def seed_chat_runtime_data(session: AsyncSession, *, admin: User) -> None:
+    """Register the built-in chat model and repair attributable local responses."""
+
+    await _add_if_missing(
+        session,
+        ModelDefinition(
+            id=CHAT_MODEL_DEFINITION_ID,
+            code="local-life-assistant",
+            name="本地抽取式 RAG 助手",
+            task_type="chat",
+            provider="local-extractive",
+            created_at=DEMO_TIME,
+            updated_at=DEMO_TIME,
+        ),
+    )
+    await _add_if_missing(
+        session,
+        ModelVersion(
+            id=CHAT_MODEL_VERSION_ID,
+            model_definition_id=CHAT_MODEL_DEFINITION_ID,
+            version=CHAT_MODEL_VERSION,
+            base_model_ref=CHAT_MODEL_VERSION,
+            adapter_uri=f"builtin://models/{CHAT_MODEL_VERSION}",
+            artifact_sha256=_sha256(CHAT_MODEL_VERSION),
+            dimension=None,
+            labels_json=None,
+            metrics_json={"fixture": "st-702", "runtime": "extractive-rag"},
+            status="APPROVED",
+            created_by=admin.id,
+            created_at=DEMO_TIME,
+        ),
+    )
+    await _add_if_missing(
+        session,
+        ModelDeployment(
+            id=CHAT_MODEL_DEPLOYMENT_ID,
+            scene="chat",
+            environment="development",
+            model_version_id=CHAT_MODEL_VERSION_ID,
+            traffic_percent=100,
+            action="FULL",
+            status="ACTIVE",
+            result="SUCCEEDED",
+            deployed_by=admin.id,
+            reason="Local extractive RAG chat runtime",
+            created_at=DEMO_TIME,
+        ),
+    )
+    # Repair only deterministic demo/runtime assistant rows.  Other historical
+    # messages remain untouched because their generating model cannot be proven.
+    await session.execute(
+        update(Message)
+        .where(Message.id == ASSISTANT_MESSAGE_ID)
+        .values(model_version_id=CHAT_MODEL_VERSION_ID)
+    )
+    await session.execute(
+        update(Message)
+        .where(
+            Message.role == "ASSISTANT",
+            Message.status == "COMPLETED",
+            Message.model_version_id.is_(None),
+            Message.request_id.like("assistant:%"),
+        )
+        .values(model_version_id=CHAT_MODEL_VERSION_ID)
+    )
+
+
 async def seed_demo_data(session: AsyncSession, *, password: str) -> DemoSeedSummary:
     """Insert the ST-702 fixture into an existing, migrated database."""
 
@@ -660,6 +731,7 @@ async def seed_demo_data(session: AsyncSession, *, password: str) -> DemoSeedSum
     users = await _seed_users(session, password)
     roles = await _seed_roles_and_permissions(session, users)
     await _seed_knowledge(session, users["admin"])
+    await seed_chat_runtime_data(session, admin=users["admin"])
     await _seed_resource_grants(session, users, roles)
     await _seed_reviews(session)
     await _seed_feedback(session, users["user"])
@@ -691,6 +763,14 @@ async def seed_demo_data(session: AsyncSession, *, password: str) -> DemoSeedSum
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Seed deterministic ST-702 demo data.")
     parser.add_argument(
+        "--repair-chat-runtime",
+        action="store_true",
+        help=(
+            "Register the local chat model and repair attributable messages without "
+            "resetting passwords."
+        ),
+    )
+    parser.add_argument(
         "--password-env",
         default="DEMO_SEED_PASSWORD",
         help="Environment variable containing the shared demo-account password.",
@@ -715,8 +795,34 @@ async def _run(password: str) -> DemoSeedSummary:
         await engine.dispose()
 
 
+async def repair_chat_runtime() -> None:
+    """Repair chat model metadata without changing existing demo credentials."""
+
+    settings = get_settings()
+    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    try:
+        async with AsyncSession(engine) as session, session.begin():
+            admin = await session.scalar(
+                select(User).where(User.normalized_username == "demo-admin")
+            )
+            if admin is None:
+                raise RuntimeError(
+                    "demo-admin is missing; run the documented demo seed command first"
+                )
+            await seed_chat_runtime_data(session, admin=admin)
+    finally:
+        await engine.dispose()
+
+
 def main() -> None:
     args = _parser().parse_args()
+    if args.repair_chat_runtime:
+        try:
+            asyncio.run(repair_chat_runtime())
+        except RuntimeError as exc:
+            raise SystemExit(str(exc)) from exc
+        print("Chat model registry and attributable messages repaired.")
+        return
     try:
         summary = asyncio.run(_run(_password_from_environment(args.password_env)))
     except ValueError as exc:

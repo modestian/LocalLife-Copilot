@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
@@ -97,18 +98,30 @@ class RecordingRetriever:
         return (self.chunk,)
 
 
+class RecordingModelRouter:
+    def __init__(self, model_version_id: UUID) -> None:
+        self.model_version_id = model_version_id
+        self.calls: list[tuple[str, str, str]] = []
+
+    async def resolve(self, scene: str, environment: str, routing_key: str):
+        self.calls.append((scene, environment, routing_key))
+        return SimpleNamespace(model_version_id=self.model_version_id)
+
+
 def _runtime(conversation: ConversationView):
     repository = RecordingRepository(conversation)
     memory = AsyncMock()
     memory.restore.return_value = MemoryWindow(conversation, (), "", None, 0)
     retriever = RecordingRetriever()
+    model_router = RecordingModelRouter(uuid4())
     runtime = ChatAgentRuntime(
         repository=repository,  # type: ignore[arg-type]
         memory=memory,
         retriever=retriever,
         generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+        model_router=model_router,  # type: ignore[arg-type]
     )
-    return runtime, repository, memory, retriever
+    return runtime, repository, memory, retriever, model_router
 
 
 def _scope() -> RetrievalScope:
@@ -121,7 +134,7 @@ def _scope() -> RetrievalScope:
 
 async def test_runtime_asks_for_missing_conditions_and_persists_turn() -> None:
     conversation = _conversation()
-    runtime, repository, _memory, retriever = _runtime(conversation)
+    runtime, repository, _memory, retriever, model_router = _runtime(conversation)
 
     result = await runtime.run(
         conversation_id=conversation.id,
@@ -138,6 +151,8 @@ async def test_runtime_asks_for_missing_conditions_and_persists_turn() -> None:
         MessageRole.USER,
         MessageRole.ASSISTANT,
     ]
+    assert repository.payloads[-1].model_version_id == model_router.model_version_id
+    assert model_router.calls[0][:2] == ("chat", "development")
 
 
 async def test_runtime_restores_constraints_then_retrieves_generates_and_cites() -> None:
@@ -150,7 +165,7 @@ async def test_runtime_restores_constraints_then_retrieves_generates_and_cites()
             }
         }
     )
-    runtime, repository, _memory, retriever = _runtime(conversation)
+    runtime, repository, _memory, retriever, _model_router = _runtime(conversation)
 
     result = await runtime.run(
         conversation_id=conversation.id,

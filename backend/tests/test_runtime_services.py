@@ -8,6 +8,7 @@ from app.agents.runtime import ChatAgentRuntime
 from app.agents.tools import ToolExecutor, ToolRegistry
 from app.application.auth import AuthService
 from app.application.authorization import AuthorizationService
+from app.application.model_routing import ModelRouter
 from app.core.config import Settings
 from app.infrastructure.cache.conversations import RedisConversationMemory
 from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
@@ -90,6 +91,7 @@ def test_api_lifespan_wires_authentication_and_authorization_services(monkeypatc
         assert isinstance(app.state.agent_memory, ConversationMemoryService)
         assert isinstance(app.state.tool_registry, ToolRegistry)
         assert isinstance(app.state.tool_executor, ToolExecutor)
+        assert isinstance(app.state.model_router, ModelRouter)
         assert app.state.tool_registry.get("knowledge.search") is not None
         assert isinstance(app.state.agent_runtime, ChatAgentRuntime)
 
