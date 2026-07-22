@@ -75,8 +75,25 @@ jobs:
         run: ruff format --check .
       - name: Run migrations against an empty database
         run: alembic upgrade head
-      - name: Test
-        run: python -m pytest --cov=app --cov-report=term-missing --cov-fail-under=70
+      - name: Test and generate coverage report
+        run: |
+          mkdir -p coverage
+          python -m pytest \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage/coverage.xml \
+            --cov-report=json:coverage/coverage.json \
+            --cov-fail-under=70
+      - name: Upload backend coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-${{ github.sha }}
+          path: |
+            backend/coverage/coverage.xml
+            backend/coverage/coverage.json
+          if-no-files-found: error
+          retention-days: 14
 
   frontend:
     name: Frontend lint, test and build
