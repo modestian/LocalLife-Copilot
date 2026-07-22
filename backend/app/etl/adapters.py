@@ -1,6 +1,6 @@
 """Production adapters for ingestion source files and search projections."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import AbstractContextManager
 from pathlib import Path
 from typing import BinaryIO
@@ -127,8 +127,47 @@ class OpenSearchProjection:
             "source_location",
             "category_ids",
             "price_cent",
-            "location",
         ):
             if (value := chunk.metadata.get(field)) is not None:
                 source[field] = value
+        if (location := _geo_location(chunk.metadata.get("location"))) is not None:
+            source["location"] = location
         return source
+
+
+def _geo_location(value: object) -> dict[str, float] | list[float] | str | None:
+    """Return a value accepted by the OpenSearch ``geo_point`` mapping.
+
+    Loaders use ``location`` as a human-readable source locator. Projecting a
+    filename or content hash into the search index's geographic field causes
+    all real file uploads to fail indexing, so only validated coordinates are
+    exposed as the top-level geo point.
+    """
+
+    if isinstance(value, Mapping):
+        latitude = value.get("lat")
+        longitude = value.get("lon")
+        if _is_coordinate(latitude, -90, 90) and _is_coordinate(longitude, -180, 180):
+            return {"lat": float(latitude), "lon": float(longitude)}
+        return None
+    if isinstance(value, list) and len(value) == 2:
+        longitude, latitude = value
+        if _is_coordinate(latitude, -90, 90) and _is_coordinate(longitude, -180, 180):
+            return [float(longitude), float(latitude)]
+        return None
+    if isinstance(value, str):
+        try:
+            latitude, longitude = (float(part.strip()) for part in value.split(",", maxsplit=1))
+        except ValueError:
+            return None
+        if _is_coordinate(latitude, -90, 90) and _is_coordinate(longitude, -180, 180):
+            return f"{latitude},{longitude}"
+    return None
+
+
+def _is_coordinate(value: object, minimum: float, maximum: float) -> bool:
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and minimum <= value <= maximum
+    )

@@ -322,6 +322,7 @@ async def _seed_users(session: AsyncSession, password: str) -> dict[str, User]:
                 normalized_email=f"{spec.username}@demo.local",
                 password_hash=password_hash,
                 display_name=spec.display_name,
+                department_id=DEMO_TENANT_ID,
                 status="ACTIVE",
                 created_at=DEMO_TIME,
                 updated_at=DEMO_TIME,
@@ -332,6 +333,7 @@ async def _seed_users(session: AsyncSession, password: str) -> dict[str, User]:
             # when the prior run used a different locally supplied password.
             user.password_hash = password_hash
             user.display_name = spec.display_name
+            user.department_id = DEMO_TENANT_ID
             user.status = "ACTIVE"
             user.login_failed_count = 0
             user.locked_until = None
@@ -339,6 +341,21 @@ async def _seed_users(session: AsyncSession, password: str) -> dict[str, User]:
         users[spec.key] = user
     await session.flush()
     return users
+
+
+async def _seed_demo_department(session: AsyncSession) -> None:
+    await _add_if_missing(
+        session,
+        Department(
+            id=DEMO_TENANT_ID,
+            code="DEMO",
+            name="ST-702 演示租户",
+            path="/DEMO",
+            status="ACTIVE",
+            created_at=DEMO_TIME,
+            updated_at=DEMO_TIME,
+        ),
+    )
 
 
 async def _seed_resource_grants(
@@ -378,18 +395,6 @@ async def _seed_resource_grants(
 
 
 async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
-    await _add_if_missing(
-        session,
-        Department(
-            id=DEMO_TENANT_ID,
-            code="DEMO",
-            name="ST-702 演示租户",
-            path="/DEMO",
-            status="ACTIVE",
-            created_at=DEMO_TIME,
-            updated_at=DEMO_TIME,
-        ),
-    )
     await _add_if_missing(
         session,
         ModelDefinition(
@@ -599,6 +604,12 @@ async def _seed_feedback(session: AsyncSession, user: User) -> None:
             created_at=DEMO_TIME,
         ),
     )
+    await session.flush()
+    conversation = await session.get(Conversation, CONVERSATION_ID)
+    if conversation is None:
+        raise RuntimeError("seeded conversation was not persisted")
+    conversation.current_branch_message_id = ASSISTANT_MESSAGE_ID
+    conversation.updated_at = DEMO_TIME
     if await session.get(MessageSource, (ASSISTANT_MESSAGE_ID, CHUNK_QINGHE_ID)) is None:
         session.add(
             MessageSource(
@@ -645,6 +656,7 @@ async def seed_demo_data(session: AsyncSession, *, password: str) -> DemoSeedSum
 
     if not password:
         raise ValueError("demo seed password must not be blank")
+    await _seed_demo_department(session)
     users = await _seed_users(session, password)
     roles = await _seed_roles_and_permissions(session, users)
     await _seed_knowledge(session, users["admin"])

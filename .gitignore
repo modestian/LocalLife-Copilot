@@ -11,6 +11,8 @@ htmlcov/
 node_modules/
 dist/
 coverage/
+artifacts/tk-702-03/
+frontend/test-results/
 .idea/
 .vscode/
 *.log
