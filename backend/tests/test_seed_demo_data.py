@@ -9,6 +9,7 @@ from app.cli.seed_demo_data import (
     CHAT_MODEL_VERSION_ID,
     CHUNK_QINGHE_ID,
     CHUNK_SHUXIANG_ID,
+    DEMO_KNOWLEDGE_ROLE_CODES,
     DEMO_QUESTIONS,
     DEMO_USERS,
     QUESTION_SET_PATH,
@@ -32,6 +33,7 @@ def test_demo_seed_fixture_has_stable_core_coverage() -> None:
     assert DEMO_QUESTIONS[-1]["expected_fallback"] is True
     assert CHAT_MODEL_VERSION == "local-extractive-rag-v1"
     assert CHAT_MODEL_VERSION_ID != CHAT_MODEL_DEPLOYMENT_ID
+    assert DEMO_KNOWLEDGE_ROLE_CODES == ("USER", "MERCHANT_ADMIN", "PLATFORM_ADMIN")
 
 
 def test_question_file_matches_the_seeded_question_set() -> None:

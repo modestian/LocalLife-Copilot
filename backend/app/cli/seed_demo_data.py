@@ -91,6 +91,7 @@ DEMO_USERS: Final = (
     DemoUser("user", "demo-user", "演示探店用户", "USER"),
     DemoUser("merchant", "demo-merchant", "演示商家运营", "MERCHANT_ADMIN"),
 )
+DEMO_KNOWLEDGE_ROLE_CODES: Final = ("USER", "MERCHANT_ADMIN", "PLATFORM_ADMIN")
 
 DEMO_QUESTIONS: Final = (
     {
@@ -385,6 +386,10 @@ async def _seed_resource_grants(
         ("USER", users["user"].id, "MERCHANT", MERCHANT_QINGHE_ID),
         ("ROLE", roles["MERCHANT_ADMIN"].id, "MERCHANT", MERCHANT_QINGHE_ID),
         ("ROLE", roles["MERCHANT_ADMIN"].id, "MERCHANT", MERCHANT_SHUXIANG_ID),
+        *(
+            ("ROLE", roles[role_code].id, "KNOWLEDGE_BASE", KNOWLEDGE_BASE_ID)
+            for role_code in DEMO_KNOWLEDGE_ROLE_CODES
+        ),
     )
     for offset, (subject_type, subject_id, resource_type, resource_id) in enumerate(
         grants, start=1
