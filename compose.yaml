@@ -146,6 +146,24 @@ services:
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
 
+  seed:
+    build:
+      context: ./backend
+    command: ["python", "-m", "app.cli.seed_demo_data"]
+    environment:
+      <<: *api-environment
+      DEMO_SEED_PASSWORD: ${DEMO_SEED_PASSWORD:-local-life-demo-2026}
+    networks: [backend]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      model-gateway:
+        condition: service_healthy
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
   prepare-knowledge-data:
     build:
       context: ./backend
@@ -169,6 +187,8 @@ services:
       migrate:
         condition: service_completed_successfully
       init:
+        condition: service_completed_successfully
+      seed:
         condition: service_completed_successfully
       prepare-knowledge-data:
         condition: service_completed_successfully

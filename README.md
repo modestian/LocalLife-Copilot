@@ -10,6 +10,7 @@ LocalLife Copilot 使用 Docker Compose 编排以下容器：
 - `mysql`、`redis`、`opensearch`：数据依赖
 - `migrate`：只执行 Alembic 数据库迁移的一次性任务
 - `init`：幂等初始化 OpenSearch 索引的一次性任务
+- `seed`：幂等初始化本地演示账号、知识数据和搜索向量的一次性任务
 
 项目设计、开发协作和数据标注文档见 [项目文档导航](./docs/README.md)。
 
@@ -58,8 +59,9 @@ docker compose up --build --wait
 1. MySQL、Redis、OpenSearch 和本地模型网关启动并通过健康检查。
 2. `migrate` 仅执行 `alembic upgrade head`。
 3. `init` 在迁移成功后幂等创建 OpenSearch 索引。
-4. 只有 `migrate` 和 `init` 成功，API 与 worker 才会启动。
-5. 前端启动后，Nginx 最后进入 healthy。
+4. `seed` 创建演示账号和知识数据，并将 Chunk 真正写入 OpenSearch。
+5. 只有 `migrate`、`init` 和 `seed` 成功，API 与 worker 才会启动。
+6. 前端启动后，Nginx 最后进入 healthy。
 
 如果迁移或初始化失败，命令会返回失败，API、worker、前端和 Nginx 不会进入就绪状态。
 
@@ -103,7 +105,11 @@ docker compose ps -a
 正常结果：
 
 - `mysql`、`redis`、`opensearch`、`model-gateway`、`api`、`worker`、`frontend`、`nginx` 为 `healthy`。
-- `migrate` 和 `init` 为 `Exited (0)`，它们不是常驻服务。
+- `migrate`、`init` 和 `seed` 为 `Exited (0)`，它们不是常驻服务。
+
+首次启动后可使用 `demo-user` 登录并直接测试探店问答，默认开发密码为
+`local-life-demo-2026`。该密码仅用于绑定在本机回环地址上的开发环境；如需共享部署，
+请在 `.env` 中覆盖 `DEMO_SEED_PASSWORD`。
 
 执行黑盒检查：
 
