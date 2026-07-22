@@ -24,11 +24,13 @@ const props = withDefaults(defineProps<{
   initialConversations?: ConversationSummary[]
   stream?: WebSocketChatController
   readOnly?: boolean
+  knowledgeBaseIds?: string[]
 }>(), {
   api: () => conversationApi,
   initialConversations: () => [],
   stream: undefined,
   readOnly: false,
+  knowledgeBaseIds: () => [],
 })
 
 interface SceneOption {
@@ -263,7 +265,7 @@ async function sendMessage(): Promise<void> {
     query.value = ''
     await scrollToLatest()
 
-    await stream.send(conversationId, composedContent)
+    await stream.send(conversationId, composedContent, props.knowledgeBaseIds)
   } catch (error: unknown) {
     query.value = content
     if (streamingMessageId.value) {

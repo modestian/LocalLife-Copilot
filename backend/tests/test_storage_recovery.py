@@ -70,8 +70,12 @@ def test_reconcile_identifies_missing_duplicate_orphan_drift_and_noncanonical_id
 def test_chunk_record_overrides_untrusted_scope_metadata() -> None:
     record = fact().to_chunk_record()
 
+    assert record.metadata["chunk_id"] == "70200000-0000-4000-8000-000000000044"
     assert record.metadata["tenant_id"] == "70200000-0000-4000-8000-000000000001"
     assert record.metadata["knowledge_base_id"] == "70200000-0000-4000-8000-000000000010"
+    assert record.metadata["resource_scope"] == [
+        "KNOWLEDGE_BASE:70200000-0000-4000-8000-000000000010"
+    ]
     assert record.metadata["merchant_id"] == "merchant-1"
 
 

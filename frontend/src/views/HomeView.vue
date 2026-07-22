@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import { getReadiness } from '@/api/health'
 import ConversationWorkspace from '@/components/ConversationWorkspace.vue'
@@ -11,6 +11,13 @@ type ApiState = 'checking' | 'ready' | 'unavailable'
 
 const apiState = ref<ApiState>('checking')
 const authStore = useAuthStore()
+const knowledgeBaseIds = computed(() => (
+  authStore.currentUser?.resource_scopes
+    .filter((scope) => (
+      scope.resource_type === 'KNOWLEDGE_BASE' && scope.actions.includes('READ')
+    ))
+    .map((scope) => scope.resource_id) ?? []
+))
 
 onMounted(async () => {
   try {
@@ -46,7 +53,10 @@ onMounted(async () => {
       label="API 与数据依赖"
       :state="apiState"
     />
-    <ConversationWorkspace :read-only="!authStore.isAuthenticated" />
+    <ConversationWorkspace
+      :knowledge-base-ids="knowledgeBaseIds"
+      :read-only="!authStore.isAuthenticated"
+    />
     <nav aria-label="开发入口">
       <a
         href="/docs"

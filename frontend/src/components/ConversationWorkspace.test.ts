@@ -117,7 +117,9 @@ describe('ConversationWorkspace', () => {
     const stream = createStream({
       content: '可以看看三公里内有插座且工作日下午较安静的咖啡馆。',
     })
-    const wrapper = mount(ConversationWorkspace, { props: { api, stream } })
+    const wrapper = mount(ConversationWorkspace, {
+      props: { api, stream, knowledgeBaseIds: ['kb-study'] },
+    })
     await flushPromises()
 
     await wrapper.get('[data-scenario="study"]').trigger('click')
@@ -133,6 +135,7 @@ describe('ConversationWorkspace', () => {
     expect(stream.send).toHaveBeenCalledWith(
       'conversation-new',
       expect.stringContaining('场景：学习办公；距离：3 公里内；预算：人均 60 元以内；菜系/品类：咖啡'),
+      ['kb-study'],
     )
     expect(wrapper.text()).toContain('适合学习办公')
     expect(wrapper.text()).toContain('三公里内有插座')
@@ -191,6 +194,7 @@ describe('ConversationWorkspace', () => {
     expect(stream.send).toHaveBeenCalledWith(
       'conversation-history',
       expect.stringContaining('把预算限制在人均 80 元以内'),
+      [],
     )
     expect(wrapper.text()).toContain('已缩小到人均 80 元以内')
   })

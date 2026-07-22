@@ -195,7 +195,7 @@ class SQLAlchemyLifecycleRepository:
                     content_hash=row.content_hash,
                     token_count=row.token_count,
                     page_number=row.page_number,
-                    metadata=dict(row.metadata_json),
+                    metadata={**dict(row.metadata_json), "chunk_id": str(row.id)},
                 )
                 for row in rows
             ]

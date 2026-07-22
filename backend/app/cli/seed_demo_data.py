@@ -463,6 +463,10 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
             "工作日 11:30 至 12:30 排队较多，建议错峰到店；门店环境简洁，服务员会主动安排拼桌。",
             MERCHANT_QINGHE_ID,
             "清河面馆",
+            4500,
+            1200,
+            "面馆",
+            ["面馆", "中餐"],
         ),
         (
             DOCUMENT_SHUXIANG_ID,
@@ -474,6 +478,10 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
             "周末 14:00 至 16:00 客流较高，咖啡和甜点需要等候；请优先预约安静区域。",
             MERCHANT_SHUXIANG_ID,
             "书香咖啡馆",
+            5800,
+            850,
+            "咖啡馆",
+            ["咖啡", "咖啡馆"],
         ),
     )
     for (
@@ -485,6 +493,10 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
         content,
         merchant_id,
         merchant_name,
+        price_cent,
+        distance_meter,
+        category,
+        category_ids,
     ) in document_content:
         await _add_if_missing(
             session,
@@ -518,6 +530,18 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
                 created_at=DEMO_TIME,
             ),
         )
+        metadata = {
+            "merchant_id": str(merchant_id),
+            "merchant_name": merchant_name,
+            "source_url": f"/app/documents/{document_id}",
+            "resource_scope": [f"KNOWLEDGE_BASE:{KNOWLEDGE_BASE_ID}"],
+            "business_status": "OPEN",
+            "price_cent": price_cent,
+            "distance_meter": distance_meter,
+            "category": category,
+            "category_ids": category_ids,
+            "last_verified_at": DEMO_TIME.isoformat(),
+        }
         await _add_if_missing(
             session,
             Chunk(
@@ -528,11 +552,7 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
                 content_hash=_sha256(content),
                 token_count=len(content),
                 page_number=1,
-                metadata_json={
-                    "merchant_id": str(merchant_id),
-                    "merchant_name": merchant_name,
-                    "source_url": f"/app/documents/{document_id}",
-                },
+                metadata_json=metadata,
                 embedding_model_version_id=MODEL_VERSION_V2_ID,
                 opensearch_document_id=f"demo-{document_id}",
                 index_status="INDEXED",
@@ -541,6 +561,10 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
                 updated_at=DEMO_TIME,
             ),
         )
+        chunk = await session.get(Chunk, chunk_id)
+        if chunk is None:
+            raise RuntimeError("seeded chunk was not persisted")
+        chunk.metadata_json = metadata
 
 
 async def _seed_reviews(session: AsyncSession) -> None:

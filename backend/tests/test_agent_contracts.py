@@ -73,7 +73,12 @@ def test_hybrid_search_adapter_maps_constraints_scope_and_ranked_hits() -> None:
                     "content": "安静，适合聊天。",
                     "source_location": "reviews/1#2",
                     "merchant_id": "merchant-1",
-                    "updated_at": "2026-07-20T00:00:00Z",
+                    "metadata": {
+                        "merchant_name": "安静小馆",
+                        "category": "川菜",
+                        "distance_meter": 800,
+                        "last_verified_at": "2026-07-20T00:00:00Z",
+                    },
                 },
                 fused_score=0.5,
                 final_score=0.8,
@@ -105,6 +110,9 @@ def test_hybrid_search_adapter_maps_constraints_scope_and_ranked_hits() -> None:
 
     assert result[0].chunk_id == "chunk-1"
     assert result[0].source_location == "reviews/1#2"
+    assert result[0].metadata["merchant_name"] == "安静小馆"
+    assert result[0].metadata["distance_meter"] == 800
+    assert result[0].data_updated_at == "2026-07-20T00:00:00Z"
     service.search.assert_called_once_with(
         "安静的川菜",
         TrustedSearchScope(
