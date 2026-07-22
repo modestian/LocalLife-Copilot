@@ -79,7 +79,11 @@ async def submit_feedback(
     except ConversationMismatchError as exc:
         raise AppError(422, "FEEDBACK_CONVERSATION_MISMATCH", str(exc)) from exc
     except MissingModelError as exc:
-        raise AppError(422, "FEEDBACK_MISSING_MODEL_VERSION", str(exc)) from exc
+        raise AppError(
+            422,
+            "FEEDBACK_MISSING_MODEL_VERSION",
+            "该回答缺少模型版本信息，请重新生成回答后再提交反馈",
+        ) from exc
     except NegativeFeedbackContentError as exc:
         raise AppError(422, "FEEDBACK_NEGATIVE_CONTENT_REQUIRED", str(exc)) from exc
 

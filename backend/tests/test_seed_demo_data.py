@@ -4,6 +4,9 @@ from uuid import UUID
 import pytest
 
 from app.cli.seed_demo_data import (
+    CHAT_MODEL_DEPLOYMENT_ID,
+    CHAT_MODEL_VERSION,
+    CHAT_MODEL_VERSION_ID,
     DEMO_QUESTIONS,
     DEMO_USERS,
     QUESTION_SET_PATH,
@@ -22,6 +25,8 @@ def test_demo_seed_fixture_has_stable_core_coverage() -> None:
     assert len({row["merchant_id"] for row in reviews}) == 2
     assert all(UUID(str(row["id"])) for row in reviews)
     assert DEMO_QUESTIONS[-1]["expected_fallback"] is True
+    assert CHAT_MODEL_VERSION == "local-extractive-rag-v1"
+    assert CHAT_MODEL_VERSION_ID != CHAT_MODEL_DEPLOYMENT_ID
 
 
 def test_question_file_matches_the_seeded_question_set() -> None:
@@ -38,6 +43,8 @@ def test_demo_seed_password_is_read_from_a_named_environment_variable(
 
     assert _password_from_environment("ST_702_TEST_PASSWORD") == "local-only-password"
     assert _parser().parse_args([]).password_env == "DEMO_SEED_PASSWORD"
+    assert _parser().parse_args([]).repair_chat_runtime is False
+    assert _parser().parse_args(["--repair-chat-runtime"]).repair_chat_runtime is True
 
 
 def test_demo_seed_rejects_missing_password(monkeypatch: pytest.MonkeyPatch) -> None:

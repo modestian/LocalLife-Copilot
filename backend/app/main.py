@@ -41,6 +41,7 @@ from app.application.dataset_service import DatasetService
 from app.application.feedback import FeedbackService
 from app.application.knowledge import KnowledgeService
 from app.application.login_rate_limit import InMemoryLoginRateLimiter
+from app.application.model_routing import ModelRouter
 from app.application.websocket_tokens import WebSocketTokenService
 from app.core.api import install_api_contract
 from app.core.config import Settings, get_settings
@@ -115,6 +116,7 @@ def create_app(
         app.state.audit_service = AuditQueryService(audit_repository)
         app.state.chat_log_service = ChatLogQueryService(audit_repository)
         app.state.governance_repository = SQLAlchemyGovernanceRepository(session_factory)
+        app.state.model_router = ModelRouter(session_factory)
 
         redis_client = Redis.from_url(app_settings.redis_url, decode_responses=True)
         app.state.login_rate_limiter = RedisLoginRateLimiter(
@@ -173,6 +175,8 @@ def create_app(
             generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
             safety=app.state.content_safety_service,
             tool_executor=app.state.tool_executor,
+            model_router=app.state.model_router,
+            model_environment=app_settings.app_environment,
         )
         app.state.readiness_checks = build_readiness_checks(
             engine,
