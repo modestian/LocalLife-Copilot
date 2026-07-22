@@ -135,12 +135,22 @@ class ConversationMemoryService:
         window = await self.restore(UUID(state["conversation_id"]), owner_user_id)
         return window.state_update()
 
+    async def invalidate(self, conversation_id: UUID) -> None:
+        """Invalidate the optional hot-history cache after durable writes.
+
+        The runtime writes messages to MySQL before restoring the next context
+        window.  Keeping cache invalidation on this service prevents callers
+        from reaching through to a particular Redis adapter and remains a
+        safe no-op for deployments that use durable history only.
+        """
+        if self._history_adapter is not None:
+            await self._history_adapter.invalidate(conversation_id)
+
     async def truncate(
         self, conversation_id: UUID, owner_user_id: UUID, message_id: UUID
     ) -> ConversationView:
         conversation = await self._repository.truncate(conversation_id, owner_user_id, message_id)
-        if self._history_adapter is not None:
-            await self._history_adapter.invalidate(conversation_id)
+        await self.invalidate(conversation_id)
         return conversation
 
     async def _load_visible_messages(

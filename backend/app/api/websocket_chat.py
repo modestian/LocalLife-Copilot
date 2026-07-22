@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from contextlib import suppress
 from typing import Any, Literal
@@ -18,6 +19,7 @@ from app.application.websocket_tokens import InvalidWebSocketToken
 from app.core.errors import AppError
 
 router = APIRouter(tags=["websocket-chat"])
+logger = logging.getLogger(__name__)
 
 
 class ChatOptionsDTO(BaseModel):
@@ -235,6 +237,14 @@ async def _serve_request(
     except AppError as exc:
         await send(_chat_error(exc.code, exc.message, False, event.request_id))
     except Exception:
+        logger.exception(
+            "WebSocket chat request failed",
+            extra={
+                "request_id": event.request_id,
+                "user_id": str(principal.user_id),
+                "conversation_id": str(event.conversation_id),
+            },
+        )
         await send(
             _chat_error(
                 "CHAT_STREAM_ERROR",
