@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from uuid import UUID
 
@@ -106,6 +107,26 @@ def test_opensearch_projection_uses_stable_ids_for_idempotent_upsert(monkeypatch
     assert captured[0]["_source"]["business_status"] == "OPEN"
     assert captured[0]["_source"]["valid_to"] == "2026-12-31T23:59:59Z"
     assert captured[0]["_source"]["content_vector"] == [0.1, 0.2, 0.3]
+
+
+def test_opensearch_projection_does_not_treat_source_locator_as_geo_point() -> None:
+    source = OpenSearchProjection._source(
+        VERSION_ID,
+        replace(chunk(), metadata={**chunk().metadata, "location": "uploads/store.md"}),
+        [0.1, 0.2, 0.3],
+    )
+
+    assert "location" not in source
+
+
+def test_opensearch_projection_keeps_valid_geo_point() -> None:
+    source = OpenSearchProjection._source(
+        VERSION_ID,
+        replace(chunk(), metadata={**chunk().metadata, "location": {"lat": 31.23, "lon": 121.47}}),
+        [0.1, 0.2, 0.3],
+    )
+
+    assert source["location"] == {"lat": 31.23, "lon": 121.47}
 
 
 def test_opensearch_projection_counts_and_deletes_one_document_version() -> None:

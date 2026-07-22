@@ -30,7 +30,7 @@ class MemoryStorage:
         self.content = content
 
     def open(self, uri: str) -> BytesIO:
-        assert uri == "memory://document"
+        assert uri.startswith("memory://document")
         return BytesIO(self.content)
 
 
@@ -378,6 +378,31 @@ def test_source_validation_reads_storage_in_bounded_blocks() -> None:
 
     assert storage.stream.read_sizes
     assert all(0 < size <= 64 * 1024 for size in storage.stream.read_sizes)
+
+
+def test_hashed_source_key_uses_filename_from_controlled_source_uri() -> None:
+    payload = b"# ST-702\nFresh environment ingestion evidence."
+    job = replace(
+        make_job(),
+        source_uri="memory://document/round-evidence.md",
+        source_key=hashlib.sha256(payload).hexdigest(),
+        source_sha256=hashlib.sha256(payload).hexdigest(),
+        source_size_bytes=len(payload),
+        mime_type="text/markdown",
+    )
+    repository = MemoryRepository(job)
+    service = WorkerLifecycleService(
+        repository,
+        MemoryStorage(payload),
+        MemoryProjection(),
+        lambda operation, task_id: None,
+        worker_id="worker-test",
+    )
+
+    result = service.ingest(TASK_ID)
+
+    assert result.status == "SUCCEEDED"
+    assert result.details["source_validation"]["mime_type"] == "text/markdown"
 
 
 @pytest.mark.parametrize(

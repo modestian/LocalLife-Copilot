@@ -146,6 +146,18 @@ services:
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
 
+  prepare-knowledge-data:
+    build:
+      context: ./backend
+    command: ["sh", "-c", "mkdir -p /data/knowledge && chown -R app:app /data/knowledge"]
+    user: "0:0"
+    volumes:
+      - knowledge-data:/data/knowledge
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
   api:
     build:
       context: ./backend
@@ -157,6 +169,8 @@ services:
       migrate:
         condition: service_completed_successfully
       init:
+        condition: service_completed_successfully
+      prepare-knowledge-data:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
