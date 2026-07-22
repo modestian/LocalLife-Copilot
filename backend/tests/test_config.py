@@ -73,3 +73,15 @@ def test_settings_reject_invalid_embedding_batch_size(value: int) -> None:
 def test_settings_reject_blank_embedding_model() -> None:
     with pytest.raises(ValidationError, match="embedding_model"):
         Settings(embedding_model=" ")
+
+
+@pytest.mark.parametrize("value", [1, 101])
+def test_settings_reject_invalid_login_rate_limit_attempts(value: int) -> None:
+    with pytest.raises(ValidationError, match="login_rate_limit_attempts"):
+        Settings(login_rate_limit_attempts=value)
+
+
+@pytest.mark.parametrize("value", [9, 3601])
+def test_settings_reject_invalid_login_rate_limit_window(value: int) -> None:
+    with pytest.raises(ValidationError, match="login_rate_limit_window_seconds"):
+        Settings(login_rate_limit_window_seconds=value)

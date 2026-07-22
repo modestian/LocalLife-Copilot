@@ -1,5 +1,4 @@
 import hashlib
-import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -28,6 +27,7 @@ from app.application.knowledge import (
     KnowledgeBasePatch,
     KnowledgeService,
 )
+from app.application.upload_security import UnsafeUploadError, validate_upload
 from app.core.api import success_response
 from app.core.errors import AppError
 from app.core.ids import uuid7
@@ -317,15 +317,24 @@ async def upload_documents(
         if not content or len(content) > request.app.state.settings.max_ingestion_source_bytes:
             raise AppError(413, "FILE_TOO_LARGE", f"文件 {upload.filename} 为空或超过大小限制")
         digest = hashlib.sha256(content).hexdigest()
-        filename = Path(upload.filename or "upload.bin").name
-        safe_name = re.sub(r"[^0-9A-Za-z._-]", "_", filename)[:200]
+        try:
+            validated = validate_upload(
+                upload.filename,
+                upload.content_type,
+                content,
+                max_uncompressed_bytes=request.app.state.settings.max_ingestion_source_bytes,
+            )
+        except UnsafeUploadError as exc:
+            raise AppError(400, "UNSAFE_UPLOAD", str(exc)) from exc
+        filename = validated.filename
+        safe_name = validated.safe_filename
         document = await _knowledge_service(request, principal).create_document(
             DocumentInput(
                 knowledge_base_id=knowledge_base_id,
                 source_type="FILE",
                 source_key=digest,
                 display_name=filename,
-                mime_type=upload.content_type,
+                mime_type=validated.mime_type,
             )
         )
         target = (

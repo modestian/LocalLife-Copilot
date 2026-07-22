@@ -294,3 +294,48 @@ def test_auth_api_login_refresh_replay_and_logout(
     assert replay.json()["code"] == "AUTH_INVALID_REFRESH_TOKEN"
     assert logout.status_code == 200
     assert after_logout.status_code == 401
+
+
+def test_login_rate_limit_blocks_repeated_failures_and_resets_after_success(
+    auth_components: tuple[AuthService, InMemoryAuthRepository, AccessTokenService],
+) -> None:
+    service, _, _ = auth_components
+    app = create_app(
+        readiness_checks={},
+        settings=Settings(login_rate_limit_attempts=3, login_rate_limit_window_seconds=60),
+    )
+    app.dependency_overrides[get_auth_service] = lambda: service
+
+    with TestClient(app) as client:
+        first = client.post(
+            "/api/v1/auth/login",
+            json={"username": "operator01", "password": "incorrect"},
+        )
+        success = client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "operator01",
+                "password": "correct horse battery staple",
+            },
+        )
+        failures = [
+            client.post(
+                "/api/v1/auth/login",
+                json={"username": "operator01", "password": "incorrect"},
+            )
+            for _ in range(3)
+        ]
+        blocked = client.post(
+            "/api/v1/auth/login",
+            json={
+                "username": "operator01",
+                "password": "correct horse battery staple",
+            },
+        )
+
+    assert first.status_code == 401
+    assert success.status_code == 200
+    assert [response.status_code for response in failures] == [401, 401, 429]
+    assert blocked.status_code == 429
+    assert blocked.json()["code"] == "AUTH_RATE_LIMITED"
+    assert 1 <= int(blocked.headers["Retry-After"]) <= 60

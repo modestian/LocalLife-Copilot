@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     jwt_audience: str = "local-life-copilot-api"
     access_token_ttl_minutes: int = 30
     refresh_token_ttl_days: int = 7
+    login_rate_limit_attempts: int = 5
+    login_rate_limit_window_seconds: int = 300
     cors_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
@@ -95,6 +97,20 @@ class Settings(BaseSettings):
     def validate_refresh_token_ttl(cls, value: int) -> int:
         if not 1 <= value <= 90:
             raise ValueError("refresh_token_ttl_days must be between 1 and 90")
+        return value
+
+    @field_validator("login_rate_limit_attempts")
+    @classmethod
+    def validate_login_rate_limit_attempts(cls, value: int) -> int:
+        if not 2 <= value <= 100:
+            raise ValueError("login_rate_limit_attempts must be between 2 and 100")
+        return value
+
+    @field_validator("login_rate_limit_window_seconds")
+    @classmethod
+    def validate_login_rate_limit_window(cls, value: int) -> int:
+        if not 10 <= value <= 3600:
+            raise ValueError("login_rate_limit_window_seconds must be between 10 and 3600")
         return value
 
     @field_validator("max_ingestion_source_bytes")
