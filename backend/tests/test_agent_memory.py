@@ -188,6 +188,27 @@ async def test_truncate_invalidates_hot_history() -> None:
 
 
 @pytest.mark.asyncio
+async def test_invalidate_delegates_to_hot_history() -> None:
+    owner_id, conversation_id = uuid7(), uuid7()
+    repository = FactRepository(conversation(owner_id, conversation_id), [])
+    hot = HotHistory([])
+    service = ConversationMemoryService(repository, hot)  # type: ignore[arg-type]
+
+    await service.invalidate(conversation_id)
+
+    assert hot.invalidated == [conversation_id]
+
+
+@pytest.mark.asyncio
+async def test_invalidate_without_hot_history_is_a_safe_noop() -> None:
+    owner_id, conversation_id = uuid7(), uuid7()
+    repository = FactRepository(conversation(owner_id, conversation_id), [])
+    service = ConversationMemoryService(repository)  # type: ignore[arg-type]
+
+    await service.invalidate(conversation_id)
+
+
+@pytest.mark.asyncio
 async def test_empty_summary_watermark_is_reused() -> None:
     owner_id, conversation_id = uuid7(), uuid7()
     messages = [message(conversation_id, number, MessageRole.ASSISTANT) for number in range(1, 4)]
