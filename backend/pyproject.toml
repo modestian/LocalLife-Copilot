@@ -47,6 +47,9 @@ training = [
   "datasets>=3.0.0",
   "peft>=0.14.0",
 ]
+performance = [
+  "locust==2.46.1",
+]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
