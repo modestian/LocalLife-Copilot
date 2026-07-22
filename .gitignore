@@ -11,6 +11,7 @@ htmlcov/
 node_modules/
 dist/
 coverage/
+frontend/test-results/
 .idea/
 .vscode/
 *.log
