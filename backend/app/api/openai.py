@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.agents.contracts import RetrievalScope
 from app.api.dependencies.authorization import CurrentPrincipal
-from app.application.authorization import AuthorizationDenied
+from app.application.authorization import AuthorizationDenied, AuthorizationPrincipal
 from app.application.conversations import (
     ConversationNotFound,
     MessageInput,
@@ -101,6 +101,7 @@ async def create_chat_completion(
                 retrieval_scope=scope,
                 request_id=get_request_id(request),
                 model=body.model,
+                principal=principal,
             ),
             media_type="text/event-stream",
             headers={
@@ -116,6 +117,7 @@ async def create_chat_completion(
             query=body.messages[-1].content,
             retrieval_scope=scope,
             request_id=get_request_id(request),
+            principal=principal,
         )
     except ConversationNotFound as exc:
         raise AppError(
@@ -140,6 +142,7 @@ async def _stream_completion(
     retrieval_scope: RetrievalScope,
     request_id: str,
     model: str,
+    principal: AuthorizationPrincipal,
 ):
     """Emit OpenAI-compatible chunks and always cancel unfinished downstream work."""
     stream_id = f"chatcmpl-{request_id}"
@@ -158,6 +161,7 @@ async def _stream_completion(
             query=query,
             retrieval_scope=retrieval_scope,
             request_id=request_id,
+            principal=principal,
         )
     )
     try:

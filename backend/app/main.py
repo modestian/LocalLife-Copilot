@@ -13,6 +13,7 @@ from app.agents.generation import GroundedRAGGenerator
 from app.agents.local_model import ExtractiveModelAdapter
 from app.agents.memory import ConversationMemoryService
 from app.agents.runtime import ChatAgentRuntime
+from app.agents.tools import ToolExecutor, ToolRegistry, knowledge_search_tool
 from app.api.analytics import business_router as analytics_business_router
 from app.api.analytics import compare_router as analytics_compare_router
 from app.api.analytics import reviews_router as analytics_reviews_router
@@ -60,6 +61,7 @@ from app.infrastructure.db.repositories.governance import SQLAlchemyGovernanceRe
 from app.infrastructure.db.repositories.knowledge import SQLAlchemyKnowledgeRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
 from app.infrastructure.db.repositories.tasks import SQLAlchemyTaskRepository
+from app.infrastructure.db.repositories.tools import SQLAlchemyToolAuditRepository
 from app.infrastructure.search.pipeline import HybridSearchService
 from app.infrastructure.search.retrieval import OpenSearchDualRetriever
 from app.infrastructure.search.service import HybridRecallService
@@ -157,12 +159,20 @@ def create_app(
                 ),
             )
         )
+        chat_retriever = HybridSearchRetrieverAdapter(app.state.search_service)
+        app.state.tool_registry = ToolRegistry()
+        app.state.tool_registry.register(knowledge_search_tool(chat_retriever))
+        app.state.tool_executor = ToolExecutor(
+            app.state.tool_registry,
+            SQLAlchemyToolAuditRepository(session_factory),
+        )
         app.state.agent_runtime = ChatAgentRuntime(
             repository=conversation_repository,
             memory=app.state.agent_memory,
-            retriever=HybridSearchRetrieverAdapter(app.state.search_service),
+            retriever=chat_retriever,
             generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
             safety=app.state.content_safety_service,
+            tool_executor=app.state.tool_executor,
         )
         app.state.readiness_checks = build_readiness_checks(
             engine,
