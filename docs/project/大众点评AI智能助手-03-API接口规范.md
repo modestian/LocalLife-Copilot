@@ -303,6 +303,7 @@ AI 分析响应必须包含 `model_version`、`prompt_version`、`generated_at` 
 | POST | `/api/v1/prompts/{id}/rollback` | 回滚到历史发布版本 |
 | GET/POST | `/api/v1/models` | 模型列表/登记 |
 | POST | `/api/v1/models/{id}/deploy` | 灰度或全量发布模型 |
+| POST | `/api/v1/models/{id}/rollback` | 回滚到已成功部署的模型版本，并写入部署与审计记录 |
 
 ## 8. 反馈、数据集和 LoRA
 
