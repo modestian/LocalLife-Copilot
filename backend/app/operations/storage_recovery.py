@@ -38,9 +38,11 @@ class ChunkFact:
         trusted_metadata = dict(self.metadata)
         trusted_metadata.update(
             {
+                "chunk_id": str(self.chunk_id),
                 "tenant_id": str(self.tenant_id),
                 "knowledge_base_id": str(self.knowledge_base_id),
                 "document_id": str(self.document_id),
+                "resource_scope": [f"KNOWLEDGE_BASE:{self.knowledge_base_id}"],
                 "source_key": self.source_key,
                 "source_type": self.source_type,
             }

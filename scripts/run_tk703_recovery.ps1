@@ -17,12 +17,11 @@ $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $outputPath = Join-Path $repositoryRoot $OutputDirectory
 $timestamp = [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ")
 $restoredDatabase = "local_life_restore_drill_$($timestamp.ToLowerInvariant())"
-$targetIndex = "local-life-chunks-rebuild-$($timestamp.ToLowerInvariant())"
 $containerBackup = "/tmp/tk-703-04-$timestamp.sql.enc"
 $encryptedBackup = Join-Path $outputPath "mysql-$timestamp.sql.enc"
 
-if ($restoredDatabase -notmatch '^[a-z0-9_]+$' -or $targetIndex -notmatch '^[a-z0-9-]+$') {
-    throw "Generated recovery target names failed validation."
+if ($restoredDatabase -notmatch '^[a-z0-9_]+$') {
+    throw "Generated recovery database name failed validation."
 }
 
 New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
@@ -34,6 +33,15 @@ try {
     $apiContainer = (docker compose ps -q api).Trim()
     if (-not $mysqlContainer -or -not $apiContainer) {
         throw "The mysql and api containers must be running."
+    }
+    $indexPrefix = @(
+        docker compose exec -T api python -c `
+            "from app.core.config import get_settings; print(get_settings().opensearch_index)"
+    ) | Select-Object -Last 1
+    $indexPrefix = $indexPrefix.Trim()
+    $targetIndex = "$indexPrefix-rebuild-$($timestamp.ToLowerInvariant())"
+    if ($indexPrefix -notmatch '^[a-z0-9][a-z0-9-]*$' -or $targetIndex -notmatch '^[a-z0-9-]+$') {
+        throw "Configured OpenSearch index prefix failed validation."
     }
 
     $containerScriptRoot = "/tmp/tk-703-04-scripts-$timestamp"

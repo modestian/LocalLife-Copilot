@@ -341,6 +341,11 @@ class WorkerLifecycleService:
         # PERSISTING and later stages are deliberately treated as non-interruptible.
         self._checkpoint(job, TaskStage.PERSISTING, 65)
         self._repository.replace_chunks(job.document_version_id, chunks)
+        chunks = list(self._repository.chunks_for_version(job.document_version_id))
+        if not chunks:
+            raise LifecycleError(
+                "NO_STORED_CHUNKS", "persisted ingestion produced no stored chunks"
+            )
         result = dict(self._index_and_finalize(job, chunks))
         result["source_validation"] = source_report
         result["cleaning_report"] = self._cleaning_report_json(cleaning_report)

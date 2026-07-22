@@ -1,6 +1,6 @@
 """Adapters from graph ports to the existing hybrid-search application service."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from app.agents.contracts import RetrievalRequest
@@ -36,7 +36,9 @@ class HybridSearchRetrieverAdapter:
 
 
 def _to_chunk(document_id: str, score: float, source: Any) -> RetrievedChunk:
-    metadata = dict(source)
+    nested_metadata = source.get("metadata")
+    metadata = dict(nested_metadata) if isinstance(nested_metadata, Mapping) else {}
+    metadata.update(source)
     return RetrievedChunk(
         chunk_id=str(source.get("chunk_id") or document_id),
         content=str(source.get("content") or ""),
@@ -46,7 +48,10 @@ def _to_chunk(document_id: str, score: float, source: Any) -> RetrievedChunk:
         ),
         merchant_id=_optional_string(source.get("merchant_id")),
         data_updated_at=_optional_string(
-            source.get("last_verified_at") or source.get("updated_at")
+            source.get("last_verified_at")
+            or source.get("updated_at")
+            or metadata.get("last_verified_at")
+            or metadata.get("updated_at")
         ),
         metadata=metadata,
     )

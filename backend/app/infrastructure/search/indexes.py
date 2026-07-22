@@ -69,16 +69,22 @@ def ensure_chunk_index(
     write_alias: str,
     embedding_dimension: int,
 ) -> None:
-    """Create an index version and atomically point both runtime aliases at it."""
+    """Create the initial index without replacing an established runtime route."""
     if not client.indices.exists(index=index):
         client.indices.create(index=index, body=chunk_index_body(embedding_dimension))
 
-    switch_chunk_aliases(
-        client,
-        index=index,
-        read_alias=read_alias,
-        write_alias=write_alias,
-    )
+    read_indexes = _alias_indexes(client, read_alias)
+    write_indexes = _alias_indexes(client, write_alias)
+    if not read_indexes and not write_indexes:
+        switch_chunk_aliases(
+            client,
+            index=index,
+            read_alias=read_alias,
+            write_alias=write_alias,
+        )
+        return
+    if read_indexes != write_indexes:
+        raise RuntimeError("OpenSearch read/write aliases point to different indexes")
 
 
 def switch_chunk_aliases(
