@@ -415,16 +415,18 @@ class SQLAlchemyGovernanceRepository:
                 validate_canary_capacity(
                     sum(row.traffic_percent for row in active), request.traffic_percent
                 )
+                new_status = DeploymentStatus.CANARY
             else:
                 for row in active:
                     row.status = DeploymentStatus.SUPERSEDED
+                new_status = DeploymentStatus.ACTIVE
             deployment = ModelDeployment(
                 model_version_id=request.model_version_id,
                 scene=scene,
                 environment=environment,
                 traffic_percent=request.traffic_percent,
                 action=request.action,
-                status=DeploymentStatus.ACTIVE,
+                status=new_status,
                 result="SUCCEEDED",
                 deployed_by=request.deployed_by,
                 reason=request.reason.strip(),
@@ -486,7 +488,7 @@ class SQLAlchemyGovernanceRepository:
                 raise InvalidLifecycleTransition("rollback target was never successfully deployed")
             active = await _active_deployments(session, normalized_scene, normalized_environment)
             for row in active:
-                row.status = DeploymentStatus.SUPERSEDED
+                row.status = DeploymentStatus.ROLLED_BACK
             rollback = ModelDeployment(
                 model_version_id=target_model_version_id,
                 scene=normalized_scene,
@@ -546,6 +548,7 @@ class SQLAlchemyGovernanceRepository:
 async def _active_deployments(
     session: AsyncSession, scene: str, environment: str
 ) -> list[ModelDeployment]:
+    """Return all ACTIVE and CANARY deployments for a route (locked for update)."""
     return list(
         (
             await session.scalars(
@@ -553,7 +556,7 @@ async def _active_deployments(
                 .where(
                     ModelDeployment.scene == scene,
                     ModelDeployment.environment == environment,
-                    ModelDeployment.status == DeploymentStatus.ACTIVE,
+                    ModelDeployment.status.in_([DeploymentStatus.ACTIVE, DeploymentStatus.CANARY]),
                 )
                 .with_for_update()
             )

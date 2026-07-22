@@ -145,6 +145,11 @@ def install_api_contract(app: FastAPI, settings: Settings) -> None:
             latency_ms = round((time.perf_counter() - started_at) * 1000, 3)
             route = request.scope.get("route")
             route_path = getattr(route, "path", "__unmatched__")
+            # FastAPI 0.116+ include_router prefix is not reflected in route.path;
+            # prefer the full ASGI scope path so metrics and logs include the prefix.
+            scope_path = request.scope.get("path")
+            if scope_path:
+                route_path = scope_path
             registry = getattr(request.app.state, "metrics_registry", None)
             if registry is not None:
                 registry.observe_request(
