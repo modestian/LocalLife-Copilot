@@ -11,18 +11,25 @@ import asyncio
 import hashlib
 import json
 import os
+from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Protocol
 from uuid import UUID
 
-from sqlalchemy import select, update
+from opensearchpy import OpenSearch
+from sqlalchemy import create_engine, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.cli.create_test_user import ROLE_NAMES
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.security import PasswordService
+from app.etl.adapters import OpenSearchProjection
+from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
+from app.etl.models import ChunkRecord
 from app.infrastructure.db.models.conversations import Conversation, Message, MessageSource
 from app.infrastructure.db.models.feedback import Feedback, FeedbackAudit
 from app.infrastructure.db.models.governance import (
@@ -41,6 +48,9 @@ from app.infrastructure.db.models.identity import (
 )
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
+from app.infrastructure.search.indexes import ensure_chunk_index
+from app.infrastructure.storage_recovery import SQLAlchemyChunkFactSource
+from app.operations.storage_recovery import ChunkFact
 
 DEMO_TIME: Final = datetime(2026, 7, 1, 9, 0, 0)
 DEMO_TENANT_ID: Final = UUID("70200000-0000-4000-8000-000000000001")
@@ -60,6 +70,7 @@ DOCUMENT_QINGHE_VERSION_ID: Final = UUID("70200000-0000-4000-8000-000000000042")
 DOCUMENT_SHUXIANG_VERSION_ID: Final = UUID("70200000-0000-4000-8000-000000000043")
 CHUNK_QINGHE_ID: Final = UUID("70200000-0000-4000-8000-000000000044")
 CHUNK_SHUXIANG_ID: Final = UUID("70200000-0000-4000-8000-000000000045")
+DEMO_CHUNK_IDS: Final = frozenset((CHUNK_QINGHE_ID, CHUNK_SHUXIANG_ID))
 CONVERSATION_ID: Final = UUID("70200000-0000-4000-8000-000000000050")
 USER_MESSAGE_ID: Final = UUID("70200000-0000-4000-8000-000000000051")
 ASSISTANT_MESSAGE_ID: Final = UUID("70200000-0000-4000-8000-000000000052")
@@ -113,6 +124,10 @@ class DemoSeedSummary:
     reviews: int
     documents: int
     questions: int
+
+
+class SearchProjection(Protocol):
+    def upsert(self, document_version_id: UUID, chunks: Sequence[ChunkRecord]) -> None: ...
 
 
 def _sha256(value: str) -> str:
@@ -819,6 +834,58 @@ async def _run(password: str) -> DemoSeedSummary:
         await engine.dispose()
 
 
+def _project_demo_facts(
+    facts: Sequence[ChunkFact], projection: SearchProjection
+) -> tuple[ChunkFact, ...]:
+    demo_facts = tuple(fact for fact in facts if fact.chunk_id in DEMO_CHUNK_IDS)
+    actual_ids = {fact.chunk_id for fact in demo_facts}
+    if actual_ids != DEMO_CHUNK_IDS:
+        missing = ", ".join(str(chunk_id) for chunk_id in sorted(DEMO_CHUNK_IDS - actual_ids))
+        raise RuntimeError(f"demo search chunks are missing from MySQL: {missing}")
+
+    grouped: dict[UUID, list[ChunkFact]] = defaultdict(list)
+    for fact in demo_facts:
+        grouped[fact.document_version_id].append(fact)
+    for version_id, version_facts in grouped.items():
+        projection.upsert(version_id, [fact.to_chunk_record() for fact in version_facts])
+    return demo_facts
+
+
+def sync_demo_search_index(settings: Settings | None = None) -> int:
+    """Idempotently project seeded demo chunks into the active search index."""
+
+    selected_settings = settings or get_settings()
+    engine = create_engine(selected_settings.sync_database_url, pool_pre_ping=True)
+    client = OpenSearch(selected_settings.opensearch_url)
+    try:
+        ensure_chunk_index(
+            client,
+            index=selected_settings.opensearch_concrete_index,
+            read_alias=selected_settings.opensearch_read_alias,
+            write_alias=selected_settings.opensearch_write_alias,
+            embedding_dimension=selected_settings.embedding_dimension,
+        )
+        facts = SQLAlchemyChunkFactSource(sessionmaker(engine, expire_on_commit=False))
+        embedder = BatchedEmbedder(
+            HttpEmbeddingProvider(
+                selected_settings.model_gateway_embedding_url,
+                model=selected_settings.embedding_model,
+                timeout_seconds=selected_settings.dependency_timeout_seconds,
+            ),
+            dimension=selected_settings.embedding_dimension,
+            batch_size=selected_settings.embedding_batch_size,
+        )
+        projected = _project_demo_facts(
+            facts.list_indexable_chunks(),
+            OpenSearchProjection(client, selected_settings.opensearch_write_alias, embedder),
+        )
+        facts.mark_projection_ids_canonical(projected)
+        return len(projected)
+    finally:
+        client.close()
+        engine.dispose()
+
+
 async def repair_chat_runtime() -> None:
     """Repair chat model metadata without changing existing demo credentials."""
 
@@ -851,10 +918,12 @@ def main() -> None:
         summary = asyncio.run(_run(_password_from_environment(args.password_env)))
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    indexed_chunks = sync_demo_search_index()
     print(
         "ST-702 demo data ready: "
         f"{summary.users} users, {summary.merchants} merchants, {summary.reviews} reviews, "
-        f"{summary.documents} documents, {summary.questions} standard questions."
+        f"{summary.documents} documents, {indexed_chunks} search chunks, "
+        f"{summary.questions} standard questions."
     )
 
 

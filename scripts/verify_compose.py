@@ -11,6 +11,7 @@ REQUIRED_SERVICES = (
     | {
         "migrate",
         "init",
+        "seed",
         "frontend",
         "nginx",
     }
@@ -31,7 +32,7 @@ def main() -> None:
     assert not missing, f"compose.yaml is missing services: {sorted(missing)}"
 
     for name in REQUIRED_SERVICES:
-        assert "healthcheck" in services[name] or name in {"migrate", "init"}, (
+        assert "healthcheck" in services[name] or name in {"migrate", "init", "seed"}, (
             f"{name} must define a healthcheck"
         )
         assert "ports" not in services[name], (
@@ -63,10 +64,16 @@ def main() -> None:
     )
     assert init["depends_on"]["opensearch"]["condition"] == "service_healthy"
 
+    seed = services["seed"]
+    assert seed["command"] == ["python", "-m", "app.cli.seed_demo_data"]
+    assert seed["depends_on"]["init"]["condition"] == "service_completed_successfully"
+    assert seed["depends_on"]["model-gateway"]["condition"] == "service_healthy"
+
     for service_name in APPLICATION_SERVICES:
         dependencies = services[service_name]["depends_on"]
         assert dependencies["migrate"]["condition"] == "service_completed_successfully"
         assert dependencies["init"]["condition"] == "service_completed_successfully"
+        assert dependencies["seed"]["condition"] == "service_completed_successfully"
         for dependency in RUNTIME_DEPENDENCIES:
             assert dependencies[dependency]["condition"] == "service_healthy"
 
