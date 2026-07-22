@@ -70,6 +70,16 @@ def main() -> None:
         for dependency in RUNTIME_DEPENDENCIES:
             assert dependencies[dependency]["condition"] == "service_healthy"
 
+        service = services[service_name]
+        assert service.get("read_only") is True
+        assert "no-new-privileges:true" in service.get("security_opt", [])
+        assert all("docker.sock" not in str(volume) for volume in service.get("volumes", []))
+
+    assert base["networks"]["backend"].get("internal") is True
+    dockerfile = (ROOT / "backend/Dockerfile").read_text(encoding="utf-8")
+    assert "FROM base AS runtime" in dockerfile
+    assert "USER app" in dockerfile
+
     nginx_dependencies = services["nginx"]["depends_on"]
     assert nginx_dependencies["api"]["condition"] == "service_healthy"
     assert nginx_dependencies["frontend"]["condition"] == "service_healthy"

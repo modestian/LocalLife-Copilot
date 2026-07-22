@@ -11,11 +11,15 @@ import time
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from functools import partial
 from typing import Protocol
 from uuid import UUID
 
-from pydantic import BaseModel, ValidationError
+from anyio import to_thread
+from pydantic import BaseModel, Field, ValidationError
 
+from app.agents.contracts import RetrievalRequest, RetrievalScope, RetrieverAdapter
+from app.agents.types import RetrievedChunk
 from app.application.authorization import AuthorizationDenied, AuthorizationPrincipal, ResourceType
 
 _TOOL_NAME = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*$")
@@ -69,6 +73,58 @@ class ToolExecutionContext:
     actor_id: UUID
     request_id: str
     conversation_id: UUID | None = None
+    retrieval_scope: RetrievalScope | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ToolInvocation:
+    name: str
+    arguments: Mapping[str, object]
+
+
+class ToolInvocationEnvelope(BaseModel):
+    model_config = {"extra": "forbid", "strict": True, "str_strip_whitespace": True}
+
+    name: str = Field(min_length=1, max_length=128)
+    arguments: dict[str, object]
+
+
+class ToolPlanner(Protocol):
+    def plan(self, query: str) -> ToolInvocation: ...
+
+
+class RegisteredToolPlanner:
+    """Create structured calls without dynamic code, imports, or expression evaluation."""
+
+    _markers = ("调用工具", "使用工具", "运行工具", "tool call", "tool_call")
+
+    def __init__(self, *, default_tool: str = "knowledge.search", default_top_k: int = 5) -> None:
+        self._default_tool = default_tool
+        self._default_top_k = default_top_k
+
+    def plan(self, query: str) -> ToolInvocation:
+        normalized = query.strip()
+        object_start = normalized.find("{")
+        if object_start >= 0:
+            try:
+                payload, end = json.JSONDecoder().raw_decode(normalized[object_start:])
+                if normalized[object_start + end :].strip():
+                    raise ValueError("unexpected content after tool call")
+                envelope = ToolInvocationEnvelope.model_validate(payload)
+            except (TypeError, ValueError, ValidationError) as exc:
+                raise ToolArgumentsInvalid(_planning_errors(exc)) from exc
+            return ToolInvocation(envelope.name, envelope.arguments)
+
+        tool_query = normalized
+        for marker in self._markers:
+            tool_query = re.sub(re.escape(marker), "", tool_query, count=1, flags=re.IGNORECASE)
+        tool_query = tool_query.lstrip(" ：:").strip()
+        if not tool_query:
+            raise ToolArgumentsInvalid(({"field": "query", "reason": "missing"},))
+        return ToolInvocation(
+            self._default_tool,
+            {"query": tool_query, "top_k": self._default_top_k},
+        )
 
 
 type ToolHandler = Callable[[BaseModel, ToolExecutionContext], Awaitable[object]]
@@ -121,6 +177,53 @@ class ToolDescriptor:
     timeout_seconds: float
 
 
+class KnowledgeSearchArgs(BaseModel):
+    model_config = {"extra": "forbid", "strict": True, "str_strip_whitespace": True}
+
+    query: str = Field(min_length=1, max_length=1000)
+    top_k: int = Field(default=5, ge=1, le=10)
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeSearchResult:
+    chunks: tuple[RetrievedChunk, ...]
+
+
+def knowledge_search_tool(
+    retriever: RetrieverAdapter, *, timeout_seconds: float = 10.0
+) -> ToolSpec:
+    """Build the production tool from a least-privilege retrieval port."""
+
+    async def handler(arguments: BaseModel, context: ToolExecutionContext) -> KnowledgeSearchResult:
+        if not isinstance(arguments, KnowledgeSearchArgs):
+            raise TypeError("knowledge.search received an unexpected argument model")
+        if context.retrieval_scope is None:
+            raise PermissionError("trusted retrieval scope is unavailable")
+        request = RetrievalRequest(
+            query=arguments.query,
+            scope=context.retrieval_scope,
+            top_k=arguments.top_k,
+        )
+        chunks = await to_thread.run_sync(
+            partial(retriever.retrieve, request),
+            abandon_on_cancel=True,
+        )
+        for chunk in chunks:
+            UUID(chunk.chunk_id)
+        return KnowledgeSearchResult(tuple(chunks))
+
+    return ToolSpec(
+        name="knowledge.search",
+        description="在当前用户获授权的知识范围内执行只读混合检索。",
+        args_schema=KnowledgeSearchArgs,
+        handler=handler,
+        permission_resource="KNOWLEDGE_BASE",
+        permission_action="READ",
+        timeout_seconds=timeout_seconds,
+        risk=ToolRisk.LOW,
+    )
+
+
 class ToolRegistry:
     """In-memory whitelist; registration never performs dynamic imports or evaluation."""
 
@@ -166,6 +269,22 @@ class ToolExecutor:
     def __init__(self, registry: ToolRegistry, audit_repository: ToolAuditRepository) -> None:
         self._registry = registry
         self._audit = audit_repository
+
+    async def record_rejection(
+        self,
+        *,
+        name: str,
+        arguments: Mapping[str, object],
+        context: ToolExecutionContext,
+        error_code: str,
+    ) -> None:
+        """Audit a call rejected before a registered handler can be selected."""
+        await self._record(
+            context=context,
+            resource_id=None,
+            result="BLOCKED",
+            summary=_audit_summary(name, arguments, time.monotonic(), error_code),
+        )
 
     async def invoke(
         self,
@@ -307,6 +426,12 @@ def _validation_errors(exc: TypeError | ValidationError) -> tuple[dict[str, obje
         }
         for error in exc.errors(include_url=False, include_input=False)
     )
+
+
+def _planning_errors(exc: TypeError | ValueError) -> tuple[dict[str, object], ...]:
+    if isinstance(exc, ValidationError):
+        return _validation_errors(exc)
+    return ({"field": "tool_call", "reason": "invalid_json_envelope"},)
 
 
 def _audit_summary(

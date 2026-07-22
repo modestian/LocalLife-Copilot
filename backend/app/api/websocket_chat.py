@@ -48,7 +48,8 @@ async def websocket_chat(websocket: WebSocket, access_token: str = "") -> None:
     await websocket.accept()
 
     send_lock = asyncio.Lock()
-    heartbeat_interval = float(getattr(websocket.app.state, "websocket_heartbeat_interval", 30.0))
+    configured_heartbeat = float(getattr(websocket.app.state, "websocket_heartbeat_interval", 30.0))
+    heartbeat_interval = min(30.0, max(0.01, configured_heartbeat))
     last_pong = time.monotonic()
     active_task: asyncio.Task[None] | None = None
     active_request_id: str | None = None
@@ -181,6 +182,7 @@ async def _serve_request(
             query=event.content,
             retrieval_scope=scope,
             request_id=event.request_id,
+            principal=principal,
         )
         intent = result.state.get("intent")
         if intent is not None:
