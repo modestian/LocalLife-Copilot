@@ -13,6 +13,7 @@ dist/
 coverage/
 artifacts/tk-702-03/
 artifacts/tk-703-03/
+artifacts/tk-703-04/
 frontend/test-results/
 .idea/
 .vscode/
