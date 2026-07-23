@@ -39,10 +39,27 @@ export interface KnowledgeBaseListParams {
 }
 
 export interface UpdateKnowledgeBasePayload {
+  name?: string
+  description?: string | null
+  owner_id?: string
+  embedding_model_id?: string
+  chunk_size?: number
+  chunk_overlap?: number
+  status?: 'ACTIVE' | 'ARCHIVED'
+}
+
+export interface CreateKnowledgeBasePayload {
   name: string
-  description: string | null
-  owner_id: string
+  description?: string | null
+  department_id?: string | null
+  owner_id?: string | null
   embedding_model_id: string
+  chunk_size: number
+  chunk_overlap: number
+}
+
+export interface CloneKnowledgeBasePayload {
+  name: string
 }
 
 export type KnowledgeBasePage = PageResult<KnowledgeBaseSummary>

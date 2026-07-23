@@ -179,6 +179,10 @@ class SQLAlchemyKnowledgeRepository:
                 row.normalized_name = normalize_name(patch.name)
             if patch.description is not None:
                 row.description = patch.description
+            if patch.owner_id is not None:
+                row.owner_id = patch.owner_id
+            if patch.embedding_model_id is not None:
+                row.embedding_model_version_id = patch.embedding_model_id
             if patch.chunk_size is not None:
                 row.chunk_size = patch.chunk_size
             if patch.chunk_overlap is not None:

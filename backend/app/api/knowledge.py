@@ -52,6 +52,8 @@ class KnowledgeBasePatchDTO(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
+    owner_id: UUID | None = None
+    embedding_model_id: UUID | None = None
     chunk_size: int | None = Field(default=None, ge=100, le=4000)
     chunk_overlap: int | None = Field(default=None, ge=0)
     status: Literal["ACTIVE", "ARCHIVED"] | None = None

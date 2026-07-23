@@ -48,6 +48,8 @@ function createApi(overrides: Partial<ConversationApi> = {}): ConversationApi {
       id: 'conversation-history',
       status: 'DELETED',
     }),
+    truncateConversation: vi.fn().mockResolvedValue(undefined),
+    updateSettings: vi.fn(),
     ...overrides,
   }
 }

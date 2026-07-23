@@ -50,7 +50,7 @@ const suggestionsLoading = ref(false)
 const suggestionsError = ref('')
 
 const selectedReview = computed(() => reviews.value.find((review) => review.id === selectedReviewId.value) ?? null)
-const comparisonSummaries = computed(() => comparison.value?.summary ?? [])
+const comparisonSummaries = computed(() => comparison.value?.merchants ?? [])
 
 function toStartDate(value: string): string | undefined {
   return value ? `${value}T00:00:00` : undefined
@@ -87,23 +87,17 @@ function topLabels(counts: Record<string, number>): string {
 }
 
 function topAspects(merchantId: string): string {
-  const counts = Object.fromEntries(
-    (comparison.value?.aspect_comparison ?? []).map((row) => [
-      row.aspect,
-      row.merchants.find((merchant) => merchant.merchant_id === merchantId)?.total ?? 0,
-    ]),
+  return topLabels(
+    comparison.value?.merchants.find((merchant) => merchant.merchant_id === merchantId)
+      ?.aspect_counts ?? {},
   )
-  return topLabels(counts)
 }
 
 function topNegativeReasons(merchantId: string): string {
-  const counts = Object.fromEntries(
-    (comparison.value?.negative_reason_comparison ?? []).map((row) => [
-      row.reason,
-      row.merchants.find((merchant) => merchant.merchant_id === merchantId)?.count ?? 0,
-    ]),
+  return topLabels(
+    comparison.value?.merchants.find((merchant) => merchant.merchant_id === merchantId)
+      ?.negative_reason_counts ?? {},
   )
-  return topLabels(counts)
 }
 
 function parseAspects(value: string): string[] {
@@ -312,13 +306,13 @@ onMounted(() => void loadReviews())
       </p>
       <template v-else-if="comparison">
         <p
-          v-if="comparison.summary.every((merchant) => merchant.total === 0)"
+          v-if="comparison.insufficient_data"
           class="state-message is-warning"
         >
           样本量低于统一下限，当前不输出确定性排序或结论。
         </p>
         <div class="comparison-meta">
-          <span>统计商家：{{ comparison.merchants.join('、') }}</span><span>口径：公开聚合数据</span>
+          <span>统计周期：{{ formatDate(comparison.period_start) }}—{{ formatDate(comparison.period_end) }}</span><span>口径：{{ comparison.metric_definition }}</span>
         </div>
         <div
           class="comparison-table"
@@ -329,7 +323,7 @@ onMounted(() => void loadReviews())
             class="comparison-row comparison-head"
             role="row"
           >
-            <span>商家</span><span>样本</span><span>正面率</span><span>负面率</span><span>主要特征 / 归因</span>
+            <span>商家</span><span>样本</span><span>正面率</span><span>均分</span><span>主要特征 / 归因</span>
           </div>
           <div
             v-for="merchant in comparisonSummaries"
@@ -337,7 +331,7 @@ onMounted(() => void loadReviews())
             class="comparison-row"
             role="row"
           >
-            <strong>{{ merchant.merchant_id }}</strong><span>{{ merchant.total }}</span><span>{{ formatRate(merchant.positive_rate) }}</span><span>{{ formatRate(merchant.negative_rate) }}</span><span>{{ topAspects(merchant.merchant_id) }}<br><small>归因：{{ topNegativeReasons(merchant.merchant_id) }}</small></span>
+            <strong>{{ merchant.merchant_name || merchant.merchant_id }}</strong><span>{{ merchant.sample_count }}</span><span>{{ formatRate(merchant.positive_rate) }}</span><span>{{ merchant.avg_rating ?? '—' }}</span><span>{{ topAspects(merchant.merchant_id) }}<br><small>归因：{{ topNegativeReasons(merchant.merchant_id) }}</small></span>
           </div>
         </div>
       </template>

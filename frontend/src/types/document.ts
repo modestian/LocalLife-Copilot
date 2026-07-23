@@ -85,6 +85,12 @@ export interface UploadDocumentsPayload {
   force_new_version: boolean
 }
 
+export interface UpdateDocumentPayload {
+  display_name?: string
+  mime_type?: string
+  status?: 'UPLOADED' | 'READY' | 'FAILED' | 'ARCHIVED'
+}
+
 export type DocumentPage = PageResult<DocumentSummary>
 
 export type { AcceptedTask }

@@ -41,7 +41,12 @@ function createApi(): ModelLifecycleApi {
     evaluateJob: vi.fn(),
     registerModel: vi.fn(),
     listModels: vi.fn().mockResolvedValue([approvedModel]),
+    createModel: vi.fn(),
+    updateModelStatus: vi.fn(),
     deployModel: vi.fn().mockResolvedValue(undefined),
+    rollbackModel: vi.fn(),
+    listDeployments: vi.fn().mockResolvedValue([]),
+    compareDeployments: vi.fn(),
   }
 }
 

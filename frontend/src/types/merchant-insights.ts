@@ -5,45 +5,23 @@ export interface MerchantComparisonRequest extends AnalyticsDateRange {
   merchant_ids: string[]
 }
 
-export interface ComparisonSummary {
+export interface ComparisonMerchantMetric {
   merchant_id: string
-  positive: number
-  neutral: number
-  negative: number
-  total: number
+  merchant_name: string
+  sample_count: number
   positive_rate: number
-  negative_rate: number
-}
-
-export interface AspectComparisonMetric {
-  merchant_id: string
-  positive: number
-  neutral: number
-  negative: number
-  total: number
-  positive_rate: number
-}
-
-export interface AspectComparisonRow {
-  aspect: string
-  merchants: AspectComparisonMetric[]
-}
-
-export interface NegativeReasonComparisonMetric {
-  merchant_id: string
-  count: number
-}
-
-export interface NegativeReasonComparisonRow {
-  reason: string
-  merchants: NegativeReasonComparisonMetric[]
+  avg_rating: number | null
+  aspect_counts: Record<string, number>
+  negative_reason_counts: Record<string, number>
 }
 
 export interface MerchantComparisonResult {
-  merchants: string[]
-  summary: ComparisonSummary[]
-  aspect_comparison: AspectComparisonRow[]
-  negative_reason_comparison: NegativeReasonComparisonRow[]
+  period_start: string
+  period_end: string
+  metric_definition: string
+  minimum_sample_size: number
+  insufficient_data: boolean
+  merchants: ComparisonMerchantMetric[]
 }
 
 export type ReplyTone = 'EMPATHETIC' | 'PROFESSIONAL' | 'CONCISE'

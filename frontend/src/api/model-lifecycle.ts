@@ -3,7 +3,11 @@ import type {
   DatasetBuildRequest,
   FineTuningJob,
   ModelDeploymentRequest,
+  ModelDeployment,
   ModelLifecycleApi,
+  ModelRegistrationRequest,
+  ModelRollbackRequest,
+  ModelStatusRequest,
   ModelVersion,
   TrainingDataset,
 } from '@/types/model-lifecycle'
@@ -81,12 +85,56 @@ export const modelLifecycleApi: ModelLifecycleApi = {
     return Array.isArray(data) ? data : data.items
   },
 
+  createModel(payload: ModelRegistrationRequest): Promise<ModelVersion> {
+    return requestData({
+      method: 'POST',
+      url: '/api/v1/models',
+      data: payload,
+      headers: idempotencyHeaders(),
+    })
+  },
+
+  updateModelStatus(modelId: string, payload: ModelStatusRequest): Promise<ModelVersion> {
+    return requestData({
+      method: 'POST',
+      url: `/api/v1/models/${encoded(modelId)}/status`,
+      data: payload,
+      headers: idempotencyHeaders(),
+    })
+  },
+
   deployModel(modelId: string, payload: ModelDeploymentRequest): Promise<void> {
     return requestData({
       method: 'POST',
       url: `/api/v1/models/${encoded(modelId)}/deploy`,
       data: payload,
       headers: idempotencyHeaders(),
+    })
+  },
+
+  rollbackModel(modelId: string, payload: ModelRollbackRequest): Promise<ModelDeployment> {
+    return requestData({
+      method: 'POST',
+      url: `/api/v1/models/${encoded(modelId)}/rollback`,
+      data: payload,
+      headers: idempotencyHeaders(),
+    })
+  },
+
+  async listDeployments(params: Record<string, string> = {}): Promise<ModelDeployment[]> {
+    const data = await requestData<{ items: ModelDeployment[] } | ModelDeployment[]>({
+      method: 'GET',
+      url: '/api/v1/models/deployments',
+      params,
+    })
+    return Array.isArray(data) ? data : data.items
+  },
+
+  compareDeployments(params: Record<string, string>): Promise<Record<string, unknown>> {
+    return requestData({
+      method: 'GET',
+      url: '/api/v1/models/deployments/compare',
+      params,
     })
   },
 }

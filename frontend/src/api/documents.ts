@@ -6,6 +6,7 @@ import type {
   DocumentPreview,
   DocumentPreviewParams,
   UploadDocumentsPayload,
+  UpdateDocumentPayload,
 } from '@/types/document'
 
 import { requestData } from './client'
@@ -42,6 +43,14 @@ export const documentApi = {
     return requestData({ method: 'GET', url: `/api/v1/documents/${encoded(documentId)}` })
   },
 
+  update(documentId: string, payload: UpdateDocumentPayload): Promise<DocumentDetail> {
+    return requestData({
+      method: 'PATCH',
+      url: `/api/v1/documents/${encoded(documentId)}`,
+      data: payload,
+    })
+  },
+
   preview(documentId: string, params: DocumentPreviewParams): Promise<DocumentPreview> {
     return requestData({
       method: 'GET',
@@ -55,6 +64,14 @@ export const documentApi = {
       method: 'POST',
       url: `/api/v1/documents/${encoded(documentId)}/rollback`,
       data: { target_version_no: targetVersionNo },
+    })
+  },
+
+  reindex(documentId: string): Promise<AcceptedTask> {
+    return requestData({
+      method: 'POST',
+      url: `/api/v1/documents/${encoded(documentId)}/reindex`,
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
     })
   },
 

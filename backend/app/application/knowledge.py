@@ -35,6 +35,8 @@ class KnowledgeBaseInput:
 class KnowledgeBasePatch:
     name: str | None = None
     description: str | None = None
+    owner_id: UUID | None = None
+    embedding_model_id: UUID | None = None
     chunk_size: int | None = None
     chunk_overlap: int | None = None
     status: str | None = None
