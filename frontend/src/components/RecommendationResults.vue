@@ -82,9 +82,9 @@ function closeSources(): void {
   selectedSourceTitle.value = ''
 }
 
-function safeSourceUrl(sourceUrl: string): string | null {
+function safeSourceUrl(sourceUrl: string): string | undefined {
   const trimmed = sourceUrl.trim()
-  return /^https?:\/\//i.test(trimmed) ? trimmed : null
+  return /^https?:\/\//i.test(trimmed) ? trimmed : undefined
 }
 </script>
 
