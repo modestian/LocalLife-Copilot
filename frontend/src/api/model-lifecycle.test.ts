@@ -6,9 +6,11 @@ import { modelLifecycleApi } from './model-lifecycle'
 vi.mock('./client', () => ({ requestData: vi.fn() }))
 
 describe('model lifecycle API', () => {
+  const requestId = '00000000-0000-4000-8000-000000000002'
+
   beforeEach(() => {
     vi.mocked(requestData).mockReset().mockResolvedValue({})
-    vi.spyOn(crypto, 'randomUUID').mockReturnValue('lifecycle-request-id')
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(requestId)
   })
 
   it('uses documented fine-tuning paths with idempotency keys', async () => {
@@ -31,12 +33,12 @@ describe('model lifecycle API', () => {
     expect(requestData).toHaveBeenNthCalledWith(1, expect.objectContaining({
       method: 'POST',
       url: '/api/v1/fine-tuning/datasets',
-      headers: { 'Idempotency-Key': 'lifecycle-request-id' },
+      headers: { 'Idempotency-Key': requestId },
     }))
     expect(requestData).toHaveBeenNthCalledWith(2, expect.objectContaining({
       method: 'POST',
       url: '/api/v1/fine-tuning/jobs',
-      headers: { 'Idempotency-Key': 'lifecycle-request-id' },
+      headers: { 'Idempotency-Key': requestId },
     }))
     expect(requestData).toHaveBeenNthCalledWith(3, expect.objectContaining({
       url: '/api/v1/fine-tuning/jobs/job%2Fid/evaluate',
@@ -66,7 +68,7 @@ describe('model lifecycle API', () => {
         traffic_percent: 10,
         reason: 'Canary validation',
       },
-      headers: { 'Idempotency-Key': 'lifecycle-request-id' },
+      headers: { 'Idempotency-Key': requestId },
     })
   })
 })

@@ -111,7 +111,8 @@ describe('MerchantInsightWorkbench', () => {
       aspect_labels: ['服务', '等位'],
       prohibited_commitments: ['虚构补偿', '虚构联系方式', '虚构已完成整改'],
     })
-    expect(wrapper.get('[data-testid="reply-draft"]').element.value).toContain('很抱歉让您久等了')
+    const replyDraft = wrapper.get('[data-testid="reply-draft"]').element as HTMLTextAreaElement
+    expect(replyDraft.value).toContain('很抱歉让您久等了')
     expect(wrapper.text()).toContain('不会自动发布')
     expect(wrapper.findAll('button').some((button) => button.text().includes('发布'))).toBe(false)
   })

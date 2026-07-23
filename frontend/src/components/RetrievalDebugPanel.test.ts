@@ -24,6 +24,12 @@ const hit: SearchHit = {
     fusion: 0.0328,
     rerank: 0.87,
   },
+  match_explanation: {
+    recall_sources: ['bm25', 'vector'],
+    keyword_matched: true,
+    semantic_matched: true,
+    reranked: true,
+  },
 }
 
 describe('RetrievalDebugPanel', () => {
@@ -32,6 +38,8 @@ describe('RetrievalDebugPanel', () => {
       items: [hit],
       total: 1,
       took_ms: 42,
+      fallback: false,
+      applied_filters: {},
     })
   })
 
@@ -105,6 +113,8 @@ describe('RetrievalDebugPanel', () => {
   it('rejects unsafe source links in the citation preview', async () => {
     vi.mocked(searchApi.search).mockResolvedValue({
       items: [{ ...hit, source_url: 'javascript:alert(1)' }],
+      fallback: false,
+      applied_filters: {},
     })
     const wrapper = mount(RetrievalDebugPanel, { props: { knowledgeBaseId: 'kb-1' } })
     await wrapper.get('[data-testid="search-query"]').setValue('咖啡馆')

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/api/errors'
 import { tokenStorage } from '@/api/token-storage'
 import { useAuthStore } from '@/stores/auth'
+import type { CurrentUser } from '@/types/auth'
 
 import LoginView from './LoginView.vue'
 
@@ -81,7 +82,17 @@ afterEach(() => {
 describe('LoginView', () => {
   it('submits credentials and returns to the requested route', async () => {
     const { wrapper, router, store } = await mountLogin('/conversations')
-    const login = vi.spyOn(store, 'login').mockResolvedValue(undefined)
+    const user: CurrentUser = {
+      id: 'user-1',
+      username: 'demo-user',
+      display_name: '演示用户',
+      email: null,
+      department_id: null,
+      roles: [{ code: 'USER', name: '用户' }],
+      permissions: [],
+      resource_scopes: [],
+    }
+    const login = vi.spyOn(store, 'login').mockResolvedValue(user)
 
     await wrapper.get('input[placeholder="请输入账号"]').setValue('demo-user')
     await wrapper.get('input[placeholder="请输入密码"]').setValue('correct-password')

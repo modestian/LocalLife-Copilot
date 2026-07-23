@@ -23,7 +23,7 @@ export function canAccessRoles(user: CurrentUser, requiredRoles?: string[]): boo
   return requiredRoles.some((role) => roles.has(role.trim().toUpperCase()))
 }
 
-export function safeRedirect(value: unknown): RouteLocationRaw | undefined {
+export function safeRedirect(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return undefined
   return value
 }
