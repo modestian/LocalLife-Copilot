@@ -47,6 +47,7 @@ from app.infrastructure.db.models.identity import (
     UserRole,
 )
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
+from app.infrastructure.db.models.operations import Merchant
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
 from app.infrastructure.search.indexes import ensure_chunk_index
 from app.infrastructure.storage_recovery import SQLAlchemyChunkFactSource
@@ -657,6 +658,45 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
         chunk.metadata_json = metadata
 
 
+async def _seed_merchants(session: AsyncSession) -> None:
+    rows = (
+        Merchant(
+            id=MERCHANT_QINGHE_ID,
+            region_id=DEMO_TENANT_ID,
+            category="面馆",
+            name="清河面馆",
+            normalized_name="清河面馆",
+            address="演示街区 1 号",
+            longitude=104.0668,
+            latitude=30.5728,
+            avg_price_cent=4500,
+            rating=4.6,
+            business_status="OPEN",
+            last_verified_at=DEMO_TIME,
+            created_at=DEMO_TIME,
+            updated_at=DEMO_TIME,
+        ),
+        Merchant(
+            id=MERCHANT_SHUXIANG_ID,
+            region_id=DEMO_TENANT_ID,
+            category="咖啡馆",
+            name="书香咖啡馆",
+            normalized_name="书香咖啡馆",
+            address="演示街区 21 号",
+            longitude=104.0712,
+            latitude=30.5751,
+            avg_price_cent=3800,
+            rating=4.7,
+            business_status="OPEN",
+            last_verified_at=DEMO_TIME,
+            created_at=DEMO_TIME,
+            updated_at=DEMO_TIME,
+        ),
+    )
+    for row in rows:
+        await _add_if_missing(session, row)
+
+
 async def _seed_reviews(session: AsyncSession) -> None:
     for row in _review_rows():
         await _add_if_missing(
@@ -847,6 +887,7 @@ async def seed_demo_data(session: AsyncSession, *, password: str) -> DemoSeedSum
     await _seed_knowledge(session, users["admin"])
     await seed_chat_runtime_data(session, admin=users["admin"])
     await _seed_resource_grants(session, users, roles)
+    await _seed_merchants(session)
     await _seed_reviews(session)
     await _seed_feedback(session, users["user"])
     await _add_if_missing(

@@ -27,6 +27,14 @@ async def _visible_task(request: Request, principal: CurrentPrincipal, task_id: 
             raise AppError(404, "NOT_FOUND", "任务资源不存在") from exc
     elif task.resource_type == "KNOWLEDGE_BASE":
         resource_id = task.resource_id
+    elif task.resource_type == "MERCHANT":
+        try:
+            principal.require_resource_access(ResourceType.MERCHANT, task.resource_id, "READ")
+        except RolePermissionDenied as exc:
+            raise AppError(403, "FORBIDDEN", "没有查询任务的角色权限") from exc
+        except ResourceScopeDenied as exc:
+            raise AppError(404, "NOT_FOUND", "任务不存在或无访问权限") from exc
+        return task
     else:
         if not principal.is_platform_admin:
             raise AppError(404, "NOT_FOUND", "任务不存在")
