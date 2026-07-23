@@ -97,7 +97,9 @@ const openNow = ref(true)
 const isLoadingConversations = ref(false)
 const isLoadingMessages = ref(false)
 const isSending = ref(false)
+const deletingConversationId = ref<string | null>(null)
 const errorMessage = ref('')
+const noticeMessage = ref('')
 const messageList = ref<HTMLElement | null>(null)
 const streamingMessageId = ref<string | null>(null)
 const pendingSummaryTitle = ref('')
@@ -154,6 +156,7 @@ onMounted(async () => {
 async function loadConversations(): Promise<void> {
   isLoadingConversations.value = true
   errorMessage.value = ''
+  noticeMessage.value = ''
   try {
     conversations.value = await props.api.listConversations()
   } catch (error: unknown) {
@@ -176,15 +179,18 @@ function startNewConversation(): void {
   messages.value = []
   query.value = ''
   errorMessage.value = ''
+  noticeMessage.value = ''
   explorationContextRequested.value = false
 }
 
 async function selectConversation(conversation: ConversationSummary): Promise<void> {
+  if (deletingConversationId.value === conversation.id) return
   resetActiveStream()
   activeConversationId.value = conversation.id
   selectedScenario.value = conversation.scenario ?? 'nearby'
   explorationContextRequested.value = false
   errorMessage.value = ''
+  noticeMessage.value = ''
 
   if (conversation.preview_messages) {
     messages.value = [...conversation.preview_messages]
@@ -200,6 +206,38 @@ async function selectConversation(conversation: ConversationSummary): Promise<vo
     errorMessage.value = getErrorMessage(error, '会话消息恢复失败，请稍后重试。')
   } finally {
     isLoadingMessages.value = false
+  }
+}
+
+async function deleteConversation(conversation: ConversationSummary): Promise<void> {
+  if (
+    props.readOnly
+    || deletingConversationId.value
+    || !window.confirm(`确认删除探店记录“${conversation.title}”？删除后将无法恢复。`)
+  ) return
+
+  deletingConversationId.value = conversation.id
+  errorMessage.value = ''
+  noticeMessage.value = ''
+
+  const wasActive = activeConversationId.value === conversation.id
+  if (wasActive && streamIsActive.value) resetActiveStream()
+
+  try {
+    await props.api.deleteConversation(conversation.id)
+    conversations.value = conversations.value.filter((item) => item.id !== conversation.id)
+    if (activeConversationId.value === conversation.id) {
+      activeConversationId.value = null
+      messages.value = []
+      query.value = ''
+      explorationContextRequested.value = false
+      resetActiveStream()
+    }
+    noticeMessage.value = `已删除探店记录“${conversation.title}”。`
+  } catch (error: unknown) {
+    errorMessage.value = getErrorMessage(error, '探店记录删除失败，请稍后重试。')
+  } finally {
+    deletingConversationId.value = null
   }
 }
 
@@ -406,10 +444,13 @@ function formatTime(value: string): string {
         <li
           v-for="conversation in conversations"
           :key="conversation.id"
+          class="conversation-list__item"
         >
           <button
+            class="conversation-list__select"
             :class="{ 'is-active': activeConversationId === conversation.id }"
             :data-conversation-id="conversation.id"
+            :disabled="deletingConversationId === conversation.id"
             type="button"
             @click="selectConversation(conversation)"
           >
@@ -417,6 +458,17 @@ function formatTime(value: string): string {
             <span>
               {{ conversation.message_count ?? 0 }} 条消息 · {{ formatTime(conversation.updated_at) }}
             </span>
+          </button>
+          <button
+            v-if="!readOnly"
+            class="conversation-list__delete"
+            :aria-label="`删除探店记录“${conversation.title}”`"
+            :data-delete-conversation-id="conversation.id"
+            :disabled="deletingConversationId !== null"
+            type="button"
+            @click="deleteConversation(conversation)"
+          >
+            {{ deletingConversationId === conversation.id ? '删除中' : '删除' }}
           </button>
         </li>
       </ul>
@@ -539,6 +591,13 @@ function formatTime(value: string): string {
       >
         {{ errorMessage }}
       </p>
+      <p
+        v-if="noticeMessage"
+        class="conversation-notice"
+        role="status"
+      >
+        {{ noticeMessage }}
+      </p>
 
       <div
         v-if="readOnly"
@@ -637,9 +696,14 @@ function formatTime(value: string): string {
 .conversation-list::-webkit-scrollbar { width: 5px; }
 .conversation-list::-webkit-scrollbar-thumb { border-radius: 999px; background: #d4b7aa; }
 .conversation-list::-webkit-scrollbar-track { background: transparent; }
-.conversation-list button { display: grid; gap: 5px; width: 100%; border: 1px solid transparent; border-radius: 10px; padding: 11px; background: transparent; color: #493a31; cursor: pointer; text-align: left; transition: background .2s ease, border-color .2s ease, transform .2s var(--ease-out); }
-.conversation-list button:hover, .conversation-list button.is-active { border-color: #dec9bb; background: #fffaf5; }
-.conversation-list button:hover { transform: translateX(2px); }
+.conversation-list__item { position: relative; }
+.conversation-list__select { display: grid; gap: 5px; width: 100%; border: 1px solid transparent; border-radius: 10px; padding: 11px 52px 11px 11px; background: transparent; color: #493a31; cursor: pointer; text-align: left; transition: background .2s ease, border-color .2s ease, transform .2s var(--ease-out); }
+.conversation-list__select:hover, .conversation-list__select.is-active { border-color: #dec9bb; background: #fffaf5; }
+.conversation-list__select:hover { transform: translateX(2px); }
+.conversation-list__select:disabled { cursor: wait; opacity: .6; }
+.conversation-list__delete { position: absolute; top: 50%; right: 7px; border: 0; border-radius: 7px; padding: 5px 7px; background: transparent; color: #a44334; cursor: pointer; font: inherit; font-size: .68rem; font-weight: 700; transform: translateY(-50%); transition: background .2s ease, color .2s ease; }
+.conversation-list__delete:hover { background: #f9e2dc; color: #8c2f22; }
+.conversation-list__delete:disabled { cursor: wait; opacity: .55; }
 .conversation-list strong { overflow: hidden; font-size: .86rem; text-overflow: ellipsis; white-space: nowrap; }
 .conversation-list span { color: #88786d; font-size: .68rem; }
 .conversation-main { display: flex; min-width: 0; flex-direction: column; padding: 24px; }
@@ -667,6 +731,7 @@ function formatTime(value: string): string {
 .assistant-thinking { color: #7b6d63; font-size: .8rem; }
 .assistant-thinking span { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: #c34833; }
 .conversation-error { margin: 0 0 10px; border-radius: 8px; padding: 9px 11px; background: #fff0ed; color: #a4362b; font-size: .8rem; }
+.conversation-notice { margin: 0 0 10px; border-radius: 8px; padding: 9px 11px; background: #e9f4ed; color: #2f7650; font-size: .8rem; }
 .conversation-readonly { display: flex; gap: 6px; flex-direction: column; margin-top: 14px; border: 1px dashed #d5c6b9; border-radius: 10px; padding: 13px 15px; background: #f8f2eb; color: #695b51; font-size: .84rem; }
 .conversation-readonly strong { color: #9d3423; }
 .streaming-message-state { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; color: #75675d; font-size: .7rem; font-weight: 700; }

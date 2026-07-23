@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { ref } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   ChatMessage,
@@ -19,6 +19,10 @@ import type {
 import ConversationWorkspace from './ConversationWorkspace.vue'
 
 const now = '2026-07-17T05:00:00Z'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 function createApi(overrides: Partial<ConversationApi> = {}): ConversationApi {
   return {
@@ -39,6 +43,10 @@ function createApi(overrides: Partial<ConversationApi> = {}): ConversationApi {
       content: '可以看看三公里内有插座且工作日下午较安静的咖啡馆。',
       status: 'COMPLETED',
       created_at: now,
+    }),
+    deleteConversation: vi.fn().mockResolvedValue({
+      id: 'conversation-history',
+      status: 'DELETED',
     }),
     ...overrides,
   }
@@ -271,6 +279,69 @@ describe('ConversationWorkspace', () => {
 
     expect(api.listMessages).toHaveBeenCalledWith('conversation-server')
     expect(wrapper.text()).toContain('这是从服务端恢复的历史消息')
+  })
+
+  it('confirms and deletes the active conversation before resetting the workspace', async () => {
+    const conversation: ConversationSummary = {
+      id: 'conversation-history',
+      title: '朋友聚会川菜馆',
+      status: 'ACTIVE',
+      updated_at: now,
+      message_count: 1,
+      preview_messages: [{
+        id: 'message-1',
+        conversation_id: 'conversation-history',
+        role: 'ASSISTANT',
+        content: '历史探店结果',
+        status: 'COMPLETED',
+        created_at: now,
+      }],
+    }
+    const api = createApi()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mount(ConversationWorkspace, {
+      props: { api, stream: createStream(), initialConversations: [conversation] },
+    })
+
+    await wrapper.get('[data-conversation-id="conversation-history"]').trigger('click')
+    expect(wrapper.text()).toContain('历史探店结果')
+    await wrapper.get('[data-delete-conversation-id="conversation-history"]').trigger('click')
+    await flushPromises()
+
+    expect(confirm).toHaveBeenCalledWith('确认删除探店记录“朋友聚会川菜馆”？删除后将无法恢复。')
+    expect(api.deleteConversation).toHaveBeenCalledWith('conversation-history')
+    expect(wrapper.find('[data-conversation-id="conversation-history"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('已删除探店记录“朋友聚会川菜馆”')
+    expect(wrapper.text()).toContain('今天想去哪儿？')
+    expect(wrapper.text()).not.toContain('历史探店结果')
+  })
+
+  it('keeps the conversation when deletion is cancelled or fails', async () => {
+    const conversation: ConversationSummary = {
+      id: 'conversation-history',
+      title: '保留的探店记录',
+      status: 'ACTIVE',
+      updated_at: now,
+    }
+    const api = createApi({
+      deleteConversation: vi.fn().mockRejectedValue(new Error('删除服务暂不可用')),
+    })
+    vi.spyOn(window, 'confirm')
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true)
+    const wrapper = mount(ConversationWorkspace, {
+      props: { api, stream: createStream(), initialConversations: [conversation] },
+    })
+    const deleteButton = wrapper.get('[data-delete-conversation-id="conversation-history"]')
+
+    await deleteButton.trigger('click')
+    expect(api.deleteConversation).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-conversation-id="conversation-history"]').exists()).toBe(true)
+
+    await deleteButton.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-conversation-id="conversation-history"]').exists()).toBe(true)
+    expect(wrapper.get('[role="alert"]').text()).toContain('删除服务暂不可用')
   })
 
   it('keeps the failed answer visible with an actionable retry state', async () => {
