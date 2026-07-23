@@ -68,7 +68,7 @@ const router = createRouter({
         ],
       },
       meta: {
-        publicReadOnly: true,
+        requiresAuth: true,
         roles: ['PLATFORM_ADMIN', 'KB_ADMIN', 'OPS_ADMIN', 'MODEL_ADMIN'],
         title: '管理工作台',
       },
@@ -78,7 +78,7 @@ const router = createRouter({
       name: 'knowledge-bases',
       component: () => import('@/views/admin/KnowledgeBaseListView.vue'),
       meta: {
-        publicReadOnly: true,
+        requiresAuth: true,
         roles: ['PLATFORM_ADMIN', 'KB_ADMIN'],
         title: '知识库管理',
       },
@@ -88,7 +88,7 @@ const router = createRouter({
       name: 'knowledge-base-detail',
       component: () => import('@/views/admin/KnowledgeBaseDetailView.vue'),
       meta: {
-        publicReadOnly: true,
+        requiresAuth: true,
         roles: ['PLATFORM_ADMIN', 'KB_ADMIN'],
         title: '知识库详情',
       },

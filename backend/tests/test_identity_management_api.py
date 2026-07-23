@@ -26,6 +26,7 @@ def _principal(*, admin: bool = True) -> AuthorizationPrincipal:
 class IdentityRepositoryStub:
     def __init__(self) -> None:
         self.created = None
+        self.password_reset = None
         self.deleted_user_id = None
 
     async def list_users(self, **values):
@@ -68,6 +69,9 @@ class IdentityRepositoryStub:
     async def delete_user(self, user_id, **context):
         del context
         self.deleted_user_id = user_id
+
+    async def reset_password(self, user_id, password_hash, **context):
+        self.password_reset = (user_id, password_hash, context)
 
 
 def _client(
@@ -148,3 +152,24 @@ def test_admin_cannot_delete_current_account() -> None:
     assert response.status_code == 409
     assert response.json()["code"] == "SELF_DELETE_FORBIDDEN"
     assert repository.deleted_user_id is None
+
+
+def test_admin_can_reset_own_password_and_revoke_sessions() -> None:
+    repository = IdentityRepositoryStub()
+    client, principal = _client(repository)
+    with client:
+        response = client.post(
+            f"/api/v1/users/{principal.user_id}/reset-password",
+            json={"password": "new-platform-password"},
+        )
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "id": str(principal.user_id),
+        "sessions_revoked": True,
+    }
+
+    user_id, password_hash, context = repository.password_reset
+    assert user_id == principal.user_id
+    assert password_hash.startswith("$argon2id$")
+    assert "new-platform-password" not in password_hash
+    assert context["actor_id"] == principal.user_id

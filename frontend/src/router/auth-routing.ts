@@ -17,7 +17,6 @@ export function resolveWorkbenchRouteName(user: CurrentUser): WorkbenchRouteName
 export function canAccessRoles(user: CurrentUser, requiredRoles?: string[]): boolean {
   if (!requiredRoles?.length) return true
   const roles = new Set(user.roles.map((role) => role.code.trim().toUpperCase()))
-  if (roles.has('PLATFORM_ADMIN')) return true
   if (requiredRoles.length === 1 && requiredRoles[0] === 'USER') {
     return ![...roles].some((role) => adminRoles.has(role) || merchantRoles.has(role))
   }

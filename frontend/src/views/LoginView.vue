@@ -58,6 +58,14 @@ async function submit(): Promise<void> {
           <p>使用你的平台账号登录</p>
         </div>
       </template>
+      <el-alert
+        v-if="route.query.passwordChanged === '1'"
+        class="password-change-notice"
+        title="密码已修改，请使用新密码重新登录。"
+        type="success"
+        :closable="false"
+        show-icon
+      />
       <el-form
         ref="formRef"
         :model="form"
