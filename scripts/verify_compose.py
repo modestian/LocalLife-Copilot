@@ -80,7 +80,9 @@ def main() -> None:
         service = services[service_name]
         assert service.get("read_only") is True
         assert "no-new-privileges:true" in service.get("security_opt", [])
-        assert all("docker.sock" not in str(volume) for volume in service.get("volumes", []))
+        assert all(
+            "docker.sock" not in str(volume) for volume in service.get("volumes", [])
+        )
 
     assert base["networks"]["backend"].get("internal") is True
     dockerfile = (ROOT / "backend/Dockerfile").read_text(encoding="utf-8")
