@@ -428,6 +428,10 @@ class OperationsRepository:
                 task_type="MERCHANT_ANALYSIS",
                 resource_type="MERCHANT",
                 resource_id=merchant_id,
+                result_json={
+                    "mode": mode,
+                    "since": since.isoformat() if since else None,
+                },
             )
             session.add(task)
             await session.flush()
@@ -533,6 +537,7 @@ class OperationsRepository:
                 resource_type="FINE_TUNING_JOB",
                 resource_id=job.id,
                 max_attempts=1,
+                result_json={"benchmark": benchmark},
             )
             session.add(task)
             await session.flush()

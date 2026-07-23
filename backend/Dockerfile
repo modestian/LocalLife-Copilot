@@ -22,6 +22,8 @@ RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch \
     && rm -rf app
 
 COPY app ./app
+COPY training ./training
+COPY evaluation ./evaluation
 COPY alembic.ini ./
 COPY migrations ./migrations
 

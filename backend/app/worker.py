@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from uuid import UUID
 
 from celery import Celery
@@ -14,6 +15,7 @@ from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.etl.lifecycle import LifecycleRepository, TaskOperation, WorkerLifecycleService
 from app.infrastructure.db.repositories.lifecycle import SQLAlchemyLifecycleRepository
 from app.infrastructure.db.repositories.tasks import SQLAlchemyOutboxRepository
+from app.operations.task_runtime import OperationalTaskRuntime
 
 settings = get_settings()
 
@@ -78,6 +80,7 @@ async def _publish_outbox() -> dict[str, int]:
 _lifecycle_service: WorkerLifecycleService | None = None
 _lifecycle_projection_client: OpenSearch | None = None
 _lifecycle_engine: Engine | None = None
+_operational_runtime: OperationalTaskRuntime | None = None
 
 
 def configure_lifecycle_service(service: WorkerLifecycleService) -> None:
@@ -131,6 +134,18 @@ def _configure_default_lifecycle_service() -> None:
     configure_lifecycle_repository(repository)
 
 
+def _operational() -> OperationalTaskRuntime:
+    global _operational_runtime
+    if _operational_runtime is None:
+        engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+        _operational_runtime = OperationalTaskRuntime(
+            async_sessionmaker(engine, expire_on_commit=False),
+            artifact_root=Path(settings.training_artifact_root),
+            worker_id="celery-operational-worker",
+        )
+    return _operational_runtime
+
+
 @celery_app.task(name="knowledge.ingest")
 def ingest_document(task_id: str) -> dict[str, object]:
     return _lifecycle().ingest(UUID(task_id)).to_json()
@@ -156,6 +171,21 @@ def delete_document_projection(task_id: str) -> dict[str, object]:
 @celery_app.task(name="knowledge.rebuild")
 def rebuild_document_projection(task_id: str) -> dict[str, object]:
     return _lifecycle().rebuild(UUID(task_id)).to_json()
+
+
+@celery_app.task(name="merchant.analysis")
+def analyze_merchant(task_id: str) -> dict[str, object]:
+    return asyncio.run(_operational().run_merchant_analysis(UUID(task_id)))
+
+
+@celery_app.task(name="fine_tuning.train")
+def train_fine_tuning_job(task_id: str) -> dict[str, object]:
+    return asyncio.run(_operational().run_fine_tuning(UUID(task_id)))
+
+
+@celery_app.task(name="fine_tuning.evaluate")
+def evaluate_fine_tuning_job(task_id: str) -> dict[str, object]:
+    return asyncio.run(_operational().run_evaluation(UUID(task_id)))
 
 
 def dispatch_lifecycle_task(operation: TaskOperation, task_id: UUID) -> None:
