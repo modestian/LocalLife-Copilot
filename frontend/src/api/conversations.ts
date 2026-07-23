@@ -63,11 +63,17 @@ interface ChatCompletionResponse {
   }>
 }
 
+export interface DeletedConversation {
+  id: string
+  status: 'DELETED'
+}
+
 export interface ConversationApi {
   listConversations: () => Promise<ConversationSummary[]>
   createConversation: (request: CreateConversationRequest) => Promise<ConversationSummary>
   listMessages: (conversationId: string) => Promise<ChatMessage[]>
   sendMessage: (conversationId: string, content: string) => Promise<ChatMessage>
+  deleteConversation: (conversationId: string) => Promise<DeletedConversation>
 }
 
 export const conversationApi: ConversationApi = {
@@ -116,5 +122,12 @@ export const conversationApi: ConversationApi = {
       status: 'COMPLETED',
       created_at: new Date().toISOString(),
     }
+  },
+
+  deleteConversation(conversationId) {
+    return requestData<DeletedConversation>({
+      method: 'DELETE',
+      url: `/api/v1/conversations/${encodeURIComponent(conversationId)}`,
+    })
   },
 }
