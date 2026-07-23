@@ -59,12 +59,6 @@ function login(): void {
         <router-link to="/app">
           探店
         </router-link>
-        <router-link to="/merchant">
-          商家板块
-        </router-link>
-        <router-link to="/admin">
-          管理板块
-        </router-link>
         <el-button
           type="primary"
           @click="login"

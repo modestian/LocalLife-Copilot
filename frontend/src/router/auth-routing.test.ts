@@ -32,8 +32,15 @@ describe('role routing', () => {
     expect(resolveWorkbenchRouteName(userWithRole(role))).toBe(routeName)
   })
 
-  it('allows platform administrators to access role-protected routes', () => {
-    expect(canAccessRoles(userWithRole('PLATFORM_ADMIN'), ['MERCHANT_ADMIN'])).toBe(true)
+  it('keeps user, merchant, and admin workspaces mutually exclusive', () => {
+    expect(canAccessRoles(
+      userWithRole('PLATFORM_ADMIN'),
+      ['PLATFORM_ADMIN', 'KB_ADMIN'],
+    )).toBe(true)
+    expect(canAccessRoles(userWithRole('PLATFORM_ADMIN'), ['MERCHANT_ADMIN'])).toBe(false)
+    expect(canAccessRoles(userWithRole('PLATFORM_ADMIN'), ['USER'])).toBe(false)
+    expect(canAccessRoles(userWithRole('MERCHANT_ADMIN'), ['MERCHANT_ADMIN'])).toBe(true)
+    expect(canAccessRoles(userWithRole('MERCHANT_ADMIN'), ['USER'])).toBe(false)
     expect(canAccessRoles(userWithRole('USER'), ['KB_ADMIN'])).toBe(false)
   })
 

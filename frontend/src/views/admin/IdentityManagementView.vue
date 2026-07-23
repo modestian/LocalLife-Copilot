@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { getUserFacingError } from '@/api/errors'
 import { identityManagementApi } from '@/api/identity-management'
@@ -15,6 +16,7 @@ import type {
 } from '@/types/identity-management'
 
 type Tab = 'users' | 'roles'
+const router = useRouter()
 
 const authStore = useAuthStore()
 const tab = ref<Tab>('users')
@@ -224,9 +226,17 @@ async function saveUserAccess(): Promise<void> {
 async function submitPasswordReset(): Promise<void> {
   if (!selectedUser.value || !resetPassword.value) return
   saving.value = true
+  errorMessage.value = ''
+  notice.value = ''
   try {
-    await identityManagementApi.resetPassword(selectedUser.value.id, resetPassword.value)
+    const userId = selectedUser.value.id
+    await identityManagementApi.resetPassword(userId, resetPassword.value)
     resetPassword.value = ''
+    if (userId === authStore.currentUser?.id) {
+      authStore.clearSession()
+      await router.replace({ name: 'login', query: { passwordChanged: '1' } })
+      return
+    }
     notice.value = '密码已重置，账号已有会话已全部撤销'
   } catch (error) {
     errorMessage.value = getUserFacingError(error, '密码重置失败')

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { useAuthStore } from '@/stores/auth'
@@ -12,6 +13,23 @@ const props = withDefaults(defineProps<{
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
+
+const roleCodes = computed(
+  () => new Set(authStore.currentUser?.roles.map((role) => role.code.trim().toUpperCase()) ?? []),
+)
+const isAdmin = computed(
+  () => ['PLATFORM_ADMIN', 'KB_ADMIN', 'OPS_ADMIN', 'MODEL_ADMIN']
+    .some((role) => roleCodes.value.has(role)),
+)
+const isMerchant = computed(
+  () => !isAdmin.value
+    && ['MERCHANT_ADMIN', 'MERCHANT_OPERATOR'].some((role) => roleCodes.value.has(role)),
+)
+const showDiscover = computed(
+  () => !authStore.currentUser || (!isAdmin.value && !isMerchant.value),
+)
+const showMerchant = computed(() => Boolean(authStore.currentUser) && isMerchant.value)
+const showAdmin = computed(() => Boolean(authStore.currentUser) && isAdmin.value)
 
 function login(): void {
   void router.push({ name: 'login', query: { redirect: route.fullPath } })
@@ -36,18 +54,21 @@ async function logout(): Promise<void> {
 
     <nav aria-label="主导航">
       <router-link
+        v-if="showDiscover"
         to="/app"
         :class="{ 'is-active': props.active === 'discover' }"
       >
         探店
       </router-link>
       <router-link
+        v-if="showMerchant"
         to="/merchant"
         :class="{ 'is-active': props.active === 'merchant' }"
       >
         商家板块
       </router-link>
       <router-link
+        v-if="showAdmin"
         to="/admin"
         :class="{ 'is-active': props.active === 'admin' }"
       >

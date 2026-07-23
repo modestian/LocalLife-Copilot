@@ -12,15 +12,10 @@ describe('guest read-only routing', () => {
     await router.replace('/')
   })
 
-  it.each([
-    ['/app', 'user-home'],
-    ['/admin', 'admin-home'],
-    ['/admin/knowledge-bases', 'knowledge-bases'],
-    ['/admin/knowledge-bases/kb-public', 'knowledge-base-detail'],
-  ])('allows a guest to browse %s without redirecting to login', async (path, routeName) => {
-    await router.push(path)
+  it('allows a guest to browse only the discovery workspace', async () => {
+    await router.push('/app')
 
-    expect(router.currentRoute.value.name).toBe(routeName)
+    expect(router.currentRoute.value.name).toBe('user-home')
     expect(router.currentRoute.value.meta.publicReadOnly).toBe(true)
   })
 
@@ -36,5 +31,18 @@ describe('guest read-only routing', () => {
 
     expect(router.currentRoute.value.name).toBe('login')
     expect(router.currentRoute.value.query.redirect).toBe('/admin/models')
+  })
+
+  it.each([
+    '/admin',
+    '/admin/knowledge-bases',
+    '/admin/knowledge-bases/kb-private',
+    '/admin/identity',
+  ])('requires authentication before exposing management route %s', async (path) => {
+    await router.push('/')
+    await router.push(path)
+
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.redirect).toBe(path)
   })
 })
