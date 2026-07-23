@@ -6,9 +6,11 @@ import { feedbackApi } from './feedback'
 vi.mock('./client', () => ({ requestData: vi.fn() }))
 
 describe('feedback API', () => {
+  const requestId = '00000000-0000-4000-8000-000000000001'
+
   beforeEach(() => {
     vi.mocked(requestData).mockReset().mockResolvedValue(undefined)
-    vi.spyOn(crypto, 'randomUUID').mockReturnValue('feedback-request-id')
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(requestId)
   })
 
   it('posts the documented feedback payload with an idempotency key', async () => {
@@ -30,7 +32,7 @@ describe('feedback API', () => {
         correction: '该店周一闭店。',
         reason_codes: ['FACT_ERROR', 'OUTDATED'],
       },
-      headers: { 'Idempotency-Key': 'feedback-request-id' },
+      headers: { 'Idempotency-Key': requestId },
     })
   })
 })
