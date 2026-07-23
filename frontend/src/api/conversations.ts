@@ -42,7 +42,7 @@ export interface ConversationSummary {
 export interface CreateConversationRequest {
   title: string
   scenario: ConversationScenario
-  constraints: ExploreConstraints
+  constraints?: ExploreConstraints
 }
 
 interface ConversationListResponse {

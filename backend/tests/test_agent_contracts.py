@@ -144,3 +144,41 @@ def test_hybrid_search_adapter_turns_search_fallback_into_no_evidence() -> None:
     )
 
     assert adapter.retrieve(request) == ()
+
+
+def test_hybrid_search_adapter_keeps_only_matching_merchant_name() -> None:
+    service = MagicMock()
+    service.search.return_value = RankingResult(
+        hits=tuple(
+            RankedHit(
+                document_id=f"doc-{index}",
+                source={
+                    "content": name,
+                    "merchant_id": f"merchant-{index}",
+                    "metadata": {"merchant_name": name},
+                },
+                fused_score=score,
+                final_score=score,
+                recall_sources=("bm25",),
+            )
+            for index, (name, score) in enumerate(
+                (("清河面馆", 0.9), ("书香咖啡馆", 0.8)),
+                start=1,
+            )
+        ),
+        fallback=False,
+    )
+    adapter = HybridSearchRetrieverAdapter(service)
+
+    result = adapter.retrieve(
+        RetrievalRequest(
+            query="清河面馆\n\n[探店条件] 距离：3 公里内",
+            scope=RetrievalScope(
+                tenant_id="tenant-1",
+                knowledge_base_ids=frozenset({"kb-1"}),
+                resource_scopes=frozenset({"KNOWLEDGE_BASE:kb-1"}),
+            ),
+        )
+    )
+
+    assert tuple(chunk.metadata["merchant_name"] for chunk in result) == ("清河面馆",)

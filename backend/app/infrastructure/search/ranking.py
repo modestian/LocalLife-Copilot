@@ -27,7 +27,7 @@ class RankingConfig:
     vector_weight: float = 0.5
     rerank_top_n: int = 20
     minimum_score: float = 0.0
-    minimum_evidence: int = 2
+    minimum_evidence: int = 1
     max_merchant_ratio: float = 0.4
 
     def __post_init__(self) -> None:

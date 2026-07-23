@@ -63,6 +63,7 @@ function createStream(result: StreamResult = {}): WebSocketChatController {
   const messageId = ref<string | null>(null)
   const send = vi.fn(async () => {
     state.value = 'streaming'
+    await Promise.resolve()
     content.value = result.content ?? ''
     sources.value = result.sources ?? []
     recommendations.value = result.recommendations ?? []
@@ -139,6 +140,50 @@ describe('ConversationWorkspace', () => {
     )
     expect(wrapper.text()).toContain('适合学习办公')
     expect(wrapper.text()).toContain('三公里内有插座')
+  })
+
+  it('sends a standalone greeting without implicit exploration conditions', async () => {
+    const api = createApi()
+    const stream = createStream({ content: '你好！今天想聊点什么？' })
+    const wrapper = mount(ConversationWorkspace, { props: { api, stream } })
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('你好')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(api.createConversation).toHaveBeenCalledWith({
+      title: '你好',
+      scenario: 'nearby',
+    })
+    expect(stream.send).toHaveBeenCalledWith('conversation-new', '你好', [])
+  })
+
+  it('uses exploration conditions only for the merchant query that requested them', async () => {
+    const api = createApi()
+    const stream = createStream({ content: '你好！我可以帮你找店。' })
+    const wrapper = mount(ConversationWorkspace, { props: { api, stream } })
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('你好')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    await wrapper.get('textarea').setValue('清河面馆')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    await wrapper.get('textarea').setValue('乃龙')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(api.createConversation).toHaveBeenCalledOnce()
+    expect(stream.send).toHaveBeenNthCalledWith(1, 'conversation-new', '你好', [])
+    expect(stream.send).toHaveBeenNthCalledWith(
+      2,
+      'conversation-new',
+      expect.stringContaining('清河面馆\n\n[探店条件] 场景：附近随便吃'),
+      [],
+    )
+    expect(stream.send).toHaveBeenNthCalledWith(3, 'conversation-new', '乃龙', [])
   })
 
   it('restores an existing conversation and sends a multi-turn follow-up', async () => {
