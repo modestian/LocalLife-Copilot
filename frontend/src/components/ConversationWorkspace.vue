@@ -166,7 +166,7 @@ function chooseScene(scene: SceneOption): void {
 
 function startNewConversation(): void {
   if (props.readOnly) return
-  if (streamIsActive.value) stream.cancel()
+  resetActiveStream()
   activeConversationId.value = null
   messages.value = []
   query.value = ''
@@ -174,7 +174,7 @@ function startNewConversation(): void {
 }
 
 async function selectConversation(conversation: ConversationSummary): Promise<void> {
-  if (streamIsActive.value) stream.cancel()
+  resetActiveStream()
   activeConversationId.value = conversation.id
   selectedScenario.value = conversation.scenario ?? 'nearby'
   errorMessage.value = ''
@@ -291,6 +291,13 @@ async function retryStreamingMessage(): Promise<void> {
 
 function cancelStreamingMessage(): void {
   stream.cancel()
+}
+
+function resetActiveStream(): void {
+  if (streamIsActive.value) stream.cancel()
+  streamingMessageId.value = null
+  pendingSummaryTitle.value = ''
+  isSending.value = false
 }
 
 function applyRefinement(suggestion: string): void {
