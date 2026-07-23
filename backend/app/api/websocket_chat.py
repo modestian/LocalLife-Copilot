@@ -12,6 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from app.agents.generation import GenerationMode
 from app.api.openai import _shared_retrieval_scope, _source_data, _text_chunks, _usage_data
 from app.application.authorization import AuthorizationPrincipal
 from app.application.conversations import ConversationNotFound
@@ -193,6 +194,9 @@ async def _serve_request(
             await emit({"type": "chat.route", "request_id": event.request_id, "route": str(intent)})
         for part in _text_chunks(result.message.content):
             await emit({"type": "chat.delta", "request_id": event.request_id, "delta": part})
+        recommendation_event = _recommendation_event(result, event.request_id)
+        if recommendation_event is not None:
+            await emit(recommendation_event)
         if result.message.sources:
             await emit(
                 {
@@ -255,6 +259,58 @@ async def _serve_request(
                 event.request_id,
             )
         )
+
+
+def _recommendation_event(result, request_id: str) -> dict[str, Any] | None:
+    generation = getattr(result, "generation", None)
+    if generation is None:
+        return None
+    structured = generation.structured
+    if structured is not None and structured.response_type is GenerationMode.RECOMMENDATION:
+        source_chunk_ids = {
+            source.evidence_id: source.chunk_id
+            for source in generation.sources
+            if source.evidence_id is not None
+        }
+        recommendations = [
+            {
+                "merchant_id": item.merchant_id,
+                "name": item.name,
+                "category": item.category,
+                "reason": item.reason,
+                "distance_meter": item.distance_meter,
+                "avg_price_cent": item.avg_price_cent,
+                "rating": item.rating,
+                "business_status": (
+                    item.business_status.value if item.business_status is not None else None
+                ),
+                "data_updated_at": item.data_updated_at,
+                "source_chunk_ids": [
+                    source_chunk_ids[source_id]
+                    for source_id in item.source_ids
+                    if source_id in source_chunk_ids
+                ],
+                "tags": list(item.tags),
+            }
+            for item in structured.recommendations
+        ]
+        return {
+            "type": "chat.recommendations",
+            "request_id": request_id,
+            "recommendations": recommendations,
+            "fallback": {"triggered": False},
+        }
+    if generation.is_fallback:
+        return {
+            "type": "chat.recommendations",
+            "request_id": request_id,
+            "recommendations": [],
+            "fallback": {
+                "triggered": True,
+                "reason": generation.fallback_reason,
+            },
+        }
+    return None
 
 
 def _chat_error(

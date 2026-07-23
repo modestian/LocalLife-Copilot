@@ -3,7 +3,7 @@ import { computed, reactive, ref } from 'vue'
 
 import { documentApi } from '@/api/documents'
 import { getUserFacingError } from '@/api/errors'
-import type { AcceptedTask, SplitterStrategy } from '@/types/document'
+import type { AcceptedTask, DocumentImportMode, SplitterStrategy } from '@/types/document'
 import {
   acceptedDocumentExtensions,
   formatFileSize,
@@ -29,6 +29,7 @@ const dragging = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
 const options = reactive({
+  importMode: 'knowledge' as DocumentImportMode,
   splitter: 'recursive' as SplitterStrategy,
   chunkSize: props.defaultChunkSize,
   chunkOverlap: props.defaultChunkOverlap,
@@ -104,6 +105,7 @@ async function submit(): Promise<void> {
       chunk_size: options.chunkSize,
       chunk_overlap: options.chunkOverlap,
       force_new_version: options.forceNewVersion,
+      import_mode: options.importMode,
     })
     files.value = []
     emit('accepted', task, acceptedFiles)
@@ -190,6 +192,13 @@ async function submit(): Promise<void> {
 
     <div class="upload-options">
       <label>
+        <span>上传类型</span>
+        <select v-model="options.importMode">
+          <option value="knowledge">知识文档</option>
+          <option value="merchant_reviews">商家评论数据</option>
+        </select>
+      </label>
+      <label>
         <span>切分策略</span>
         <select v-model="options.splitter">
           <option value="recursive">递归切分</option>
@@ -222,6 +231,12 @@ async function submit(): Promise<void> {
         <span>重复文件强制创建新版本</span>
       </label>
     </div>
+    <p
+      v-if="options.importMode === 'merchant_reviews'"
+      class="upload-hint"
+    >
+      仅支持符合项目导入规范的 CSV/XLSX；成功后会同步写入商家、评论和检索索引。
+    </p>
 
     <p
       v-if="errorMessage"
@@ -271,6 +286,7 @@ async function submit(): Promise<void> {
 .upload-options input, .upload-options select { min-width: 0; width: 100%; border: 1px solid #d9ccc1; border-radius: 8px; padding: 9px 10px; background: white; color: #392d26; font: inherit; }
 .checkbox-option { display: flex; grid-column: 1 / -1; gap: 8px; align-items: center; color: #695b51; font-size: .76rem; }
 .checkbox-option input { width: auto; }
+.upload-hint { margin: 12px 0 0; color: #695b51; font-size: .75rem; line-height: 1.6; }
 .upload-error { margin: 12px 0 0; border-radius: 8px; padding: 9px 12px; background: #fff0ed; color: #a4362b; font-size: .78rem; }
 .upload-actions { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-top: 16px; }
 .upload-actions > span { color: #85746a; font-size: .72rem; }

@@ -16,6 +16,7 @@ from app.etl.lifecycle import (
     WorkerLifecycleService,
     projection_id,
 )
+from app.etl.merchant_reviews import MerchantReviewImportResult
 from app.etl.models import ChunkRecord
 
 TASK_ID = UUID("0190c4d2-7f20-7b31-9f75-8f6cc8e2b121")
@@ -138,6 +139,14 @@ class MemoryRepository:
         assert document_id == DOCUMENT_ID
         self.document_error = error_code
 
+    def import_merchant_reviews(self, tenant_id, records):
+        assert tenant_id == TENANT_ID
+        return MerchantReviewImportResult(
+            records=records,
+            merchant_count=1,
+            review_count=len(records),
+        )
+
     def complete_task(self, task_id: UUID, result: dict[str, object]) -> None:
         assert task_id == TASK_ID
         self.completed = dict(result)
@@ -214,6 +223,45 @@ def test_ingest_persists_projects_verifies_then_marks_document_ready() -> None:
         TaskStage.INDEXING,
         TaskStage.VERIFYING,
     ]
+
+
+def test_merchant_review_ingest_projects_domain_rows_before_indexing() -> None:
+    payload = (
+        "merchant_key,merchant_name,category,address,longitude,latitude,"
+        "review_key,review_content,review_rating,reviewed_at\n"
+        "cafe-1,青禾咖啡馆,咖啡馆,锦江区1号,104.08,30.65,"
+        "review-1,环境安静并且有插座,5,2026-07-20T12:30:00+08:00\n"
+    ).encode()
+    job = replace(
+        make_job(),
+        source_uri="memory://document/merchant-reviews.csv",
+        source_key="merchant-reviews.csv",
+        mime_type="text/csv",
+        import_mode="merchant_reviews",
+        text_template=("商家'{merchant_name}'收到评分{review_rating}的评价：{review_content}"),
+    )
+    repository = MemoryRepository(job)
+    projection = MemoryProjection()
+    service = WorkerLifecycleService(
+        repository,
+        MemoryStorage(payload),
+        projection,
+        lambda operation, task_id: None,
+        worker_id="worker-test",
+    )
+
+    result = service.ingest(TASK_ID)
+
+    assert result.status == "SUCCEEDED"
+    assert result.details["domain_import"] == {
+        "type": "merchant_reviews",
+        "merchant_count": 1,
+        "review_count": 1,
+        "analysis_task_ids": [],
+    }
+    assert repository.chunks[VERSION_ID][0].content == (
+        "商家'青禾咖啡馆'收到评分5的评价：环境安静并且有插座"
+    )
 
 
 def test_ingest_honours_cancellation_before_non_interruptible_stages() -> None:

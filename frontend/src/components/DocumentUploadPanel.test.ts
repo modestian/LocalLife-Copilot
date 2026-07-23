@@ -51,7 +51,7 @@ describe('DocumentUploadPanel', () => {
     ]
     await selectFiles(wrapper, files)
 
-    await wrapper.get('.upload-options select').setValue('semantic')
+    await wrapper.findAll('.upload-options select')[1]?.setValue('semantic')
     const numberInputs = wrapper.findAll('.upload-options input[type="number"]')
     await numberInputs[0]?.setValue(800)
     await numberInputs[1]?.setValue(120)
@@ -68,6 +68,7 @@ describe('DocumentUploadPanel', () => {
       chunk_size: 800,
       chunk_overlap: 120,
       force_new_version: true,
+      import_mode: 'knowledge',
     })
     expect(wrapper.emitted('accepted')?.[0]?.[0]).toEqual(accepted)
     expect((wrapper.emitted('accepted')?.[0]?.[1] as File[]).map((file) => file.name)).toEqual([

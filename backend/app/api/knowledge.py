@@ -328,8 +328,11 @@ async def upload_documents(
     chunk_size: Annotated[int, Form(ge=100, le=4000)] = 500,
     chunk_overlap: Annotated[int, Form(ge=0)] = 80,
     force_new_version: Annotated[bool, Form()] = False,
+    import_mode: Annotated[Literal["knowledge", "merchant_reviews"], Form()] = "knowledge",
 ) -> dict[str, Any]:
     _authorize_knowledge_base(principal, knowledge_base_id, "UPDATE")
+    if import_mode == "merchant_reviews":
+        _authorize_permission(principal, "MERCHANT", "CREATE")
     if not files or len(files) > 20:
         raise AppError(400, "INVALID_UPLOAD", "每次必须上传 1 至 20 个文件")
     if chunk_overlap >= chunk_size:
@@ -353,6 +356,9 @@ async def upload_documents(
             raise AppError(400, "UNSAFE_UPLOAD", str(exc)) from exc
         filename = validated.filename
         safe_name = validated.safe_filename
+        suffix = Path(safe_name).suffix.casefold()
+        if import_mode == "merchant_reviews" and suffix not in {".csv", ".xlsx"}:
+            raise AppError(400, "INVALID_MERCHANT_IMPORT", "商家评论数据仅支持 CSV 或 XLSX 文件")
         document = await _knowledge_service(request, principal).create_document(
             DocumentInput(
                 knowledge_base_id=knowledge_base_id,
@@ -370,7 +376,18 @@ async def upload_documents(
         )
         await run_in_threadpool(target.parent.mkdir, parents=True, exist_ok=True)
         await run_in_threadpool(target.write_bytes, content)
-        parser_version = f"1-{uuid7()}" if force_new_version else "1"
+        version_prefix = "1" if import_mode == "knowledge" else "1-merchant-reviews"
+        parser_version = f"{version_prefix}-{uuid7()}" if force_new_version else version_prefix
+        cleaning_config: dict[str, object] = {"steps": []}
+        if import_mode == "merchant_reviews":
+            cleaning_config.update(
+                {
+                    "import_mode": "merchant_reviews",
+                    "text_template": (
+                        "商家'{merchant_name}'收到评分{review_rating}的评价：{review_content}"
+                    ),
+                }
+            )
         await _knowledge_service(request, principal).create_document_version_idempotent(
             DocumentVersionInput(
                 document_id=document.id,
@@ -379,7 +396,7 @@ async def upload_documents(
                 file_size=len(content),
                 parser_name=target.suffix.lstrip(".") or "binary",
                 parser_version=parser_version,
-                cleaning_config={"steps": []},
+                cleaning_config=cleaning_config,
                 splitter_config={
                     "strategy": splitter,
                     "chunk_size": chunk_size,

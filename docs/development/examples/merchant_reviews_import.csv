@@ -1,0 +1,3 @@
+merchant_key,merchant_name,category,address,longitude,latitude,avg_price_cent,merchant_rating,business_status,review_key,review_content,review_rating,reviewed_at,author_ref,tags,owner_username
+bistro-001,青禾小馆,咖啡馆,锦江区测试路1号,104.0801,30.6571,4800,4.6,OPEN,review-0001,环境安静并且有插座,5,2026-07-20T12:30:00+08:00,user-a,环境|设施,demo-merchant
+bistro-001,青禾小馆,咖啡馆,锦江区测试路1号,104.0801,30.6571,4800,4.6,OPEN,review-0002,周末下午客流较多,3,2026-07-21T19:10:00+08:00,user-b,客流,demo-merchant

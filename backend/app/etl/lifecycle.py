@@ -27,7 +27,8 @@ from app.etl.cleaner import (
 )
 from app.etl.embeddings import EmbeddingError
 from app.etl.loaders import FileLoadError, loader_for
-from app.etl.models import ChunkRecord, JsonValue, Metadata
+from app.etl.merchant_reviews import MerchantReviewImportError, MerchantReviewImportResult
+from app.etl.models import ChunkRecord, DocumentRecord, JsonValue, Metadata
 from app.etl.splitters import (
     RecursiveSplitter,
     SemanticSplitter,
@@ -37,6 +38,13 @@ from app.etl.splitters import (
 
 DEFAULT_MAX_SOURCE_BYTES = 20 * 1024 * 1024
 _SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+_CSV_MIME_TYPES = frozenset(
+    {"text/csv", "application/csv", "text/plain", "application/vnd.ms-excel"}
+)
+
+
+def _mime_matches(expected: str, detected: str | None) -> bool:
+    return expected == detected or (expected in _CSV_MIME_TYPES and detected in _CSV_MIME_TYPES)
 
 
 def _source_name(source_uri: str, fallback: str) -> str:
@@ -115,6 +123,7 @@ class LifecycleJob:
     metadata: Metadata = field(default_factory=dict)
     cleaning_steps: tuple[Mapping[str, object], ...] = ()
     text_template: str | None = None
+    import_mode: str | None = None
     max_source_bytes: int = DEFAULT_MAX_SOURCE_BYTES
     splitter_config: Mapping[str, JsonValue] = field(
         default_factory=lambda: {
@@ -185,6 +194,10 @@ class LifecycleRepository(Protocol):
     ) -> None: ...
 
     def mark_document_failed(self, document_id: UUID, error_code: str) -> None: ...
+
+    def import_merchant_reviews(
+        self, tenant_id: UUID, records: tuple[DocumentRecord, ...]
+    ) -> MerchantReviewImportResult: ...
 
     def complete_task(self, task_id: UUID, result: Mapping[str, JsonValue]) -> None: ...
 
@@ -277,6 +290,8 @@ class WorkerLifecycleService:
             return "FILE_LOAD_FAILED"
         if isinstance(exc, CleaningConfigError | RowTemplateError):
             return "CLEANING_FAILED"
+        if isinstance(exc, MerchantReviewImportError):
+            return "MERCHANT_IMPORT_FAILED"
         if isinstance(exc, SplitterConfigError):
             return "SPLITTING_FAILED"
         if isinstance(exc, EmbeddingError):
@@ -330,6 +345,15 @@ class WorkerLifecycleService:
         )
         cleaned = cleaner.clean(records)
         cleaning_report = cleaner.last_report
+        import_summary: dict[str, JsonValue] | None = None
+        if job.import_mode is not None:
+            if job.import_mode != "merchant_reviews":
+                raise LifecycleError(
+                    "INVALID_INGEST_JOB", f"unsupported import mode: {job.import_mode}"
+                )
+            imported = self._repository.import_merchant_reviews(job.tenant_id, tuple(cleaned))
+            cleaned = list(imported.records)
+            import_summary = imported.summary()
 
         self._checkpoint(job, TaskStage.SPLITTING, 45)
         splitter = self._splitter(job.splitter_config)
@@ -350,6 +374,8 @@ class WorkerLifecycleService:
         result["source_validation"] = source_report
         result["cleaning_report"] = self._cleaning_report_json(cleaning_report)
         result["splitting_report"] = self._splitting_report_json(splitting_report)
+        if import_summary is not None:
+            result["domain_import"] = import_summary
         return result
 
     def _rebuild(self, job: LifecycleJob) -> Mapping[str, JsonValue]:
@@ -437,7 +463,7 @@ class WorkerLifecycleService:
             if expected_hash is not None and actual_hash != expected_hash:
                 raise LifecycleError("FILE_HASH_MISMATCH", "source SHA-256 does not match metadata")
             detected_mime = mimetypes.guess_type(source_key)[0]
-            if expected_mime is not None and detected_mime != expected_mime:
+            if expected_mime is not None and not _mime_matches(expected_mime, detected_mime):
                 raise LifecycleError(
                     "FILE_MIME_MISMATCH",
                     f"source MIME {expected_mime!r} does not match {detected_mime!r}",
