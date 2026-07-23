@@ -32,6 +32,8 @@ export interface KnowledgeBaseDetail extends KnowledgeBaseSummary {
 }
 
 export interface KnowledgeBaseListParams {
+  tenant_id?: string
+  department_id?: string
   name?: string
   status?: KnowledgeBaseStatus
   page: number

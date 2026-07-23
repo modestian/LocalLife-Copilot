@@ -42,14 +42,42 @@ class InMemoryKnowledgeRepository:
         return row
 
     async def list_knowledge_bases(
-        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[KnowledgeBaseView]:
         rows = [
             row
             for row in self.knowledge_bases.values()
-            if row.tenant_id == tenant_id and row.status != "DELETED"
+            if row.tenant_id == tenant_id
+            and (status == "DELETED" or row.status != "DELETED")
+            and (status is None or row.status == status)
+            and (not name or name.casefold() in row.normalized_name)
+            and (department_id is None or row.department_id == department_id)
         ]
         return rows[offset : offset + limit]
+
+    async def count_knowledge_bases(
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+    ) -> int:
+        return len(
+            await self.list_knowledge_bases(
+                tenant_id,
+                name=name,
+                status=status,
+                department_id=department_id,
+            )
+        )
 
     async def update_knowledge_base(
         self, knowledge_base_id: UUID, patch: KnowledgeBasePatch
@@ -262,6 +290,15 @@ async def test_knowledge_base_crud_and_logical_delete() -> None:
         created.id, KnowledgeBasePatch(name="Menu Knowledge", description="curated")
     )
     assert updated.normalized_name == "menu knowledge"
+    assert (
+        await service.count_knowledge_bases(
+            tenant_id,
+            name="menu",
+            status="ACTIVE",
+        )
+        == 1
+    )
+    assert await service.list_knowledge_bases(tenant_id, name="missing") == []
 
     await service.delete_knowledge_base(created.id)
 

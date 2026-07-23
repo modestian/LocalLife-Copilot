@@ -189,15 +189,27 @@ async def list_knowledge_bases(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     tenant_id: Annotated[UUID | None, Query()] = None,
+    department_id: Annotated[UUID | None, Query()] = None,
+    name: Annotated[str | None, Query(min_length=1, max_length=200)] = None,
+    status: Annotated[Literal["ACTIVE", "ARCHIVED", "DELETED"] | None, Query()] = None,
 ) -> dict[str, Any]:
     _authorize_permission(principal, "KNOWLEDGE_BASE", "READ")
     if principal.department_id is None and not principal.is_platform_admin:
         raise AppError(403, "TENANT_CONTEXT_REQUIRED", "当前账号缺少租户上下文")
-    effective_tenant_id = tenant_id if principal.is_platform_admin else principal.department_id
+    effective_tenant_id = (
+        tenant_id or principal.department_id
+        if principal.is_platform_admin
+        else principal.department_id
+    )
     if effective_tenant_id is None:
         raise AppError(422, "TENANT_REQUIRED", "平台管理员查询时需要部门上下文")
     rows = await _knowledge_service(request, principal).list_knowledge_bases(
-        effective_tenant_id, limit=page_size, offset=(page - 1) * page_size
+        effective_tenant_id,
+        name=name,
+        status=status,
+        department_id=department_id,
+        limit=page_size,
+        offset=(page - 1) * page_size,
     )
     rows = filter_authorized_resources(
         principal,
@@ -206,9 +218,20 @@ async def list_knowledge_bases(
         action="READ",
         id_getter=lambda row: row.id,
     )
+    total = await _knowledge_service(request, principal).count_knowledge_bases(
+        effective_tenant_id,
+        name=name,
+        status=status,
+        department_id=department_id,
+    )
     return success_response(
         request,
-        {"items": [_serialize(row) for row in rows], "page": page, "page_size": page_size},
+        {
+            "items": [_serialize(row) for row in rows],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+        },
     )
 
 

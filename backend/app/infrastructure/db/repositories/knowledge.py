@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import false, select
+from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.sql import ColumnElement, Select
 
@@ -139,18 +139,24 @@ class SQLAlchemyKnowledgeRepository:
             return _knowledge_base_view(row)
 
     async def list_knowledge_bases(
-        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[KnowledgeBaseView]:
         self._require_tenant(tenant_id)
         async with self._session_factory() as session:
-            statement = self._scope_statement(
-                select(KnowledgeBase).where(
-                    KnowledgeBase.tenant_id == tenant_id,
-                    KnowledgeBase.deleted_at.is_(None),
-                    KnowledgeBase.status != "DELETED",
-                ),
+            statement = self._knowledge_base_filter_statement(
+                select(KnowledgeBase),
+                tenant_id,
+                name=name,
+                status=status,
+                department_id=department_id,
                 action="READ",
-                resource_id_column=KnowledgeBase.id,
             )
             rows = (
                 await session.scalars(
@@ -160,6 +166,58 @@ class SQLAlchemyKnowledgeRepository:
                 )
             ).all()
             return [_knowledge_base_view(row) for row in rows]
+
+    async def count_knowledge_bases(
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+    ) -> int:
+        self._require_tenant(tenant_id)
+        async with self._session_factory() as session:
+            statement = self._knowledge_base_filter_statement(
+                select(func.count()).select_from(KnowledgeBase),
+                tenant_id,
+                name=name,
+                status=status,
+                department_id=department_id,
+                action="READ",
+            )
+            return int((await session.scalar(statement)) or 0)
+
+    def _knowledge_base_filter_statement(
+        self,
+        statement: Select,
+        tenant_id: UUID,
+        *,
+        name: str | None,
+        status: str | None,
+        department_id: UUID | None,
+        action: str,
+    ) -> Select:
+        statement = statement.where(KnowledgeBase.tenant_id == tenant_id)
+        if status == "DELETED":
+            statement = statement.where(KnowledgeBase.status == "DELETED")
+        else:
+            statement = statement.where(
+                KnowledgeBase.deleted_at.is_(None),
+                KnowledgeBase.status != "DELETED",
+            )
+            if status is not None:
+                statement = statement.where(KnowledgeBase.status == status)
+        if name:
+            statement = statement.where(
+                KnowledgeBase.normalized_name.contains(normalize_name(name))
+            )
+        if department_id is not None:
+            statement = statement.where(KnowledgeBase.department_id == department_id)
+        return self._scope_statement(
+            statement,
+            action=action,
+            resource_id_column=KnowledgeBase.id,
+        )
 
     async def get_knowledge_base(self, knowledge_base_id: UUID) -> KnowledgeBaseView:
         async with self._session_factory() as session:
