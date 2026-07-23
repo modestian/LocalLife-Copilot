@@ -112,6 +112,7 @@ services:
       EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-32}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-local-deterministic-v1}
       KNOWLEDGE_DATA_ROOT: ${KNOWLEDGE_DATA_ROOT:-/data/knowledge}
+      TRAINING_ARTIFACT_ROOT: ${TRAINING_ARTIFACT_ROOT:-/data/training/artifacts}
       MAX_INGESTION_SOURCE_BYTES: ${MAX_INGESTION_SOURCE_BYTES:-20971520}
       MODEL_GATEWAY_HEALTH_URL: ${MODEL_GATEWAY_HEALTH_URL:-http://model-gateway:8001/health/live}
       MODEL_GATEWAY_EMBEDDING_URL: ${MODEL_GATEWAY_EMBEDDING_URL:-http://model-gateway:8001/v1/embeddings}
@@ -176,6 +177,18 @@ services:
     tmpfs: [/tmp]
     security_opt: [no-new-privileges:true]
 
+  prepare-training-data:
+    build:
+      context: ./backend
+    command: ["sh", "-c", "mkdir -p /data/training/artifacts && chown -R app:app /data/training"]
+    user: "0:0"
+    volumes:
+      - training-artifacts:/data/training
+    restart: "no"
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
   api:
     build:
       context: ./backend
@@ -191,6 +204,8 @@ services:
       seed:
         condition: service_completed_successfully
       prepare-knowledge-data:
+        condition: service_completed_successfully
+      prepare-training-data:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
@@ -236,6 +251,7 @@ services:
     networks: [backend]
     volumes:
       - knowledge-data:/data/knowledge:ro
+      - training-artifacts:/data/training
     depends_on: *application-dependencies
     healthcheck:
       test:
@@ -300,3 +316,4 @@ volumes:
   redis-data:
   opensearch-data:
   knowledge-data:
+  training-artifacts:

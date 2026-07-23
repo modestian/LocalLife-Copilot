@@ -103,6 +103,9 @@ async def retry_task(
         "INGEST": "knowledge.ingest",
         "REBUILD": "knowledge.rebuild",
         "DELETE": "knowledge.delete",
+        "MERCHANT_ANALYSIS": "merchant.analysis",
+        "LORA_TRAINING": "fine_tuning.train",
+        "MODEL_EVALUATION": "fine_tuning.evaluate",
     }
     event_type = event_types.get(task.task_type)
     if event_type is None or not await request.app.state.task_repository.retry_with_outbox(

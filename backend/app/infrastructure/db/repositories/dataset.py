@@ -15,7 +15,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.dataset_service import DatasetRecord
-from app.infrastructure.db.models.feedback import Dataset
+from app.core.ids import uuid7
+from app.infrastructure.db.models.feedback import Dataset, DatasetItem
 
 
 def _orm_to_record(ds: Dataset) -> DatasetRecord:
@@ -79,3 +80,21 @@ class SQLAlchemyDatasetRepository:
             if ds is None:
                 return None
             return _orm_to_record(ds)
+
+    async def save_dataset_items(self, dataset_id: UUID, assignments: list[object]) -> None:
+        """Persist the immutable train/validation/test assignment for each sample."""
+        async with self._session_factory() as session, session.begin():
+            for assignment in assignments:
+                record = assignment.record
+                session.add(
+                    DatasetItem(
+                        id=uuid7(),
+                        dataset_id=dataset_id,
+                        feedback_id=record.id,
+                        message_id=record.message_id,
+                        user_id=record.user_id,
+                        split=assignment.split,
+                        content_json=dict(assignment.content_json),
+                        content_hash=assignment.content_hash,
+                    )
+                )

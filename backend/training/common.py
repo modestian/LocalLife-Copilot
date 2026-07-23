@@ -91,7 +91,8 @@ def load_dataset(file_path: str):
             if line:
                 item = json.loads(line)
                 texts.append(item["text"])
-                labels.append(item["label"])
+                label = item["label"]
+                labels.append(LABEL_MAP[label] if isinstance(label, str) else label)
 
     from datasets import Dataset
 

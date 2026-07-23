@@ -411,7 +411,9 @@ def main():
     print(f"   {len(test_data)} 条样本")
 
     # 确定产物路径
-    artifact_root = Path("backend/training/artifacts") / args.job_id
+    artifact_root = (
+        Path(os.getenv("TRAINING_ARTIFACT_ROOT", "backend/training/artifacts")) / args.job_id
+    )
     adapter_dir = Path(args.adapter_dir) if args.adapter_dir else artifact_root / "adapter"
     tokenizer_dir = Path(args.tokenizer_dir) if args.tokenizer_dir else artifact_root / "tokenizer"
     snapshot_path = artifact_root / "config" / "training_snapshot.json"

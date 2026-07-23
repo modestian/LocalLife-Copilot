@@ -86,6 +86,10 @@ class DatasetRepository(Protocol):
         """Insert a new dataset record.  Returns the stored record."""
         ...
 
+    async def save_dataset_items(self, dataset_id: UUID, assignments: list[object]) -> None:
+        """Persist immutable split assignments used by the training worker."""
+        ...
+
     async def get_dataset(self, dataset_id: UUID) -> DatasetRecord | None:
         """Return a dataset by ID, or None if not found."""
         ...
@@ -105,6 +109,10 @@ class InMemoryDatasetRepository:
     async def save_dataset(self, record: DatasetRecord) -> DatasetRecord:
         self._store[record.id] = record
         return record
+
+    async def save_dataset_items(self, dataset_id: UUID, assignments: list[object]) -> None:
+        # The in-memory repository is used by service tests; metadata is sufficient there.
+        return None
 
     async def get_dataset(self, dataset_id: UUID) -> DatasetRecord | None:
         return self._store.get(dataset_id)
@@ -204,7 +212,9 @@ class DatasetService:
             created_at=now,
             updated_at=now,
         )
-        return await self._dataset_repo.save_dataset(record)
+        saved = await self._dataset_repo.save_dataset(record)
+        await self._dataset_repo.save_dataset_items(saved.id, list(result.assignments))
+        return saved
 
     async def get_dataset(self, dataset_id: UUID) -> DatasetRecord:
         """Retrieve a dataset by ID.

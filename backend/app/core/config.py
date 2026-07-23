@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     embedding_batch_size: int = 32
     embedding_model: str = "local-deterministic-v1"
     knowledge_data_root: str = "/data/knowledge"
+    training_artifact_root: str = "/data/training/artifacts"
     max_ingestion_source_bytes: int = 20 * 1024 * 1024
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     model_gateway_embedding_url: str = "http://model-gateway:8001/v1/embeddings"
