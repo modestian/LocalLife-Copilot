@@ -276,7 +276,16 @@ async def _seed_roles_and_permissions(
     session: AsyncSession, users: dict[str, User]
 ) -> dict[str, Role]:
     roles: dict[str, Role] = {}
-    for offset, role_code in enumerate(("PLATFORM_ADMIN", "USER", "MERCHANT_ADMIN"), start=1):
+    role_codes = (
+        "PLATFORM_ADMIN",
+        "USER",
+        "MERCHANT_ADMIN",
+        "MERCHANT_OPERATOR",
+        "KB_ADMIN",
+        "OPS_ADMIN",
+        "MODEL_ADMIN",
+    )
+    for offset, role_code in enumerate(role_codes, start=1):
         role = await session.scalar(select(Role).where(Role.code == role_code))
         if role is None:
             role = Role(
@@ -294,22 +303,36 @@ async def _seed_roles_and_permissions(
         roles[role_code] = role
 
     permissions: dict[str, Permission] = {}
-    for offset, (code, resource_type) in enumerate(
-        (("demo.knowledge-base.read", "KNOWLEDGE_BASE"), ("demo.merchant.read", "MERCHANT")),
-        start=1,
-    ):
+    permission_specs = (
+        ("demo.knowledge-base.read", "KNOWLEDGE_BASE", "READ"),
+        ("knowledge-base.create", "KNOWLEDGE_BASE", "CREATE"),
+        ("knowledge-base.update", "KNOWLEDGE_BASE", "UPDATE"),
+        ("knowledge-base.delete", "KNOWLEDGE_BASE", "DELETE"),
+        ("demo.merchant.read", "MERCHANT", "READ"),
+        ("merchant.update", "MERCHANT", "UPDATE"),
+        ("region.read", "REGION", "READ"),
+        ("region.update", "REGION", "UPDATE"),
+        ("audit.read", "AUDIT", "READ"),
+        ("content.read", "CONTENT", "READ"),
+        ("content.update", "CONTENT", "UPDATE"),
+        ("model.read", "MODEL", "READ"),
+        ("model.create", "MODEL", "CREATE"),
+        ("model.update", "MODEL", "UPDATE"),
+        ("model.deploy", "MODEL", "DEPLOY"),
+    )
+    for offset, (code, resource_type, action) in enumerate(permission_specs, start=1):
         permission = await session.scalar(select(Permission).where(Permission.code == code))
         if permission is None:
             permission = Permission(
                 id=UUID(f"70200000-0000-4000-8000-0000000000{70 + offset}"),
                 code=code,
                 resource_type=resource_type,
-                action="READ",
+                action=action,
                 created_at=DEMO_TIME,
                 updated_at=DEMO_TIME,
             )
             session.add(permission)
-        permissions[resource_type] = permission
+        permissions[code] = permission
 
     await session.flush()
     for user_spec in DEMO_USERS:
@@ -317,8 +340,29 @@ async def _seed_roles_and_permissions(
         user = users[user_spec.key]
         if await session.get(UserRole, (user.id, role.id)) is None:
             session.add(UserRole(user_id=user.id, role_id=role.id, granted_at=DEMO_TIME))
-    for role_code in ("USER", "MERCHANT_ADMIN"):
-        for permission in permissions.values():
+    role_permissions = {
+        "USER": {"demo.knowledge-base.read"},
+        "MERCHANT_ADMIN": {"demo.knowledge-base.read", "demo.merchant.read", "merchant.update"},
+        "MERCHANT_OPERATOR": {"demo.knowledge-base.read", "demo.merchant.read", "merchant.update"},
+        "KB_ADMIN": {
+            "demo.knowledge-base.read",
+            "knowledge-base.create",
+            "knowledge-base.update",
+            "knowledge-base.delete",
+        },
+        "OPS_ADMIN": {
+            "region.read",
+            "region.update",
+            "audit.read",
+            "content.read",
+            "content.update",
+        },
+        "MODEL_ADMIN": {"model.read", "model.create", "model.update", "model.deploy"},
+        "PLATFORM_ADMIN": set(permissions),
+    }
+    for role_code, permission_codes in role_permissions.items():
+        for permission_code in permission_codes:
+            permission = permissions[permission_code]
             if await session.get(RolePermission, (roles[role_code].id, permission.id)) is None:
                 session.add(
                     RolePermission(role_id=roles[role_code].id, permission_id=permission.id)

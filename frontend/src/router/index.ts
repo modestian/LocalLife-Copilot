@@ -56,6 +56,11 @@ const router = createRouter({
             description: '查看知识库状态、文档与 Chunk 统计及配置权限。',
           },
           {
+            to: '/admin/identity',
+            label: '进入身份与权限管理',
+            description: '管理账号生命周期、角色权限与资源授权。',
+          },
+          {
             to: '/admin/models',
             label: '进入模型管理',
             description: '管理数据集、LoRA 训练、模型卡、审批和发布操作。',
@@ -88,6 +93,17 @@ const router = createRouter({
         title: '知识库详情',
       },
     },
+    {
+      path: '/admin/identity',
+      name: 'identity-management',
+      component: () => import('@/views/admin/IdentityManagementView.vue'),
+      meta: {
+        requiresAuth: true,
+        roles: ['PLATFORM_ADMIN'],
+        title: '身份与权限管理',
+      },
+    },
+
     {
       path: '/admin/models',
       name: 'model-management',

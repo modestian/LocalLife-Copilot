@@ -25,6 +25,7 @@ from app.api.datasets import router as datasets_router
 from app.api.feedback import router as feedback_router
 from app.api.governance import router as governance_router
 from app.api.health import router as health_router
+from app.api.identity_management import router as identity_management_router
 from app.api.knowledge import router as knowledge_router
 from app.api.observability import audit_router, metrics_router
 from app.api.openai import router as openai_router
@@ -62,6 +63,9 @@ from app.infrastructure.db.repositories.conversations import SQLAlchemyConversat
 from app.infrastructure.db.repositories.dataset import SQLAlchemyDatasetRepository
 from app.infrastructure.db.repositories.feedback import SQLAlchemyFeedbackRepository
 from app.infrastructure.db.repositories.governance import SQLAlchemyGovernanceRepository
+from app.infrastructure.db.repositories.identity_management import (
+    SQLAlchemyIdentityManagementRepository,
+)
 from app.infrastructure.db.repositories.knowledge import SQLAlchemyKnowledgeRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
 from app.infrastructure.db.repositories.tasks import SQLAlchemyTaskRepository
@@ -109,6 +113,9 @@ def create_app(
         app.state.authorization_service = AuthorizationService(
             authorization_repository,
             access_tokens,
+        )
+        app.state.identity_management_repository = SQLAlchemyIdentityManagementRepository(
+            session_factory
         )
         # Feedback + Dataset services (ST-501 production wiring)
         feedback_repository = SQLAlchemyFeedbackRepository(session_factory)
@@ -228,6 +235,7 @@ def create_app(
     app.include_router(datasets_router, prefix=app_settings.api_v1_prefix)
     app.include_router(feedback_router, prefix=app_settings.api_v1_prefix)
     app.include_router(governance_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(identity_management_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
     app.include_router(search_router, prefix=app_settings.api_v1_prefix)
     app.include_router(knowledge_router, prefix=app_settings.api_v1_prefix)

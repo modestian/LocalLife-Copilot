@@ -88,6 +88,11 @@ OpenAI 兼容接口不使用上述包装，严格返回兼容对象；扩展字�
 | PATCH/DELETE | `/api/v1/users/{user_id}` | 平台管理员 | 修改/逻辑删除用户 |
 | GET/POST | `/api/v1/roles` | 平台管理员 | 角色列表/创建 |
 | PUT | `/api/v1/users/{user_id}/roles` | 平台管理员 | 覆盖用户角色与资源范围 |
+| POST | `/api/v1/users/{user_id}/reset-password` | 平台管理员 | 重置密码并撤销该用户全部会话 |
+| GET | `/api/v1/permissions` | 平台管理员 | 权限字典 |
+| PUT | `/api/v1/roles/{role_id}/permissions` | 平台管理员 | 覆盖角色权限矩阵 |
+
+账号停用、锁定、删除、重置密码或授权变更后必须撤销已有会话；系统禁止删除、停用或移除最后一个平台管理员。
 
 登录请求示例：
 
