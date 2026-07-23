@@ -1,4 +1,5 @@
 import json
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
@@ -13,12 +14,14 @@ from app.cli.seed_demo_data import (
     DEMO_QUESTIONS,
     DEMO_USERS,
     QUESTION_SET_PATH,
+    _available_permission_id,
     _parser,
     _password_from_environment,
     _project_demo_facts,
     _review_rows,
 )
 from app.etl.models import ChunkRecord
+from app.infrastructure.db.models.identity import Permission
 from app.operations.storage_recovery import ChunkFact
 
 
@@ -59,6 +62,19 @@ def test_demo_seed_rejects_missing_password(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(ValueError, match="ST_702_MISSING_PASSWORD"):
         _password_from_environment("ST_702_MISSING_PASSWORD")
+
+
+@pytest.mark.asyncio
+async def test_demo_permission_id_falls_back_when_an_old_fixture_owns_preferred_id() -> None:
+    preferred_id = UUID("70200000-0000-4000-8000-000000000072")
+    session = AsyncMock()
+    session.get.side_effect = [Permission(), None]
+
+    selected_id = await _available_permission_id(session, preferred_id, "knowledge-base.create")
+
+    assert selected_id != preferred_id
+    assert selected_id.version == 5
+    assert session.get.await_count == 2
 
 
 class RecordingProjection:

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Final, Protocol
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from opensearchpy import OpenSearch
 from sqlalchemy import create_engine, select, update
@@ -92,6 +92,7 @@ DEMO_USERS: Final = (
     DemoUser("merchant", "demo-merchant", "演示商家运营", "MERCHANT_ADMIN"),
 )
 DEMO_KNOWLEDGE_ROLE_CODES: Final = ("USER", "MERCHANT_ADMIN", "PLATFORM_ADMIN")
+DEMO_PERMISSION_NAMESPACE: Final = UUID("70200000-0000-4000-8000-000000000000")
 
 DEMO_QUESTIONS: Final = (
     {
@@ -272,6 +273,19 @@ async def _add_if_missing(session: AsyncSession, record: object) -> bool:
     return True
 
 
+async def _available_permission_id(session: AsyncSession, preferred_id: UUID, code: str) -> UUID:
+    """Keep fixture IDs stable without colliding with records from older fixtures."""
+    if await session.get(Permission, preferred_id) is None:
+        return preferred_id
+
+    attempt = 0
+    while True:
+        candidate = uuid5(DEMO_PERMISSION_NAMESPACE, f"permission:{code}:{attempt}")
+        if await session.get(Permission, candidate) is None:
+            return candidate
+        attempt += 1
+
+
 async def _seed_roles_and_permissions(
     session: AsyncSession, users: dict[str, User]
 ) -> dict[str, Role]:
@@ -322,9 +336,21 @@ async def _seed_roles_and_permissions(
     )
     for offset, (code, resource_type, action) in enumerate(permission_specs, start=1):
         permission = await session.scalar(select(Permission).where(Permission.code == code))
+        if permission is not None and (
+            permission.resource_type != resource_type or permission.action != action
+        ):
+            raise RuntimeError(f"permission {code!r} already exists with incompatible semantics")
         if permission is None:
+            permission = await session.scalar(
+                select(Permission).where(
+                    Permission.resource_type == resource_type,
+                    Permission.action == action,
+                )
+            )
+        if permission is None:
+            preferred_id = UUID(f"70200000-0000-4000-8000-0000000000{70 + offset}")
             permission = Permission(
-                id=UUID(f"70200000-0000-4000-8000-0000000000{70 + offset}"),
+                id=await _available_permission_id(session, preferred_id, code),
                 code=code,
                 resource_type=resource_type,
                 action=action,
