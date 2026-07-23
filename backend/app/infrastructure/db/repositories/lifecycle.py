@@ -8,10 +8,14 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.application.tasks import TaskStage as PersistedTaskStage
 from app.application.tasks import TaskStatus, can_claim, can_retry, cancellation_target
 from app.etl.lifecycle import LifecycleJob, TaskOperation, TaskStage
-from app.etl.models import ChunkRecord, JsonValue
+from app.etl.merchant_reviews import MerchantReviewImportResult
+from app.etl.models import ChunkRecord, DocumentRecord, JsonValue
 from app.infrastructure.db.base import utc_now
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
 from app.infrastructure.db.models.tasks import AsyncTask
+from app.infrastructure.db.repositories.merchant_import import (
+    SQLAlchemyMerchantReviewImporter,
+)
 
 
 class SQLAlchemyLifecycleRepository:
@@ -21,6 +25,7 @@ class SQLAlchemyLifecycleRepository:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
         self._session_factory = session_factory
+        self._merchant_importer = SQLAlchemyMerchantReviewImporter(session_factory)
         self._lease_seconds = lease_seconds
         self._claimed_by: dict[UUID, str] = {}
 
@@ -86,6 +91,7 @@ class SQLAlchemyLifecycleRepository:
                 mime_type=document.mime_type,
                 cleaning_steps=tuple(version.cleaning_config_json.get("steps", ())),
                 text_template=_optional_string(version.cleaning_config_json.get("text_template")),
+                import_mode=_optional_string(version.cleaning_config_json.get("import_mode")),
                 splitter_config=dict(version.splitter_config_json),
             )
 
@@ -245,6 +251,11 @@ class SQLAlchemyLifecycleRepository:
             if document is not None:
                 document.status = "FAILED"
                 document.last_error_code = error_code
+
+    def import_merchant_reviews(
+        self, tenant_id: UUID, records: tuple[DocumentRecord, ...]
+    ) -> MerchantReviewImportResult:
+        return self._merchant_importer.import_records(tenant_id, records)
 
     def complete_task(self, task_id: UUID, result: Mapping[str, JsonValue]) -> None:
         with self._session_factory.begin() as session:

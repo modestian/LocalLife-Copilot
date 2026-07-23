@@ -20,6 +20,7 @@ describe('document API', () => {
       chunk_size: 500,
       chunk_overlap: 80,
       force_new_version: true,
+      import_mode: 'merchant_reviews',
     })
 
     const config = vi.mocked(requestData).mock.calls[0]?.[0]
@@ -33,6 +34,7 @@ describe('document API', () => {
     expect(form.get('chunk_size')).toBe('500')
     expect(form.get('chunk_overlap')).toBe('80')
     expect(form.get('force_new_version')).toBe('true')
+    expect(form.get('import_mode')).toBe('merchant_reviews')
   })
 
   it('uses the selected immutable version for preview and rollback', async () => {

@@ -31,6 +31,7 @@ export const documentApi = {
     form.append('chunk_size', String(payload.chunk_size))
     form.append('chunk_overlap', String(payload.chunk_overlap))
     form.append('force_new_version', String(payload.force_new_version))
+    form.append('import_mode', payload.import_mode)
 
     return requestData({
       method: 'POST',

@@ -71,6 +71,7 @@ class ChatRunContext:
 class ChatRunResult:
     state: ChatState
     message: MessageView
+    generation: GroundedGeneration | None = None
 
 
 class ChatAgentRuntime:
@@ -164,7 +165,11 @@ class ChatAgentRuntime:
         )
         if context.assistant_message is None:
             raise RuntimeError("chat graph completed without persisting an assistant message")
-        return ChatRunResult(state=result, message=context.assistant_message)
+        return ChatRunResult(
+            state=result,
+            message=context.assistant_message,
+            generation=context.generation,
+        )
 
     async def _input_guard(
         self, state: ChatState, runtime: Runtime[ChatRunContext]

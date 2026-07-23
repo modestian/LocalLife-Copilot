@@ -11,6 +11,7 @@ export type DocumentStatus =
   | 'DELETED'
 
 export type SplitterStrategy = 'recursive' | 'semantic'
+export type DocumentImportMode = 'knowledge' | 'merchant_reviews'
 
 export interface DocumentSummary {
   id: string
@@ -83,6 +84,7 @@ export interface UploadDocumentsPayload {
   chunk_size: number
   chunk_overlap: number
   force_new_version: boolean
+  import_mode: DocumentImportMode
 }
 
 export interface UpdateDocumentPayload {
