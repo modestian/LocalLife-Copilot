@@ -112,8 +112,24 @@ class KnowledgeRepository(Protocol):
     async def create_knowledge_base(self, payload: KnowledgeBaseInput) -> KnowledgeBaseView: ...
 
     async def list_knowledge_bases(
-        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[KnowledgeBaseView]: ...
+
+    async def count_knowledge_bases(
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+    ) -> int: ...
 
     async def get_knowledge_base(self, knowledge_base_id: UUID) -> KnowledgeBaseView: ...
 
@@ -154,10 +170,37 @@ class KnowledgeService:
         return await self._repository.create_knowledge_base(payload)
 
     async def list_knowledge_bases(
-        self, tenant_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[KnowledgeBaseView]:
         return await self._repository.list_knowledge_bases(
-            tenant_id, limit=_validate_limit(limit), offset=_validate_offset(offset)
+            tenant_id,
+            name=name.strip() if name else None,
+            status=status,
+            department_id=department_id,
+            limit=_validate_limit(limit),
+            offset=_validate_offset(offset),
+        )
+
+    async def count_knowledge_bases(
+        self,
+        tenant_id: UUID,
+        *,
+        name: str | None = None,
+        status: str | None = None,
+        department_id: UUID | None = None,
+    ) -> int:
+        return await self._repository.count_knowledge_bases(
+            tenant_id,
+            name=name.strip() if name else None,
+            status=status,
+            department_id=department_id,
         )
 
     async def get_knowledge_base(self, knowledge_base_id: UUID) -> KnowledgeBaseView:
