@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import { merchantDirectoryApi } from '@/api/merchants'
 import MerchantAnalyticsDashboard from '@/components/MerchantAnalyticsDashboard.vue'
 import MerchantInsightWorkbench from '@/components/MerchantInsightWorkbench.vue'
 import ProductTopBar from '@/components/ProductTopBar.vue'
@@ -11,6 +12,7 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const adminMerchantInput = ref('')
+const merchantNames = ref<Record<string, string>>({})
 
 const merchantIds = computed(() => [
   ...new Set(
@@ -52,8 +54,35 @@ function openAdminMerchant(): void {
   if (merchantId) void router.push({ name: 'merchant-home', params: { merchantId } })
 }
 
+function compactMerchantId(merchantId: string): string {
+  return merchantId.length > 8 ? `…${merchantId.slice(-4)}` : merchantId
+}
+
+function merchantLabel(merchantId: string): string {
+  const name = merchantNames.value[merchantId]?.trim()
+  return name
+    ? `${name}（${compactMerchantId(merchantId)}）`
+    : `商家 ${compactMerchantId(merchantId)}`
+}
+
+async function loadMerchantNames(ids: string[]): Promise<void> {
+  const entries = await Promise.all(ids.map(async (merchantId) => {
+    try {
+      const merchant = await merchantDirectoryApi.getMerchant(merchantId)
+      return [merchantId, merchant.name] as const
+    } catch {
+      return [merchantId, ''] as const
+    }
+  }))
+  merchantNames.value = Object.fromEntries(entries)
+}
+
 watch(routeMerchantId, (value) => {
   adminMerchantInput.value = value
+}, { immediate: true })
+
+watch(merchantIds, (ids) => {
+  void loadMerchantNames(ids)
 }, { immediate: true })
 </script>
 
@@ -83,10 +112,10 @@ watch(routeMerchantId, (value) => {
             :key="merchantId"
             :value="merchantId"
           >
-            {{ merchantId }}
+            {{ merchantLabel(merchantId) }}
           </option>
         </select>
-        <small>仅列出当前账号已授权的资源范围</small>
+        <small>显示商家名称与 ID 尾号，仅列出当前账号已授权的资源范围</small>
       </aside>
 
       <form
@@ -112,7 +141,7 @@ watch(routeMerchantId, (value) => {
         class="merchant-switcher"
       >
         <span>当前商家</span>
-        <strong>{{ selectedMerchantId }}</strong>
+        <strong :title="selectedMerchantId">{{ merchantLabel(selectedMerchantId) }}</strong>
         <small>来自账号 MERCHANT 资源授权</small>
       </aside>
     </section>

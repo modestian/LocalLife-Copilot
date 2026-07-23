@@ -18,6 +18,10 @@ class ScalarRows:
         return self._rows
 
 
+class ExecuteRows(ScalarRows):
+    pass
+
+
 class FakeSession:
     def __init__(self, scalars: list[Any]) -> None:
         self.results = iter(scalars)
@@ -40,6 +44,10 @@ class FakeSession:
     async def scalars(self, statement: Any):
         self.statements.append(statement)
         return ScalarRows(next(self.results))
+
+    async def execute(self, statement: Any):
+        self.statements.append(statement)
+        return ExecuteRows(next(self.results))
 
     def add(self, row: Any) -> None:
         self.added.append(row)
@@ -133,3 +141,18 @@ async def test_request_id_returns_existing_message_without_allocating_sequence()
     assert result.id == existing.id
     assert len(session.statements) == 3
     assert not session.added
+
+
+@pytest.mark.asyncio
+async def test_list_conversations_restores_persisted_message_count() -> None:
+    owner_id = uuid7()
+    row = conversation(owner_id)
+    session = FakeSession([[(row, 4)]])
+    repository = SQLAlchemyConversationRepository(FakeFactory(session))  # type: ignore[arg-type]
+
+    result = await repository.list_conversations(owner_id)
+
+    assert result[0].message_count == 4
+    statement = str(session.statements[0].compile(dialect=mysql.dialect()))
+    assert "count(messages.id)" in statement
+    assert "LEFT OUTER JOIN" in statement

@@ -45,6 +45,7 @@ class ConversationView:
     version: int
     created_at: datetime
     updated_at: datetime
+    message_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)

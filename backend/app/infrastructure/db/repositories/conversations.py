@@ -55,9 +55,24 @@ class SQLAlchemyConversationRepository:
         if not 1 <= limit <= 100 or offset < 0:
             raise ValueError("limit must be 1 to 100 and offset must not be negative")
         async with self._session_factory() as session:
+            message_counts = (
+                select(
+                    Message.conversation_id.label("conversation_id"),
+                    func.count(Message.id).label("message_count"),
+                )
+                .group_by(Message.conversation_id)
+                .subquery()
+            )
             rows = (
-                await session.scalars(
-                    select(Conversation)
+                await session.execute(
+                    select(
+                        Conversation,
+                        func.coalesce(message_counts.c.message_count, 0),
+                    )
+                    .outerjoin(
+                        message_counts,
+                        message_counts.c.conversation_id == Conversation.id,
+                    )
                     .where(
                         Conversation.owner_user_id == owner_user_id,
                         Conversation.deleted_at.is_(None),
@@ -68,7 +83,10 @@ class SQLAlchemyConversationRepository:
                     .offset(offset)
                 )
             ).all()
-            return [_conversation_view(row) for row in rows]
+            return [
+                _conversation_view(row, message_count=int(message_count))
+                for row, message_count in rows
+            ]
 
     async def append_message(
         self, conversation_id: UUID, owner_user_id: UUID, payload: MessageInput
@@ -302,7 +320,7 @@ async def _sources_for_messages(
     return {message_id: tuple(values) for message_id, values in grouped.items()}
 
 
-def _conversation_view(row: Conversation) -> ConversationView:
+def _conversation_view(row: Conversation, *, message_count: int = 0) -> ConversationView:
     return ConversationView(
         id=row.id,
         owner_user_id=row.owner_user_id,
@@ -314,6 +332,7 @@ def _conversation_view(row: Conversation) -> ConversationView:
         version=row.version,
         created_at=row.created_at,
         updated_at=row.updated_at,
+        message_count=message_count,
     )
 
 

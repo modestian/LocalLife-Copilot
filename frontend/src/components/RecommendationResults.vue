@@ -82,9 +82,9 @@ function closeSources(): void {
   selectedSourceTitle.value = ''
 }
 
-function safeSourceUrl(sourceUrl: string): string {
+function safeSourceUrl(sourceUrl: string): string | null {
   const trimmed = sourceUrl.trim()
-  return /^(https?:\/\/|\/(?!\/)|#)/i.test(trimmed) ? trimmed : '#'
+  return /^https?:\/\//i.test(trimmed) ? trimmed : null
 }
 </script>
 
@@ -268,10 +268,15 @@ function safeSourceUrl(sourceUrl: string): string {
                 />
               </blockquote>
               <a
+                v-if="safeSourceUrl(source.source_url)"
                 :href="safeSourceUrl(source.source_url)"
                 target="_blank"
                 rel="noopener noreferrer"
               >打开原始来源</a>
+              <span
+                v-else
+                class="source-item__snapshot"
+              >当前仅提供生成时保存的来源快照</span>
             </article>
           </li>
         </ol>
@@ -328,5 +333,6 @@ function safeSourceUrl(sourceUrl: string): string {
 .source-item__location { color: #7b6d63; font-size: .74rem; }
 .source-item blockquote { margin: 10px 0; border-left: 3px solid #d26b57; padding-left: 12px; color: #493a31; font-size: .88rem; line-height: 1.7; }
 .source-item a { color: #9d3423; font-size: .78rem; font-weight: 800; text-underline-offset: 3px; }
+.source-item__snapshot { color: #88786d; font-size: .74rem; }
 @media (max-width: 680px) { .recommendation-results { padding: 17px; } .recommendation-grid { grid-template-columns: 1fr; } .recommendation-card__reason { min-height: auto; } .source-drawer { padding: 18px; } }
 </style>

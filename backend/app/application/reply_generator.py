@@ -394,7 +394,11 @@ class ReplyGenerator:
                 if idx != -1:
                     return text[: idx + 1]
             return text
-        # EMPATHETIC and PROFESSIONAL use the full template text as-is
+        if tone == "PROFESSIONAL":
+            # Keep the same evidence-backed content while making the register
+            # observably more formal than the empathetic default.
+            return f"您好。{text.replace('！', '。')}"
+        # EMPATHETIC keeps the warmer wording from the selected template.
         return text
 
     def _select_template(self, sentiment: str, negative_reasons: list[str]) -> ReplyTemplate:

@@ -169,6 +169,24 @@ describe('ConversationWorkspace', () => {
     expect(stream.send).toHaveBeenCalledWith('conversation-new', '你好', [])
   })
 
+  it('does not force a recommendation after a scene prompt is replaced by a general question', async () => {
+    const api = createApi()
+    const stream = createStream({ content: '我可以帮你查找和比较本地生活信息。' })
+    const wrapper = mount(ConversationWorkspace, { props: { api, stream } })
+    await flushPromises()
+
+    await wrapper.get('[data-scenario="study"]').trigger('click')
+    await wrapper.get('textarea').setValue('你能帮我干什么')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(api.createConversation).toHaveBeenCalledWith({
+      title: '你能帮我干什么',
+      scenario: 'study',
+    })
+    expect(stream.send).toHaveBeenCalledWith('conversation-new', '你能帮我干什么', [])
+  })
+
   it('uses exploration conditions only for the merchant query that requested them', async () => {
     const api = createApi()
     const stream = createStream({ content: '你好！我可以帮你找店。' })
@@ -396,7 +414,7 @@ describe('ConversationWorkspace', () => {
     expect(wrapper.text()).toContain('换一个新的探店需求')
   })
 
-  it('renders streamed recommendations and opens their highlighted citations', async () => {
+  it('renders streamed recommendations and opens their highlighted citation snapshots', async () => {
     const source: RecommendationSource = {
       chunk_id: 'chunk-1',
       source_location: '点评 / 星光咖啡',
@@ -433,6 +451,7 @@ describe('ConversationWorkspace', () => {
     expect(wrapper.text()).toContain('850 米')
     await wrapper.get('.recommendation-card__sources').trigger('click')
     expect(wrapper.get('[role="dialog"] mark').text()).toBe('靠窗位置安静')
-    expect(wrapper.get('[role="dialog"] a').attributes('href')).toBe('/app/reviews/review-1#chunk-1')
+    expect(wrapper.get('[role="dialog"]').find('a').exists()).toBe(false)
+    expect(wrapper.get('[role="dialog"]').text()).toContain('当前仅提供生成时保存的来源快照')
   })
 })

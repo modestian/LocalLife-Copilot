@@ -265,7 +265,9 @@ function composeMessage(content: string, constraints: ExploreConstraints): strin
 
 function shouldUseExplorationContext(content: string): boolean {
   if (standaloneGreetingPattern.test(content)) return false
-  return explorationContextRequested.value || explorationQueryPattern.test(content)
+  const isSelectedScenePrompt = explorationContextRequested.value
+    && content === selectedScene.value.prompt
+  return isSelectedScenePrompt || explorationQueryPattern.test(content)
 }
 
 function requestExplorationContext(): void {
