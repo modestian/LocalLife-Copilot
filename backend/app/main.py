@@ -54,6 +54,9 @@ from app.infrastructure.cache.login_rate_limit import RedisLoginRateLimiter
 from app.infrastructure.db.repositories.audit import SQLAlchemyAuditRepository
 from app.infrastructure.db.repositories.auth import SQLAlchemyAuthRepository
 from app.infrastructure.db.repositories.authorization import SQLAlchemyAuthorizationRepository
+from app.infrastructure.db.repositories.chat_knowledge import (
+    SQLAlchemySharedChatKnowledgeScopeResolver,
+)
 from app.infrastructure.db.repositories.content_safety import SQLAlchemyContentSafetyRepository
 from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
 from app.infrastructure.db.repositories.dataset import SQLAlchemyDatasetRepository
@@ -100,6 +103,9 @@ def create_app(
         )
         authorization_repository = SQLAlchemyAuthorizationRepository(session_factory)
         app.state.authorization_repository = authorization_repository
+        app.state.shared_chat_knowledge_scope = SQLAlchemySharedChatKnowledgeScopeResolver(
+            session_factory
+        )
         app.state.authorization_service = AuthorizationService(
             authorization_repository,
             access_tokens,
