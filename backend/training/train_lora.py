@@ -61,6 +61,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val-file", default="backend/training/data/val.jsonl")
     parser.add_argument("--test-file", default="backend/training/data/test.jsonl")
     parser.add_argument("--dataset-id", default="local-dataset-v1", help="数据集 ID")
+    parser.add_argument(
+        "--task-type",
+        default="sentiment_classification",
+        choices=["sentiment_classification", "negative_reason_attribution"],
+        help="训练任务类型",
+    )
     parser.add_argument("--method", default="LORA", choices=["LORA", "QLORA"], help="训练方法")
 
     # LoRA 超参（默认值来自具体设计 §9.3）
@@ -92,7 +98,7 @@ def build_training_config(args: argparse.Namespace) -> TrainingConfig:
         seed=args.seed,
     )
     return TrainingConfig(
-        task_type="sentiment_classification",
+        task_type=args.task_type,
         base_model_id=args.base_model,
         dataset_id=args.dataset_id,
         method=args.method,

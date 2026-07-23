@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator
@@ -42,7 +43,7 @@ ALLOWED_TASK_TYPES: frozenset[str] = frozenset(
 # ── 产物目录结构 ────────────────────────────────────────────────
 # 具体设计 §9.3：保存 Adapter、Tokenizer、训练参数、依赖版本、
 # Git commit、曲线和 Model Card。
-ARTIFACT_ROOT = Path("backend/training/artifacts")
+ARTIFACT_ROOT = Path(os.getenv("TRAINING_ARTIFACT_ROOT", "backend/training/artifacts"))
 
 # 单次训练产物子目录名
 ARTIFACT_SUBDIRS: tuple[str, ...] = (
