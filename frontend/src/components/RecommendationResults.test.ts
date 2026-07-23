@@ -25,7 +25,7 @@ const recommendation: MerchantRecommendation = {
 const source: RecommendationSource = {
   chunk_id: 'chunk-001',
   source_location: '点评 / 星光咖啡 / 2026-07-16',
-  source_url: '/app/reviews/review-001#chunk-001',
+  source_url: 'https://example.com/reviews/review-001#chunk-001',
   content: '工作日下午客流较少，靠窗位置安静，而且每张桌子附近都有插座。',
   highlight_text: '靠窗位置安静',
   score: 0.91,
@@ -59,7 +59,7 @@ describe('RecommendationResults', () => {
     expect(dialog.text()).toContain('点评 / 星光咖啡')
     expect(dialog.get('mark').text()).toBe('靠窗位置安静')
     expect(dialog.get('a').attributes()).toMatchObject({
-      href: '/app/reviews/review-001#chunk-001',
+      href: 'https://example.com/reviews/review-001#chunk-001',
       target: '_blank',
       rel: 'noopener noreferrer',
     })
@@ -77,7 +77,7 @@ describe('RecommendationResults', () => {
     expect(wrapper.get('[data-level="stale"]').text()).toContain('数据可能已过期')
   })
 
-  it('rejects unsafe source links', async () => {
+  it('hides unsafe or unresolved source links and keeps the saved snapshot', async () => {
     const wrapper = mount(RecommendationResults, {
       props: {
         recommendations: [recommendation],
@@ -87,7 +87,22 @@ describe('RecommendationResults', () => {
 
     await wrapper.get('.recommendation-card__sources').trigger('click')
 
-    expect(wrapper.get('[role="dialog"] a').attributes('href')).toBe('#')
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.find('a').exists()).toBe(false)
+    expect(dialog.text()).toContain('当前仅提供生成时保存的来源快照')
+  })
+
+  it('does not render the obsolete internal chunk route as a source link', async () => {
+    const wrapper = mount(RecommendationResults, {
+      props: {
+        recommendations: [recommendation],
+        sources: [{ ...source, source_url: '/app/chunks/chunk-001' }],
+      },
+    })
+
+    await wrapper.get('.recommendation-card__sources').trigger('click')
+
+    expect(wrapper.get('[role="dialog"]').find('a').exists()).toBe(false)
   })
 
   it('hides recommendation cards and emits a refinement from fallback state', async () => {

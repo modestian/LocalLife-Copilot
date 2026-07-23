@@ -111,7 +111,7 @@ def test_non_streaming_response_matches_openai_chat_completion_shape() -> None:
     assert body["sources"][0] == {
         "chunk_id": str(CHUNK_ID),
         "source_location": "reviews/merchant-a/1",
-        "source_url": f"/app/chunks/{CHUNK_ID}",
+        "source_url": "",
         "content": "Quiet tables are available by the window.",
         "score": 0.91,
     }

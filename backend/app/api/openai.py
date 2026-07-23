@@ -7,7 +7,6 @@ import json
 import time
 from contextlib import suppress
 from typing import Any, Literal, Self
-from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Request
@@ -375,7 +374,10 @@ def _source_data(source) -> dict[str, Any]:
     return {
         "chunk_id": chunk_id,
         "source_location": source.source_location_snapshot,
-        "source_url": f"/app/chunks/{quote(chunk_id, safe='')}",
+        # The stored citation is a snapshot and does not retain a verified
+        # public origin URL. Do not manufacture an internal route: the SPA has
+        # no chunk page and would redirect that link back to the chat screen.
+        "source_url": "",
         "content": source.content_snapshot,
         "score": source.score,
     }

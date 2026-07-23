@@ -193,6 +193,22 @@ class TestReplyGeneratorCompliance:
                 f"Template {tpl.template_id} failed compliance: {result.violations}"
             )
 
+    def test_all_three_tones_produce_distinct_drafts(self) -> None:
+        gen = ReplyGenerator()
+
+        drafts = {
+            tone: gen.generate(
+                review_text="环境一般，价格偏贵",
+                sentiment="NEUTRAL",
+                aspect_labels=["decoration", "price"],
+                tone=tone,
+            ).reply_text
+            for tone in ("EMPATHETIC", "PROFESSIONAL", "CONCISE")
+        }
+
+        assert len(set(drafts.values())) == 3
+        assert drafts["PROFESSIONAL"].startswith("您好。")
+
 
 # ---------------------------------------------------------------------------
 # API endpoint tests

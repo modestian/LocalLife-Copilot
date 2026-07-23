@@ -67,6 +67,7 @@ def _conversation_data(row) -> dict[str, Any]:
             str(row.current_branch_message_id) if row.current_branch_message_id else None
         ),
         "version": row.version,
+        "message_count": row.message_count,
         "created_at": row.created_at.isoformat(),
         "updated_at": row.updated_at.isoformat(),
     }
