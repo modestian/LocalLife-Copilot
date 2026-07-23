@@ -245,6 +245,39 @@ describe('ConversationWorkspace', () => {
     expect(wrapper.text()).toContain('重试回答')
   })
 
+  it('can send again after starting a new conversation during streaming', async () => {
+    const api = createApi()
+    const stream = createStream()
+    let finishFirstSend: (() => void) | undefined
+    vi.mocked(stream.send).mockImplementationOnce(async () => {
+      stream.state.value = 'streaming'
+      await new Promise<void>((resolve) => {
+        finishFirstSend = resolve
+      })
+    })
+    const wrapper = mount(ConversationWorkspace, { props: { api, stream } })
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('先推荐一家附近的店')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.get('.conversation-sidebar__heading button').trigger('click')
+    await wrapper.get('textarea').setValue('换一个新的探店需求')
+
+    expect(stream.cancel).toHaveBeenCalledOnce()
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeUndefined()
+
+    finishFirstSend?.()
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(api.createConversation).toHaveBeenCalledTimes(2)
+    expect(stream.send).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('换一个新的探店需求')
+  })
+
   it('renders streamed recommendations and opens their highlighted citations', async () => {
     const source: RecommendationSource = {
       chunk_id: 'chunk-1',
