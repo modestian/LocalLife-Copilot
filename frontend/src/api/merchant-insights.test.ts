@@ -8,22 +8,20 @@ vi.mock('./client', () => ({ requestData: vi.fn() }))
 describe('merchant insights API', () => {
   beforeEach(() => vi.mocked(requestData).mockReset().mockResolvedValue({}))
 
-  it('uses the backend comparison route with repeated merchant_ids query parameters', async () => {
-    await merchantInsightsApi.compare({
+  it('posts the documented merchant comparison payload', async () => {
+    const payload = {
       merchant_ids: ['merchant-self', 'competitor-a', 'competitor-b'],
       start_date: '2026-07-01T00:00:00',
       end_date: '2026-08-01T00:00:00',
-    })
+    }
 
-    const request = vi.mocked(requestData).mock.calls[0]?.[0]
-    expect(request).toMatchObject({
-      method: 'GET',
-      url: '/api/v1/analytics/compare',
+    await merchantInsightsApi.compare(payload)
+
+    expect(requestData).toHaveBeenCalledWith({
+      method: 'POST',
+      url: '/api/v1/merchants/compare',
+      data: payload,
     })
-    expect(request?.params).toBeInstanceOf(URLSearchParams)
-    expect((request?.params as URLSearchParams).toString()).toBe(
-      'merchant_ids=merchant-self&merchant_ids=competitor-a&merchant_ids=competitor-b&start_date=2026-07-01T00%3A00%3A00&end_date=2026-08-01T00%3A00%3A00',
-    )
   })
 
   it('posts editable-reply and evidence-backed business-suggestion requests', async () => {

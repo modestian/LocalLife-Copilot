@@ -74,6 +74,11 @@ export interface ConversationApi {
   listMessages: (conversationId: string) => Promise<ChatMessage[]>
   sendMessage: (conversationId: string, content: string) => Promise<ChatMessage>
   deleteConversation: (conversationId: string) => Promise<DeletedConversation>
+  truncateConversation: (conversationId: string, messageId: string) => Promise<void>
+  updateSettings: (
+    conversationId: string,
+    settings: Record<string, number>,
+  ) => Promise<ConversationSummary>
 }
 
 export const conversationApi: ConversationApi = {
@@ -128,6 +133,23 @@ export const conversationApi: ConversationApi = {
     return requestData<DeletedConversation>({
       method: 'DELETE',
       url: `/api/v1/conversations/${encodeURIComponent(conversationId)}`,
+    })
+  },
+
+  truncateConversation(conversationId, messageId) {
+    return requestData({
+      method: 'POST',
+      url: `/api/v1/conversations/${encodeURIComponent(conversationId)}/truncate`,
+      data: { message_id: messageId },
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+    })
+  },
+
+  updateSettings(conversationId, settings) {
+    return requestData({
+      method: 'PATCH',
+      url: `/api/v1/conversations/${encodeURIComponent(conversationId)}/settings`,
+      data: settings,
     })
   },
 }

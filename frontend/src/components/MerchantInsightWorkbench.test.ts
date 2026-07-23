@@ -29,33 +29,22 @@ describe('MerchantInsightWorkbench', () => {
       },
     ])
     vi.mocked(merchantInsightsApi.compare).mockReset().mockResolvedValue({
-      merchants: ['merchant-self', 'competitor-a'],
-      summary: [
+      period_start: '2026-07-01T00:00:00',
+      period_end: '2026-08-01T00:00:00',
+      metric_definition: '公开聚合数据',
+      minimum_sample_size: 10,
+      insufficient_data: false,
+      merchants: [
         {
           merchant_id: 'merchant-self',
-          positive: 24,
-          neutral: 4,
-          negative: 4,
-          total: 32,
+          merchant_name: '当前商家',
+          sample_count: 32,
           positive_rate: 0.75,
-          negative_rate: 0.125,
+          avg_rating: 4.2,
+          aspect_counts: { 服务: 32 },
+          negative_reason_counts: { 等位时间长: 4 },
         },
       ],
-      aspect_comparison: [{
-        aspect: '服务',
-        merchants: [{
-          merchant_id: 'merchant-self',
-          positive: 24,
-          neutral: 4,
-          negative: 4,
-          total: 32,
-          positive_rate: 0.75,
-        }],
-      }],
-      negative_reason_comparison: [{
-        reason: '等位时间长',
-        merchants: [{ merchant_id: 'merchant-self', count: 4 }],
-      }],
     })
     vi.mocked(merchantInsightsApi.getReplySuggestion).mockReset().mockResolvedValue({
       draft: '很抱歉让您久等了，我们会优化高峰时段的接待安排。',
@@ -105,7 +94,7 @@ describe('MerchantInsightWorkbench', () => {
     expect(merchantInsightsApi.compare).toHaveBeenCalledWith({
       merchant_ids: ['merchant-self', 'competitor-a'],
     })
-    expect(wrapper.text()).toContain('merchant-self')
+    expect(wrapper.text()).toContain('当前商家')
     expect(wrapper.text()).toContain('服务 32')
     expect(wrapper.text()).toContain('等位时间长 4')
   })

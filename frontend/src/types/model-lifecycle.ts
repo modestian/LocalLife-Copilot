@@ -103,6 +103,41 @@ export interface ModelDeploymentRequest {
   reason: string
 }
 
+export interface ModelRegistrationRequest {
+  code: string
+  name: string
+  task_type: string
+  provider: string
+  version: string
+  base_model_ref: string
+  adapter_uri: string
+  artifact_sha256: string
+  dimension?: number | null
+  labels?: string[] | null
+  metrics?: Record<string, unknown> | null
+}
+
+export interface ModelStatusRequest {
+  status: Exclude<ModelVersionStatus, 'REGISTERED'>
+  reason: string
+}
+
+export interface ModelRollbackRequest {
+  scene: string
+  environment: string
+  reason: string
+}
+
+export interface ModelDeployment {
+  id: string
+  model_version_id: string
+  scene: string
+  environment: string
+  traffic_percent: number
+  status: string
+  created_at?: string
+}
+
 export interface ModelLifecycleApi {
   createDataset: (payload: DatasetBuildRequest) => Promise<TrainingDataset>
   getDataset: (datasetId: string) => Promise<TrainingDataset>
@@ -112,5 +147,10 @@ export interface ModelLifecycleApi {
   evaluateJob: (jobId: string) => Promise<FineTuningJob>
   registerModel: (jobId: string) => Promise<ModelVersion>
   listModels: () => Promise<ModelVersion[]>
+  createModel: (payload: ModelRegistrationRequest) => Promise<ModelVersion>
+  updateModelStatus: (modelId: string, payload: ModelStatusRequest) => Promise<ModelVersion>
   deployModel: (modelId: string, payload: ModelDeploymentRequest) => Promise<void>
+  rollbackModel: (modelId: string, payload: ModelRollbackRequest) => Promise<ModelDeployment>
+  listDeployments: (params?: Record<string, string>) => Promise<ModelDeployment[]>
+  compareDeployments: (params: Record<string, string>) => Promise<Record<string, unknown>>
 }
