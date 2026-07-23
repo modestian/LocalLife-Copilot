@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi.testclient import TestClient
 
+from app.agents.contracts import RetrievalScope
 from app.api.dependencies.authorization import get_current_principal
 from app.application.authorization import AuthorizationPrincipal
 from app.application.conversations import MessageRole, MessageStatus, MessageView, SourceView
@@ -117,6 +118,39 @@ def test_non_streaming_response_matches_openai_chat_completion_shape() -> None:
     scope = app.state.agent_runtime.run.await_args.kwargs["retrieval_scope"]
     assert scope.tenant_id == str(TENANT_ID)
     assert scope.knowledge_base_ids == frozenset()
+
+
+def test_chat_uses_shared_public_knowledge_for_user_without_department() -> None:
+    app, client = build_client()
+    app.dependency_overrides[get_current_principal] = lambda: AuthorizationPrincipal(
+        user_id=USER_ID,
+        username="personal-user",
+        display_name="Personal User",
+        email=None,
+        department_id=None,
+        roles=(),
+        permissions=(),
+        resource_grants=(),
+    )
+    public_kb_id = UUID("70200000-0000-4000-8000-000000000010")
+    app.state.shared_chat_knowledge_scope = AsyncMock()
+    app.state.shared_chat_knowledge_scope.resolve.return_value = RetrievalScope(
+        str(TENANT_ID),
+        frozenset({str(public_kb_id)}),
+        frozenset({f"KNOWLEDGE_BASE:{public_kb_id}"}),
+    )
+
+    with client:
+        response = client.post(
+            "/v1/chat/completions",
+            json={**payload(), "knowledge_base_ids": [str(public_kb_id)]},
+        )
+
+    assert response.status_code == 200
+    app.state.shared_chat_knowledge_scope.resolve.assert_awaited_once_with([public_kb_id])
+    scope = app.state.agent_runtime.run.await_args.kwargs["retrieval_scope"]
+    assert scope.tenant_id == str(TENANT_ID)
+    assert scope.knowledge_base_ids == frozenset({str(public_kb_id)})
 
 
 def test_validation_errors_use_openai_error_object() -> None:

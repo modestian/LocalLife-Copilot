@@ -17,6 +17,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.agents.contracts import RetrievalScope
 from app.api.dependencies.authorization import CurrentPrincipal
 from app.application.authorization import AuthorizationDenied, AuthorizationPrincipal
+from app.application.chat_knowledge import (
+    SharedChatKnowledgeDenied,
+    SharedChatKnowledgeUnavailable,
+)
 from app.application.conversations import (
     ConversationNotFound,
     MessageInput,
@@ -89,7 +93,7 @@ async def create_chat_completion(
         conversation_id = conversation.id
         await _seed_history(request, conversation_id, principal.user_id, body.messages[:-1])
 
-    scope = _retrieval_scope(principal, body.knowledge_base_ids)
+    scope = await _shared_retrieval_scope(request.app, principal, body.knowledge_base_ids)
     if body.stream:
         return StreamingResponse(
             _stream_completion(
@@ -320,6 +324,28 @@ def _retrieval_scope(principal, knowledge_base_ids: list[UUID]) -> RetrievalScop
         trusted.knowledge_base_ids,
         trusted.resource_scopes,
     )
+
+
+async def _shared_retrieval_scope(app, principal, knowledge_base_ids: list[UUID]) -> RetrievalScope:
+    resolver = getattr(app.state, "shared_chat_knowledge_scope", None)
+    if resolver is None:
+        # Lightweight transport tests intentionally do not start database-backed
+        # application services, so retain the pure authorization fallback there.
+        return _retrieval_scope(principal, knowledge_base_ids)
+    try:
+        return await resolver.resolve(knowledge_base_ids)
+    except SharedChatKnowledgeDenied as exc:
+        raise AppError(
+            403,
+            "PUBLIC_KNOWLEDGE_SCOPE_DENIED",
+            "The requested knowledge base is not available for public chat",
+        ) from exc
+    except SharedChatKnowledgeUnavailable as exc:
+        raise AppError(
+            503,
+            "PUBLIC_KNOWLEDGE_UNAVAILABLE",
+            "The public chat knowledge base is unavailable",
+        ) from exc
 
 
 async def _seed_history(

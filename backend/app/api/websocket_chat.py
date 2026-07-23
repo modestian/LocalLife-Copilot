@@ -12,7 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from app.api.openai import _retrieval_scope, _source_data, _text_chunks, _usage_data
+from app.api.openai import _shared_retrieval_scope, _source_data, _text_chunks, _usage_data
 from app.application.authorization import AuthorizationPrincipal
 from app.application.conversations import ConversationNotFound
 from app.application.websocket_tokens import InvalidWebSocketToken
@@ -177,7 +177,9 @@ async def _serve_request(
         runtime = getattr(websocket.app.state, "agent_runtime", None)
         if runtime is None:
             raise RuntimeError("chat runtime unavailable")
-        scope = _retrieval_scope(principal, event.options.knowledge_base_ids)
+        scope = await _shared_retrieval_scope(
+            websocket.app, principal, event.options.knowledge_base_ids
+        )
         result = await runtime.run(
             conversation_id=event.conversation_id,
             owner_user_id=principal.user_id,
