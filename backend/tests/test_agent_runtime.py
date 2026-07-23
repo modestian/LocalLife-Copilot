@@ -183,6 +183,59 @@ async def test_runtime_restores_constraints_then_retrieves_generates_and_cites()
     assert repository.settings_updates[-1]["constraints"]["party_size"] == 2
 
 
+async def test_runtime_rebuilds_constraints_without_assistant_recommendation_terms() -> None:
+    conversation = _conversation(
+        settings={
+            "constraints": {
+                "distance_meter_lte": 3000,
+                "budget_cent_per_person_lte": 8000,
+                "cuisines": ["咖啡"],
+                "atmospheres": ["安静"],
+                "party_size": 2,
+                "open_now": True,
+            }
+        }
+    )
+    runtime, repository, memory, retriever, _model_router = _runtime(conversation)
+    memory.restore.return_value = MemoryWindow(
+        conversation,
+        (
+            _message(
+                conversation.id,
+                MessageRole.USER,
+                "我要找店\n\n"
+                "[探店条件] 场景：附近随便吃；距离：3 公里内；预算：人均 80 元以内；"
+                "人数：2 人；营业状态：当前营业",
+            ),
+            _message(
+                conversation.id,
+                MessageRole.ASSISTANT,
+                "推荐书香咖啡馆，环境安静。",
+            ),
+        ),
+        "",
+        None,
+        0,
+    )
+
+    await runtime.run(
+        conversation_id=conversation.id,
+        owner_user_id=conversation.owner_user_id,
+        query="清河面馆",
+        retrieval_scope=_scope(),
+        request_id="turn-merchant-name",
+    )
+
+    constraints = retriever.requests[0].constraints
+    assert constraints.cuisines == ()
+    assert constraints.atmospheres == ()
+    assert constraints.distance_meter_lte == 3000
+    assert constraints.budget_cent_per_person_lte == 8000
+    assert constraints.party_size == 2
+    assert repository.settings_updates[-1]["constraints"]["cuisines"] == ()
+    assert repository.settings_updates[-1]["constraints"]["atmospheres"] == ()
+
+
 class EmptyRetriever:
     def retrieve(self, _request):
         return ()

@@ -71,6 +71,47 @@ def test_follow_up_merges_retained_constraints_and_routes_to_retrieval() -> None
     assert route_after_constraints(follow_up_state) == "hybrid_retrieve"
 
 
+def test_constraint_extractor_ignores_constraints_from_assistant_history() -> None:
+    constraints = ConstraintExtractor().extract(
+        "清河面馆",
+        existing=ChatConstraints(cuisines=("咖啡",), atmospheres=("安静",)),
+        history_summary=(
+            "USER: 你好\n"
+            "ASSISTANT: 你好，我是探店助手。\n"
+            "USER: 我要找店\n\n"
+            "[探店条件] 场景：附近随便吃；距离：3 公里内；预算：人均 80 元以内；"
+            "人数：2 人；营业状态：当前营业\n"
+            "ASSISTANT: 推荐书香咖啡馆，环境安静。"
+        ),
+    )
+
+    assert constraints == ChatConstraints(
+        distance_meter_lte=3000,
+        budget_cent_per_person_lte=8000,
+        party_size=2,
+        open_now=True,
+    )
+
+
+def test_unrelated_input_does_not_inherit_previous_search_intent() -> None:
+    router = IntentRouter()
+    history = "USER: 推荐附近的店\nASSISTANT: 推荐清河面馆和书香咖啡馆。"
+    existing = ChatConstraints(
+        distance_meter_lte=3000,
+        budget_cent_per_person_lte=8000,
+        party_size=2,
+    )
+
+    assert (
+        router.classify("乃龙", history_summary=history, existing_constraints=existing)
+        is ChatIntent.GENERAL_CHAT
+    )
+    assert (
+        router.classify("再来一家", history_summary=history, existing_constraints=existing)
+        is ChatIntent.KNOWLEDGE_QUERY
+    )
+
+
 def test_clarification_asks_for_all_missing_key_fields_once() -> None:
     state = {
         "conversation_id": "conversation-1",

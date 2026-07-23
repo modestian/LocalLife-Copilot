@@ -79,6 +79,9 @@ const scenes: SceneOption[] = [
   },
 ]
 
+const standaloneGreetingPattern = /^(?:你好|您好|嗨|哈喽|哈啰|在吗|hello|hi|hey)[!！?？.。,\s，]*$/i
+const explorationQueryPattern = /(?:推荐|找|搜|附近|哪里|哪家|吃|餐|饭|菜|火锅|烧烤|面馆|咖啡|甜品|商家|店|馆|人均|预算|公里|营业|约会|聚会|午餐|晚餐|早餐|夜宵|办公|学习)/i
+
 const conversations = ref<ConversationSummary[]>([...props.initialConversations])
 const activeConversationId = ref<string | null>(null)
 const messages = ref<ChatMessage[]>([])
@@ -98,6 +101,7 @@ const errorMessage = ref('')
 const messageList = ref<HTMLElement | null>(null)
 const streamingMessageId = ref<string | null>(null)
 const pendingSummaryTitle = ref('')
+const explorationContextRequested = ref(false)
 
 const activeConversation = computed(() => (
   conversations.value.find((conversation) => conversation.id === activeConversationId.value) ?? null
@@ -162,6 +166,7 @@ async function loadConversations(): Promise<void> {
 function chooseScene(scene: SceneOption): void {
   selectedScenario.value = scene.id
   query.value = scene.prompt
+  explorationContextRequested.value = true
 }
 
 function startNewConversation(): void {
@@ -171,12 +176,14 @@ function startNewConversation(): void {
   messages.value = []
   query.value = ''
   errorMessage.value = ''
+  explorationContextRequested.value = false
 }
 
 async function selectConversation(conversation: ConversationSummary): Promise<void> {
   resetActiveStream()
   activeConversationId.value = conversation.id
   selectedScenario.value = conversation.scenario ?? 'nearby'
+  explorationContextRequested.value = false
   errorMessage.value = ''
 
   if (conversation.preview_messages) {
@@ -218,12 +225,24 @@ function composeMessage(content: string, constraints: ExploreConstraints): strin
   return `${content}\n\n[探店条件] ${details.join('；')}`
 }
 
+function shouldUseExplorationContext(content: string): boolean {
+  if (standaloneGreetingPattern.test(content)) return false
+  return explorationContextRequested.value || explorationQueryPattern.test(content)
+}
+
+function requestExplorationContext(): void {
+  explorationContextRequested.value = true
+}
+
 async function sendMessage(): Promise<void> {
   if (props.readOnly || !canSend.value) return
 
   const content = query.value.trim()
+  const useExplorationContext = shouldUseExplorationContext(content)
   const constraints = currentConstraints()
-  const composedContent = composeMessage(content, constraints)
+  const composedContent = useExplorationContext
+    ? composeMessage(content, constraints)
+    : content
   isSending.value = true
   errorMessage.value = ''
 
@@ -233,7 +252,7 @@ async function sendMessage(): Promise<void> {
       const conversation = await props.api.createConversation({
         title: content.slice(0, 30),
         scenario: selectedScenario.value,
-        constraints,
+        ...(useExplorationContext ? { constraints } : {}),
       })
       conversations.value.unshift(conversation)
       activeConversationId.value = conversation.id
@@ -266,6 +285,7 @@ async function sendMessage(): Promise<void> {
     await scrollToLatest()
 
     await stream.send(conversationId, composedContent, props.knowledgeBaseIds)
+    if (useExplorationContext) explorationContextRequested.value = false
   } catch (error: unknown) {
     query.value = content
     if (streamingMessageId.value) {
@@ -536,7 +556,10 @@ function formatTime(value: string): string {
         <div class="condition-grid">
           <label>
             <span>距离</span>
-            <select v-model.number="distanceKm">
+            <select
+              v-model.number="distanceKm"
+              @change="requestExplorationContext"
+            >
               <option :value="1">1 公里内</option>
               <option :value="3">3 公里内</option>
               <option :value="5">5 公里内</option>
@@ -550,6 +573,7 @@ function formatTime(value: string): string {
               min="1"
               type="number"
               placeholder="元/人"
+              @change="requestExplorationContext"
             >
           </label>
           <label>
@@ -558,6 +582,7 @@ function formatTime(value: string): string {
               v-model="cuisine"
               type="text"
               placeholder="川菜、咖啡…"
+              @change="requestExplorationContext"
             >
           </label>
           <label>
@@ -566,12 +591,14 @@ function formatTime(value: string): string {
               v-model.number="partySize"
               min="1"
               type="number"
+              @change="requestExplorationContext"
             >
           </label>
           <label class="open-now-option">
             <input
               v-model="openNow"
               type="checkbox"
+              @change="requestExplorationContext"
             >
             <span>仅看当前营业</span>
           </label>

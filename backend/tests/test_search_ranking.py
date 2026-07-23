@@ -66,6 +66,15 @@ def test_explicit_merchant_query_bypasses_diversity_cap() -> None:
     assert len(rank_recall("这家店", data, top_k=5, target_merchant_id="a").hits) == 5
 
 
+def test_default_ranking_accepts_one_grounded_result() -> None:
+    data = DualRecallResult(bm25=(hit("cafe-1", 10, "cafe"),), vector=())
+
+    result = rank_recall("书香咖啡", data, top_k=5)
+
+    assert not result.fallback
+    assert tuple(item.document_id for item in result.hits) == ("cafe-1",)
+
+
 @pytest.mark.parametrize(
     ("config", "reason"),
     [

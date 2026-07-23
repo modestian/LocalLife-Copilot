@@ -75,6 +75,7 @@ _KNOWLEDGE_MARKERS = (
     "饭店",
     "馆子",
     "菜馆",
+    "面馆",
     "咖啡店",
     "评价",
     "评论",
@@ -103,9 +104,26 @@ _RECOMMENDATION_MARKERS = (
     "饭店",
     "馆子",
     "菜馆",
+    "面馆",
     "咖啡店",
     "附近",
 )
+_FOLLOW_UP_MARKERS = (
+    "再来",
+    "还有",
+    "换一家",
+    "换一个",
+    "换个",
+    "继续",
+    "另外",
+    "其他",
+    "这家",
+    "那家",
+    "它",
+    "刚才",
+    "前面",
+)
+_EXPLORATION_CONTEXT_MARKER = "[探店条件]"
 
 _CUISINE_ALIASES: Mapping[str, str] = {
     "川菜": "川菜",
@@ -287,6 +305,25 @@ def merge_constraints(base: ChatConstraints, patch: ChatConstraints) -> ChatCons
     return replace(base, **updates)
 
 
+def _user_constraint_history(history_summary: str | None) -> str | None:
+    """Keep only explicit user filter blocks when rebuilding retained constraints."""
+    if not history_summary:
+        return None
+    markers = re.compile(r"(?:用户：|待确认：|USER:|ASSISTANT:|SYSTEM:|TOOL:)")
+    matches = tuple(markers.finditer(history_summary))
+    user_parts: list[str] = []
+    for index, match in enumerate(matches):
+        marker = match.group()
+        if marker not in {"用户：", "USER:"}:
+            continue
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(history_summary)
+        content = history_summary[match.end() : end].strip()
+        marker_start = content.find(_EXPLORATION_CONTEXT_MARKER)
+        if marker_start >= 0:
+            user_parts.append(content[marker_start:])
+    return "\n".join(user_parts) or None
+
+
 def _rule_based_intent(
     query: str,
     history_summary: str | None,
@@ -301,9 +338,11 @@ def _rule_based_intent(
         return ChatIntent.KNOWLEDGE_QUERY
     if _has_explicit_constraint(query):
         return ChatIntent.KNOWLEDGE_QUERY
-    if existing_constraints is not None and _has_any_constraint(existing_constraints):
-        return ChatIntent.KNOWLEDGE_QUERY
-    if history_summary and _is_recommendation_request(history_summary):
+    if (
+        history_summary
+        and any(marker in query for marker in _FOLLOW_UP_MARKERS)
+        and _is_recommendation_request(history_summary)
+    ):
         return ChatIntent.KNOWLEDGE_QUERY
     return ChatIntent.GENERAL_CHAT
 
@@ -358,7 +397,7 @@ def _extract_party_size(text: str) -> int | None:
 def _extract_open_now(text: str) -> bool | None:
     if re.search(r"(?:不用|不必|无需).{0,4}(?:现在)?营业", text):
         return None
-    if re.search(r"现在.{0,4}(?:营业|开门|开着)|(?:正在|仍在|还在)营业|营业中", text):
+    if re.search(r"现在.{0,4}(?:营业|开门|开着)|(?:当前|正在|仍在|还在)营业|营业中", text):
         return True
     return None
 
@@ -428,13 +467,14 @@ class ConstraintExtractor:
         existing: ChatConstraints | None = None,
         history_summary: str | None = None,
     ) -> ChatConstraints:
+        user_history = _user_constraint_history(history_summary)
         result = ChatConstraints()
-        if history_summary:
-            result = merge_constraints(result, _rule_based_constraints(history_summary))
-        if existing is not None:
+        if user_history:
+            result = merge_constraints(result, _rule_based_constraints(user_history))
+        elif existing is not None:
             result = merge_constraints(result, existing)
         patch = _rule_based_constraints(query)
-        if model_patch := self._predict(query, history_summary):
+        if model_patch := self._predict(query, user_history):
             patch = merge_constraints(patch, model_patch.to_constraints())
         return merge_constraints(result, patch)
 

@@ -32,7 +32,25 @@ class HybridSearchRetrieverAdapter:
         )
         if result.fallback:
             return ()
-        return tuple(_to_chunk(hit.document_id, hit.final_score, hit.source) for hit in result.hits)
+        hits = result.hits
+        merchant_matches = tuple(
+            hit for hit in hits if _matches_merchant_name(request.query, hit.source)
+        )
+        if merchant_matches:
+            hits = merchant_matches
+        return tuple(_to_chunk(hit.document_id, hit.final_score, hit.source) for hit in hits)
+
+
+def _matches_merchant_name(query: str, source: Mapping[str, Any]) -> bool:
+    merchant_query = query.partition("[探店条件]")[0].strip()
+    if len(merchant_query) < 2:
+        return False
+    metadata = source.get("metadata")
+    nested = metadata if isinstance(metadata, Mapping) else {}
+    merchant_name = str(source.get("merchant_name") or nested.get("merchant_name") or "").strip()
+    return bool(
+        merchant_name and (merchant_query in merchant_name or merchant_name in merchant_query)
+    )
 
 
 def _to_chunk(document_id: str, score: float, source: Any) -> RetrievedChunk:
