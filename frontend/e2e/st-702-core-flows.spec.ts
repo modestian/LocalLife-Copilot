@@ -185,7 +185,7 @@ test.describe('ST-702 核心角色链路与错误态', () => {
               merchant_id: merchantId,
               content: '双人套餐分量充足，午餐高峰建议错峰。',
               source_location: '清河面馆探店资料',
-              source_url: `/admin/knowledge-bases/${knowledgeBaseId}?document=${documentId}`,
+              source_url: `https://example.com/sources/${documentId}`,
               score: 0.98,
               highlight_text: '双人套餐',
             }],
@@ -214,7 +214,7 @@ test.describe('ST-702 核心角色链路与错误态', () => {
     await expect(page.locator('.recommendation-card')).toBeVisible()
     await page.locator('.recommendation-card__sources').click()
     const sourceLink = page.locator('.source-item a')
-    await expect(sourceLink).toHaveAttribute('href', `/admin/knowledge-bases/${knowledgeBaseId}?document=${documentId}`)
+    await expect(sourceLink).toHaveAttribute('href', `https://example.com/sources/${documentId}`)
     await expect(page.locator('.recommendation-fallback')).toBeVisible()
     await page.locator('.source-drawer button').click()
     await expect(page.locator('.source-drawer')).toBeHidden()
