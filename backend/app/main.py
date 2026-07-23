@@ -29,6 +29,7 @@ from app.api.identity_management import router as identity_management_router
 from app.api.knowledge import router as knowledge_router
 from app.api.observability import audit_router, metrics_router
 from app.api.openai import router as openai_router
+from app.api.operations import router as operations_router
 from app.api.search import router as search_router
 from app.api.tasks import router as tasks_router
 from app.api.users import router as users_router
@@ -67,6 +68,7 @@ from app.infrastructure.db.repositories.identity_management import (
     SQLAlchemyIdentityManagementRepository,
 )
 from app.infrastructure.db.repositories.knowledge import SQLAlchemyKnowledgeRepository
+from app.infrastructure.db.repositories.operations import OperationsRepository
 from app.infrastructure.db.repositories.sentiment import SQLAlchemySentimentRepository
 from app.infrastructure.db.repositories.tasks import SQLAlchemyTaskRepository
 from app.infrastructure.db.repositories.tools import SQLAlchemyToolAuditRepository
@@ -144,6 +146,7 @@ def create_app(
         app.state.knowledge_repository = knowledge_repository
         app.state.knowledge_service = KnowledgeService(knowledge_repository)
         app.state.task_repository = SQLAlchemyTaskRepository(session_factory)
+        app.state.operations_repository = OperationsRepository(session_factory)
         app.state.conversation_repository = conversation_repository
         app.state.conversation_memory = RedisConversationMemory(
             conversation_repository,
@@ -237,6 +240,7 @@ def create_app(
     app.include_router(governance_router, prefix=app_settings.api_v1_prefix)
     app.include_router(identity_management_router, prefix=app_settings.api_v1_prefix)
     app.include_router(users_router, prefix=app_settings.api_v1_prefix)
+    app.include_router(operations_router, prefix=app_settings.api_v1_prefix)
     app.include_router(search_router, prefix=app_settings.api_v1_prefix)
     app.include_router(knowledge_router, prefix=app_settings.api_v1_prefix)
     app.include_router(tasks_router, prefix=app_settings.api_v1_prefix)
