@@ -24,6 +24,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_reviews_user_status", table_name="reviews")
     op.drop_constraint("fk_reviews_user", "reviews", type_="foreignkey")
+    op.drop_index("ix_reviews_user_status", table_name="reviews")
     op.drop_column("reviews", "user_id")
