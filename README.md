@@ -1,4 +1,81 @@
-# LocalLife Copilot 项目启动文档
+# LocalLife Copilot
+## RAG 架构
+
+### 流水线总览
+
+```
+用户输入
+    |
+    v
++--------------------------------------------------------------------+
+|  Input Guard  (内容安全过滤)                                         |
++--------------------------------------------------------------------+
+    |
+    v
++--------------------------------------------------------------------+
+|  Intent Router  ---  BERT 分类模型                                   |
+|  ---  判断意图：knowledge_query / tool_use / general_chat             |
++--------------------------------------------------------------------+
+    |
+    v  (knowledge_query)
++--------------------------------------------------------------------+
+|  Constraint Extractor  ---  BERT + 规则                             |
+|  ---  提取距离、预算、菜系、场景、人数、营业时间等约束                  |
++--------------------------------------------------------------------+
+    |
+    v
++--------------------------------------------------------------------+
+|  Clarification Planner                                               |
+|  ---  缺预算/人数时追问用户                                          |
++--------------------------------------------------------------------+
+    |
+    v
++--------------------------------------------------------------------+
+|  Hybrid Retrieve  (BM25 + kNN 向量检索)                              |
+|  ---  OpenSearch：keyword + semantic 双路召回                         |
+|  ---  BGE-small-zh-v1.5 生成语义向量                                 |
++--------------------------------------------------------------------+
+    |
+    v
++--------------------------------------------------------------------+
+|  Grounded RAG Generator                                              |
+|  ---  阿里百炼 LLM (qwen-plus) 生成推荐/摘要/问答                     |
+|  ---  引用验证：每句答案必须有证据编号支撑                            |
++--------------------------------------------------------------------+
+    |
+    v
++--------------------------------------------------------------------+
+|  Output Guard  (内容安全过滤 + 引用校验)                              |
++--------------------------------------------------------------------+
+    |
+    v
+  答案
+```
+
+### 模型分配
+
+| 组件 | 模型 | 访问方式 |
+|------|------|---------|
+| 意图路由 / 约束提取 | BertForSequenceClassification（本地训练） | model-gateway:8001/v1/classify |
+| 语义嵌入（向量检索） | BAAI/bge-small-zh-v1.5 | model-gateway:8001/v1/embeddings |
+| 文本生成（RAG） | qwen-plus / qwen-max（百炼平台） | dashscope.aliyuncs.com/compatible-mode/v1/chat/completions |
+| 情感分析 | uer/roberta-base（或本地微调） | model-gateway:8001/v1/sentiment/batch |
+| OpenSearch 分词 | ik_smart（索引）/ ik_max_word（搜索） | OpenSearch 自定义 analyzer |
+
+### 配置参考
+
+```bash
+# .env 中 RAG 相关配置
+CLASSIFIER_MODEL_NAME=D:\CodingProjects\LocalLife Copilot\backend\training\output\final_model
+EMBEDDING_MODEL_NAME=BAAI/bge-small-zh-v1.5
+BAILIAN_API_KEY=sk-your-bailian-api-key
+BAILIAN_MODEL=qwen-plus
+BAILIAN_API_BASE=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+---
+
+## 启动说明
 
 LocalLife Copilot 使用 Docker Compose 编排以下容器：
 

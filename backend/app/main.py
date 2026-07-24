@@ -10,10 +10,11 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.agents.adapters import HybridSearchRetrieverAdapter
 from app.agents.generation import GroundedRAGGenerator
-from app.agents.local_model import ExtractiveModelAdapter
 from app.agents.memory import ConversationMemoryService
+from app.agents.routing import ConstraintExtractor, IntentRouter
 from app.agents.runtime import ChatAgentRuntime
 from app.agents.tools import ToolExecutor, ToolRegistry, knowledge_search_tool
+from app.agents.transformers_model import TransformersModelAdapter
 from app.api.analytics import business_router as analytics_business_router
 from app.api.analytics import compare_router as analytics_compare_router
 from app.api.analytics import reviews_router as analytics_reviews_router
@@ -184,11 +185,19 @@ def create_app(
             app.state.tool_registry,
             SQLAlchemyToolAuditRepository(session_factory),
         )
+        real_model = TransformersModelAdapter(
+            bailian_api_key=app_settings.bailian_api_key,
+            bailian_model=app_settings.bailian_model or "qwen-plus",
+            bailian_api_base=app_settings.bailian_api_base
+            or "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
         app.state.agent_runtime = ChatAgentRuntime(
             repository=conversation_repository,
             memory=app.state.agent_memory,
             retriever=chat_retriever,
-            generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+            router=IntentRouter(real_model),
+            extractor=ConstraintExtractor(real_model),
+            generator=GroundedRAGGenerator(real_model),
             safety=app.state.content_safety_service,
             tool_executor=app.state.tool_executor,
             model_router=app.state.model_router,

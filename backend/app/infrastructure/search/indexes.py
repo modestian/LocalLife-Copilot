@@ -5,19 +5,29 @@ from opensearchpy import OpenSearch
 
 
 def chunk_index_body(embedding_dimension: int) -> dict[str, Any]:
-    """Build the immutable settings and strict mapping for one Chunk index version."""
+    """Build the immutable settings and strict mapping for one Chunk index version.
+
+    Uses ik_smart/ik_max_word for Chinese tokenization with standard fallback.
+    """
     return {
         "settings": {
             "index.knn": True,
+            "index.knn.algo_param.ef_search": 100,
             "number_of_shards": 1,
             "number_of_replicas": 0,
             "analysis": {
                 "analyzer": {
                     "zh_search": {
+                        "type": "ik_smart",
+                    },
+                    "zh_index": {
+                        "type": "ik_max_word",
+                    },
+                    "zh_standard": {
                         "type": "custom",
                         "tokenizer": "standard",
                         "filter": ["lowercase"],
-                    }
+                    },
                 }
             },
         },
@@ -30,7 +40,14 @@ def chunk_index_body(embedding_dimension: int) -> dict[str, Any]:
                 "document_id": {"type": "keyword"},
                 "document_version_id": {"type": "keyword"},
                 "merchant_id": {"type": "keyword"},
-                "content": {"type": "text", "analyzer": "zh_search"},
+                "content": {
+                    "type": "text",
+                    "analyzer": "zh_index",
+                    "search_analyzer": "zh_search",
+                    "fields": {
+                        "standard": {"type": "text", "analyzer": "zh_standard"},
+                    },
+                },
                 "content_vector": {
                     "type": "knn_vector",
                     "dimension": embedding_dimension,
@@ -71,7 +88,24 @@ def ensure_chunk_index(
 ) -> None:
     """Create the initial index without replacing an established runtime route."""
     if not client.indices.exists(index=index):
-        client.indices.create(index=index, body=chunk_index_body(embedding_dimension))
+        body = chunk_index_body(embedding_dimension)
+        try:
+            client.indices.create(index=index, body=body)
+        except Exception:
+            # Fall back to standard analyzer if ik plugin is unavailable
+            body["settings"]["analysis"]["analyzer"]["zh_search"] = {
+                "type": "custom",
+                "tokenizer": "standard",
+                "filter": ["lowercase"],
+            }
+            body["settings"]["analysis"]["analyzer"]["zh_index"] = body["settings"]["analysis"][
+                "analyzer"
+            ]["zh_search"]
+            body["mappings"]["properties"]["content"] = {
+                "type": "text",
+                "analyzer": "zh_search",
+            }
+            client.indices.create(index=index, body=body)
 
     read_indexes = _alias_indexes(client, read_alias)
     write_indexes = _alias_indexes(client, write_alias)

@@ -189,7 +189,21 @@ GENERATE_GROUNDED_CONTRACT = NodeContract(
     produces=frozenset({StateField.ANSWER, StateField.SOURCES}),
 )
 
-_REVIEW_MARKERS = ("评价", "评论", "点评", "口碑", "亮点", "槽点", "差评", "好评", "近期变化")
+_REVIEW_MARKERS = (
+    "评价",
+    "评论",
+    "点评",
+    "口碑",
+    "亮点",
+    "槽点",
+    "差评",
+    "好评",
+    "近期变化",
+    "评分",
+    "打分",
+    "星级",
+    "值得去",
+)
 _RECOMMENDATION_MARKERS = (
     "推荐",
     "探店",
@@ -200,8 +214,15 @@ _RECOMMENDATION_MARKERS = (
     "餐厅",
     "饭店",
     "菜馆",
+    "面馆",
+    "火锅店",
+    "烧烤店",
     "咖啡店",
+    "奶茶店",
+    "小吃",
+    "外卖",
     "附近",
+    "周边",
 )
 _SOURCE_ID_PATTERN = re.compile(r"E[1-9][0-9]*\Z")
 _INLINE_SOURCE_PATTERN = re.compile(r"\[(E[1-9][0-9]*)]")
