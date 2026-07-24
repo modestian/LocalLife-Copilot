@@ -19,6 +19,36 @@ from app.infrastructure.db.models.operations import DataSource, FineTuningJob, M
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
 from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 
+# English aspect code -> Chinese display label
+_ASPECT_CN: dict[str, str] = {
+    "taste": "口味",
+    "portion": "分量",
+    "price": "价格",
+    "freshness": "新鲜度",
+    "appearance": "卖相",
+    "variety": "品种",
+    "space": "空间",
+    "quiet": "环境安静度",
+    "decoration": "装修环境",
+    "hygiene": "卫生",
+    "location": "位置",
+    "seating": "座位",
+    "waiting_time": "等待时间",
+    "attitude": "服务态度",
+    "efficiency": "效率",
+    "parking": "停车",
+    "packing": "打包",
+    "discount": "优惠",
+    "set_meal": "套餐",
+    "equipment": "设施",
+    "overall": "整体体验",
+}
+
+
+def _translate_tags(tags: list) -> list[str]:
+    """Translate English aspect codes to Chinese labels."""
+    return [_ASPECT_CN.get(t, t) for t in tags if t]
+
 
 class OperationsRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -421,7 +451,7 @@ class OperationsRepository:
             if matched is not None:
                 item_sentiment = matched.sentiment
                 item_confidence = matched.confidence
-                item_tags = (
+                item_tags = _translate_tags(
                     json.loads(matched.aspect_labels)
                     if isinstance(matched.aspect_labels, str)
                     else (matched.aspect_labels or [])
@@ -429,7 +459,7 @@ class OperationsRepository:
             else:
                 item_sentiment = None
                 item_confidence = None
-                item_tags = row.tags_json or []
+                item_tags = _translate_tags(row.tags_json or [])
             items.append(
                 {
                     "id": str(row.id),
@@ -454,7 +484,7 @@ class OperationsRepository:
                     "rating": None,
                     "author_ref": None,
                     "reviewed_at": row.review_date,
-                    "tags": (
+                    "tags": _translate_tags(
                         json.loads(row.aspect_labels)
                         if isinstance(row.aspect_labels, str)
                         else (row.aspect_labels or [])
