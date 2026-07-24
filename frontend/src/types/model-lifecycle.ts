@@ -130,11 +130,17 @@ export interface ModelRollbackRequest {
 
 export interface ModelDeployment {
   id: string
+  deployment_id?: string
   model_version_id: string
   scene: string
   environment: string
   traffic_percent: number
   status: string
+  action?: string
+  result?: string | null
+  reason?: string | null
+  deployed_by?: string
+  is_canary?: boolean
   created_at?: string
 }
 

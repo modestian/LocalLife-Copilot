@@ -6,8 +6,10 @@ import { modelLifecycleApi } from '@/api/model-lifecycle'
 import type {
   FineTuningJob,
   FineTuningMethod,
+  ModelDeployment,
   ModelLifecycleApi,
   ModelVersion,
+  ModelVersionStatus,
   TrainingDataset,
 } from '@/types/model-lifecycle'
 
@@ -32,10 +34,23 @@ const notice = ref('')
 const noticeLevel = ref<NoticeLevel>('success')
 const evaluationConfirmed = ref(false)
 const deployConfirmed = ref(false)
+const approvalConfirmed = ref(false)
+const rollbackConfirmed = ref(false)
+const deployments = ref<ModelDeployment[]>([])
+const lastReceipt = ref<ModelDeployment | null>(null)
 const deployment = reactive({
   scene: 'merchant_analytics',
   environment: 'staging',
   trafficPercent: 10,
+  reason: '',
+})
+const approval = reactive({
+  status: 'APPROVED' as Exclude<ModelVersionStatus, 'REGISTERED'>,
+  reason: '',
+})
+const rollback = reactive({
+  scene: 'merchant_analytics',
+  environment: 'staging',
   reason: '',
 })
 const datasetDraft = reactive({
@@ -78,6 +93,35 @@ const canDeploy = computed(
     deployment.trafficPercent <= 100 &&
     deployment.reason.trim().length > 0,
 )
+type ApprovableStatus = Exclude<ModelVersionStatus, 'REGISTERED'>
+
+const approvalTargets = computed<ApprovableStatus[]>(() => {
+  switch (selectedModel.value?.status) {
+    case 'REGISTERED':
+      return ['EVALUATED', 'ARCHIVED']
+    case 'EVALUATED':
+      return ['APPROVED', 'REJECTED', 'ARCHIVED']
+    case 'APPROVED':
+    case 'REJECTED':
+      return ['ARCHIVED']
+    default:
+      return []
+  }
+})
+const canApprove = computed(
+  () =>
+    approvalTargets.value.length > 0 &&
+    approval.reason.trim().length > 0 &&
+    approvalConfirmed.value,
+)
+const canRollback = computed(
+  () =>
+    Boolean(selectedModel.value) &&
+    rollback.scene.trim().length > 0 &&
+    rollback.environment.trim().length > 0 &&
+    rollback.reason.trim().length > 0 &&
+    rollbackConfirmed.value,
+)
 
 const datasetStatusLabels: Record<TrainingDataset['status'], string> = {
   BUILDING: '构建中',
@@ -107,6 +151,12 @@ watch(
     if (!selectedModelId.value) selectedModelId.value = value[0]?.id ?? ''
   },
 )
+
+watch(approvalTargets, (targets) => {
+  if (!targets.includes(approval.status)) {
+    approval.status = targets[0] ?? 'APPROVED'
+  }
+}, { immediate: true })
 
 function notify(message: string, level: NoticeLevel): void {
   notice.value = message
@@ -269,14 +319,25 @@ async function registerModel(): Promise<void> {
   }
 }
 
+async function refreshModels(): Promise<void> {
+  models.value = await props.api.listModels()
+  if (!models.value.some((model) => model.id === selectedModelId.value)) {
+    selectedModelId.value = models.value[0]?.id ?? ''
+  }
+}
+
+async function refreshDeployments(): Promise<void> {
+  const scene = rollback.scene.trim()
+  const environment = rollback.environment.trim()
+  if (!scene || !environment) return
+  deployments.value = await props.api.listDeployments({ scene, environment })
+}
+
 async function loadModels(): Promise<void> {
   busy.value = true
   clearNotice()
   try {
-    models.value = await props.api.listModels()
-    if (!models.value.some((model) => model.id === selectedModelId.value)) {
-      selectedModelId.value = models.value[0]?.id ?? ''
-    }
+    await refreshModels()
     notify(models.value.length ? '已加载模型版本。' : '当前没有可显示的模型版本。', 'success')
   } catch (error) {
     asError(error, '模型列表加载失败，请稍后重试。')
@@ -297,6 +358,7 @@ async function deployModel(): Promise<void> {
       reason: deployment.reason.trim(),
     })
     deployConfirmed.value = false
+    await refreshDeployments()
     notify('部署请求已提交；服务端仍需校验场景内灰度比例总和与唯一全量 ACTIVE 版本。', 'success')
   } catch (error) {
     asError(error, '模型部署提交失败，请稍后重试。')
@@ -305,8 +367,47 @@ async function deployModel(): Promise<void> {
   }
 }
 
-function showUnavailableAction(action: string): void {
-  notify(`${action}接口尚未在 API 文档中定义，当前不会伪造服务端状态变更。`, 'warning')
+async function submitApproval(): Promise<void> {
+  if (!selectedModel.value || !canApprove.value) return
+  busy.value = true
+  clearNotice()
+  try {
+    const reason = approval.reason.trim()
+    await props.api.updateModelStatus(selectedModel.value.id, {
+      status: approval.status,
+      reason,
+    })
+    approval.reason = ''
+    approvalConfirmed.value = false
+    await refreshModels()
+    lastReceipt.value = null
+    notify(`审批结论已提交：${modelStatusLabels[approval.status]}；模型列表与审计状态已刷新。`, 'success')
+  } catch (error) {
+    asError(error, '模型审批提交失败，请稍后重试。')
+  } finally {
+    busy.value = false
+  }
+}
+
+async function submitRollback(): Promise<void> {
+  if (!selectedModel.value || !canRollback.value) return
+  busy.value = true
+  clearNotice()
+  try {
+    lastReceipt.value = await props.api.rollbackModel(selectedModel.value.id, {
+      scene: rollback.scene.trim(),
+      environment: rollback.environment.trim(),
+      reason: rollback.reason.trim(),
+    })
+    rollback.reason = ''
+    rollbackConfirmed.value = false
+    await Promise.all([refreshModels(), refreshDeployments()])
+    notify('回滚已执行；模型、部署与审计状态已刷新。', 'success')
+  } catch (error) {
+    asError(error, '模型回滚提交失败，请稍后重试。')
+  } finally {
+    busy.value = false
+  }
 }
 
 function metricEntries(metrics?: Record<string, number | string | null> | null): Array<[string, number | string | null]> {
@@ -631,54 +732,131 @@ function metricEntries(metrics?: Record<string, number | string | null> | null):
           </p>
         </section>
 
-        <form
-          class="model-lifecycle__deploy"
-          @submit.prevent="deployModel"
-        >
-          <label>场景<input v-model="deployment.scene"></label>
-          <label>环境<input v-model="deployment.environment"></label>
-          <label>灰度流量 %<input
-            v-model.number="deployment.trafficPercent"
-            min="1"
-            max="100"
-            type="number"
-          ></label>
-          <label>变更原因<textarea
-            v-model="deployment.reason"
-            maxlength="500"
-            placeholder="记录发布目的、风险与验证范围"
-          /></label>
-          <label class="model-lifecycle__confirm">
-            <input
-              v-model="deployConfirmed"
-              type="checkbox"
+        <div class="model-lifecycle__deploy">
+          <form @submit.prevent="deployModel">
+            <label>场景<input v-model="deployment.scene"></label>
+            <label>环境<input v-model="deployment.environment"></label>
+            <label>灰度流量 %<input
+              v-model.number="deployment.trafficPercent"
+              min="1"
+              max="100"
+              type="number"
+            ></label>
+            <label>变更原因<textarea
+              v-model="deployment.reason"
+              maxlength="500"
+              placeholder="记录发布目的、风险与验证范围"
+            /></label>
+            <label class="model-lifecycle__confirm">
+              <input
+                v-model="deployConfirmed"
+                type="checkbox"
+              >
+              我确认此版本已审批，且已核对灰度总和、监控和回滚预案。
+            </label>
+            <button
+              type="submit"
+              :disabled="busy || !canDeploy"
             >
-            我确认此版本已审批，且已核对灰度总和、监控和回滚预案。
-          </label>
-          <button
-            type="submit"
-            :disabled="busy || !canDeploy"
+              提交灰度/全量发布
+            </button>
+          </form>
+
+          <form
+            class="model-lifecycle__subsection"
+            @submit.prevent="submitApproval"
           >
-            提交灰度/全量发布
-          </button>
-          <div class="model-lifecycle__actions">
+            <h4>人工审批</h4>
+            <label>审批结论
+              <select
+                v-model="approval.status"
+                :disabled="!approvalTargets.length"
+              >
+                <option
+                  v-for="target in approvalTargets"
+                  :key="target"
+                  :value="target"
+                >
+                  {{ modelStatusLabels[target] }}
+                </option>
+              </select>
+            </label>
+            <label>审批原因<textarea
+              v-model="approval.reason"
+              maxlength="500"
+              placeholder="记录审批依据、评测结论与风险"
+            /></label>
+            <label class="model-lifecycle__confirm">
+              <input
+                v-model="approvalConfirmed"
+                type="checkbox"
+              >
+              我确认已核验模型卡、固定集指标与人工抽检结论。
+            </label>
             <button
-              type="button"
-              :disabled="busy"
-              @click="showUnavailableAction('人工审批')"
+              type="submit"
+              :disabled="busy || !canApprove"
             >
-              审批
+              提交审批结论
             </button>
+            <small v-if="selectedModel && !approvalTargets.length">当前模型状态为「{{ modelStatusLabels[selectedModel.status] }}」，没有可用的审批流转。</small>
+          </form>
+
+          <form
+            class="model-lifecycle__subsection"
+            @submit.prevent="submitRollback"
+          >
+            <h4>一键回滚</h4>
+            <label>目标场景<input v-model="rollback.scene"></label>
+            <label>目标环境<input v-model="rollback.environment"></label>
+            <label>回滚原因<textarea
+              v-model="rollback.reason"
+              maxlength="500"
+              placeholder="记录回滚触发原因与影响范围"
+            /></label>
+            <label class="model-lifecycle__confirm">
+              <input
+                v-model="rollbackConfirmed"
+                type="checkbox"
+              >
+              我确认将「{{ rollback.scene.trim() || '未填写' }}」场景的「{{ rollback.environment.trim() || '未填写' }}」环境回滚至当前选中版本。
+            </label>
             <button
-              type="button"
-              :disabled="busy"
-              @click="showUnavailableAction('一键回滚')"
+              type="submit"
+              :disabled="busy || !canRollback"
             >
-              回滚
+              提交回滚
             </button>
-          </div>
-          <small>当前契约仅定义部署接口；审批和回滚按钮不会在前端伪造状态变更。</small>
-        </form>
+            <small>回滚会把目标场景/环境的流量恢复至选中版本，服务端将写入 MODEL_ROLLBACK 审计。</small>
+          </form>
+
+          <section class="model-lifecycle__subsection model-lifecycle__receipt">
+            <div class="model-lifecycle__receipt-header">
+              <h4>部署与审计状态</h4>
+              <button
+                type="button"
+                :disabled="busy"
+                @click="refreshDeployments"
+              >
+                刷新部署状态
+              </button>
+            </div>
+            <p v-if="lastReceipt">
+              最近回执：{{ lastReceipt.action ?? 'DEPLOY' }} / {{ lastReceipt.status }}<template v-if="lastReceipt.result">
+                / {{ lastReceipt.result }}
+              </template>
+            </p>
+            <ul v-if="deployments.length">
+              <li
+                v-for="item in deployments"
+                :key="item.deployment_id ?? item.id"
+              >
+                {{ item.model_version_id }} · {{ item.status }} · {{ item.traffic_percent }}%
+              </li>
+            </ul>
+            <small v-else>提交发布或回滚后，在此查看场景「{{ rollback.scene.trim() || '未填写' }}」/ 环境「{{ rollback.environment.trim() || '未填写' }}」的部署与操作回执。</small>
+          </section>
+        </div>
       </div>
     </article>
   </section>
@@ -701,7 +879,7 @@ function metricEntries(metrics?: Record<string, number | string | null> | null):
 .model-panel form { display: grid; gap: 10px; }.model-panel label { display: grid; gap: 5px; color: #695b51; font-size: .74rem; font-weight: 800; }.model-panel input, .model-panel select, .model-panel textarea { width: 100%; min-height: 37px; border: 1px solid #d9ccc1; border-radius: 8px; box-sizing: border-box; padding: 7px 9px; background: #fffdfa; color: #392d26; font: inherit; }.model-panel textarea { min-height: 84px; resize: vertical; }
 .model-lifecycle__split { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }.model-lifecycle__lookup { display: grid; grid-template-columns: 1fr auto; gap: 8px; }.model-lifecycle__lookup input { min-height: 36px; border: 1px solid #d9ccc1; border-radius: 8px; padding: 7px 9px; background: #fffdfa; }
 .model-lifecycle__detail, .model-lifecycle__card { display: grid; gap: 10px; border-top: 1px solid rgb(74 54 42 / 12%); padding-top: 14px; }.model-lifecycle__status-row { justify-content: space-between; color: #392d26; }.status-chip { border-radius: 999px; padding: 3px 8px; background: #f1f5f9; color: #475569; font-size: .7rem; font-weight: 800; }.status-chip.is-ready, .status-chip.is-succeeded, .status-chip.is-approved { background: #dcfce7; color: #166534; }.status-chip.is-failed, .status-chip.is-rejected { background: #ffe4e6; color: #be123c; }.status-chip.is-running, .status-chip.is-evaluated { background: #dbeafe; color: #1d4ed8; }
-.model-lifecycle dl { display: grid; gap: 7px; margin: 0; }.model-lifecycle dl div { display: grid; grid-template-columns: minmax(80px, .8fr) minmax(0, 2fr); gap: 10px; }.model-lifecycle dt { color: #88776c; font-size: .7rem; }.model-lifecycle dd { overflow-wrap: anywhere; margin: 0; color: #4a362a; font-size: .76rem; }.model-lifecycle progress { width: 100%; height: 8px; accent-color: var(--brand); }.model-lifecycle__failure { color: #b91c1c; font-size: .8rem; }.model-lifecycle__actions { flex-wrap: wrap; }.model-lifecycle__actions button { border-color: #d9ccc1; background: #fffdfa; color: #695b51; }.model-lifecycle__confirm { grid-template-columns: auto 1fr; align-items: start; }.model-lifecycle__confirm input { width: auto; min-height: auto; margin-top: 3px; }.model-panel--wide { grid-column: 1 / -1; }.model-lifecycle__model-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr); gap: 22px; }.model-lifecycle__model-grid > section { display: grid; align-content: start; gap: 14px; }.model-lifecycle__deploy { align-content: start; border-left: 1px solid rgb(74 54 42 / 12%); padding-left: 22px; }.model-lifecycle__metrics { display: flex; flex-wrap: wrap; gap: 7px; }.model-lifecycle__metrics span { border-radius: 5px; padding: 4px 7px; background: #f6eee9; color: #695b51; font-size: .72rem; }.model-lifecycle__empty { color: #88776c; font-size: .8rem; }
+.model-lifecycle dl { display: grid; gap: 7px; margin: 0; }.model-lifecycle dl div { display: grid; grid-template-columns: minmax(80px, .8fr) minmax(0, 2fr); gap: 10px; }.model-lifecycle dt { color: #88776c; font-size: .7rem; }.model-lifecycle dd { overflow-wrap: anywhere; margin: 0; color: #4a362a; font-size: .76rem; }.model-lifecycle progress { width: 100%; height: 8px; accent-color: var(--brand); }.model-lifecycle__failure { color: #b91c1c; font-size: .8rem; }.model-lifecycle__actions { flex-wrap: wrap; }.model-lifecycle__actions button { border-color: #d9ccc1; background: #fffdfa; color: #695b51; }.model-lifecycle__confirm { grid-template-columns: auto 1fr; align-items: start; }.model-lifecycle__confirm input { width: auto; min-height: auto; margin-top: 3px; }.model-panel--wide { grid-column: 1 / -1; }.model-lifecycle__model-grid { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(280px, .9fr); gap: 22px; }.model-lifecycle__model-grid > section { display: grid; align-content: start; gap: 14px; }.model-lifecycle__deploy { display: grid; align-content: start; gap: 16px; border-left: 1px solid rgb(74 54 42 / 12%); padding-left: 22px; }.model-lifecycle__subsection { display: grid; gap: 10px; border-top: 1px solid rgb(74 54 42 / 12%); padding-top: 14px; }.model-lifecycle__subsection h4 { margin: 0; color: #392d26; font-size: .88rem; }.model-lifecycle__receipt-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }.model-lifecycle__receipt ul { display: grid; gap: 5px; margin: 0; padding-left: 18px; color: #4a362a; font-size: .76rem; }.model-lifecycle__metrics { display: flex; flex-wrap: wrap; gap: 7px; }.model-lifecycle__metrics span { border-radius: 5px; padding: 4px 7px; background: #f6eee9; color: #695b51; font-size: .72rem; }.model-lifecycle__empty { color: #88776c; font-size: .8rem; }
 @media (max-width: 840px) { .model-lifecycle__grid, .model-lifecycle__model-grid { grid-template-columns: 1fr; }.model-lifecycle__deploy { border-top: 1px solid rgb(74 54 42 / 12%); border-left: 0; padding-top: 18px; padding-left: 0; } }
 @media (max-width: 540px) { .model-lifecycle__header { align-items: flex-start; flex-direction: column; }.model-lifecycle__header > button { width: 100%; }.model-lifecycle__split { grid-template-columns: 1fr; }.model-lifecycle__lookup { grid-template-columns: 1fr; } }
 </style>
