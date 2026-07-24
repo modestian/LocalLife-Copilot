@@ -1,4 +1,4 @@
-ï»¿ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.13.14-slim
+ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.13.14-slim
 FROM ${PYTHON_IMAGE} AS base
 
 ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
@@ -13,10 +13,10 @@ WORKDIR /app
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# Layer 1: PyTorch â€” large wheel (~200 MB), rarely changes, independently cached.
+# Layer 1: PyTorch ¡ª large wheel (~200 MB), rarely changes, independently cached.
 RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch
 
-# Layer 2: All other project dependencies â€” only rebuilds when pyproject.toml changes.
+# Layer 2: All other project dependencies ¡ª only rebuilds when pyproject.toml changes.
 COPY pyproject.toml ./
 RUN mkdir -p app \
     && touch app/__init__.py \
@@ -30,7 +30,7 @@ RUN mkdir -p /models/embedding-cache \
     && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5', cache_folder='/models/embedding-cache')"
 
 COPY app ./app
-COPY training ./training
+COPY training/output/final_model ./training/output/final_model
 COPY evaluation ./evaluation
 COPY alembic.ini ./
 COPY migrations ./migrations
