@@ -119,17 +119,27 @@ function formatStars(rating: number | null): string {
       </label>
       <label>
         <span>开始日期</span>
-        <input
-          v-model="startAt"
-          type="date"
+        <span
+          class="date-wrap"
+          :class="{ 'is-empty': !startAt }"
         >
+          <input
+            v-model="startAt"
+            type="date"
+          >
+        </span>
       </label>
       <label>
         <span>结束日期</span>
-        <input
-          v-model="endAt"
-          type="date"
+        <span
+          class="date-wrap"
+          :class="{ 'is-empty': !endAt }"
         >
+          <input
+            v-model="endAt"
+            type="date"
+          >
+        </span>
       </label>
       <button type="submit">
         筛选
@@ -280,6 +290,15 @@ function formatStars(rating: number | null): string {
   font-size: 0.82rem;
   background: #fff;
 }
+.date-wrap { position: relative; display: block; }
+.date-wrap input[type="date"] { width: 100%; }
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-year-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-month-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-day-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-text { color: transparent !important; }
+.date-wrap.is-empty::after { content: '请用日历选择日期'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #999; pointer-events: none; font-size: .72rem; }
 
 .reviews-filters button {
   padding: 8px 18px;

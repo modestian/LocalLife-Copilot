@@ -55,6 +55,60 @@ const granularityLabels: Record<TrendGranularity, string> = {
   month: '月',
 }
 
+const ASPECT_CN: Record<string, string> = {
+  taste: '口味',
+  portion: '分量',
+  price: '性价比',
+  freshness: '新鲜度',
+  appearance: '卖相',
+  variety: '品种',
+  space: '空间',
+  quiet: '安静程度',
+  decoration: '装修',
+  hygiene: '卫生',
+  location: '位置',
+  seating: '座位',
+  waiting_time: '出餐速度',
+  attitude: '服务态度',
+  efficiency: '效率',
+  parking: '停车',
+  packing: '打包',
+  discount: '优惠',
+  set_meal: '套餐',
+  equipment: '设施',
+  overall: '整体体验',
+}
+
+const REASON_CN: Record<string, string> = {
+  taste_bad: '菜品味道太差',
+  taste_unbalanced: '口味忽咸忽淡不稳定',
+  cold_food: '菜上来都是凉的',
+  too_small: '分量太少了',
+  stale: '食材明显不新鲜',
+  spoiled: '食物有变质味道',
+  overpriced: '价格虚高不值这个价',
+  false_discount: '优惠活动是虚假宣传',
+  dirty: '卫生条件太差',
+  loud: '环境太吵了',
+  no_seat: '去了根本没座位',
+  slow_wait: '等了快一个小时',
+  rude_staff: '服务员态度恶劣',
+  wrong_order: '上错菜了还不承认',
+  no_parking: '停车太难了',
+  bad_pack: '外卖包装一塌糊涂',
+  equipment_broken: '店里设备坏了没人修',
+  close_early: '没到时间就关门了',
+  delivery_delay: '外卖超时一个多小时',
+}
+
+function localizeAspect(code: string): string {
+  return ASPECT_CN[code] ?? code
+}
+
+function localizeReason(code: string): string {
+  return REASON_CN[code] ?? code
+}
+
 const sentimentCounts = computed<Record<Sentiment, number>>(() => ({
   POSITIVE: trend.value.reduce((sum, point) => sum + point.positive, 0),
   NEUTRAL: trend.value.reduce((sum, point) => sum + point.neutral, 0),
@@ -75,7 +129,7 @@ const aspectCounts = computed<CountedLabel[]>(() => {
     }
   }
   return [...counts.entries()]
-    .map(([label, count]) => ({ label, count }))
+    .map(([label, count]) => ({ label: localizeAspect(label), count }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'))
     .slice(0, 10)
 })
@@ -178,7 +232,7 @@ async function refresh(): Promise<void> {
     ])
     if (version !== requestVersion) return
     trend.value = nextTrend
-    negativeReasons.value = nextReasons.map((item) => ({ label: item.reason, count: item.count }))
+    negativeReasons.value = nextReasons.map((item) => ({ label: localizeReason(item.reason), count: item.count }))
     analysisReviews.value = nextReviews
   } catch (error) {
     if (version !== requestVersion) return
@@ -295,19 +349,29 @@ onMounted(() => void refresh())
       </label>
       <label>
         <span>开始日期</span>
-        <input
-          v-model="startDateInput"
-          type="date"
-          data-testid="start-date-filter"
+        <span
+          class="date-wrap"
+          :class="{ 'is-empty': !startDateInput }"
         >
+          <input
+            v-model="startDateInput"
+            type="date"
+            data-testid="start-date-filter"
+          >
+        </span>
       </label>
       <label>
         <span>结束日期</span>
-        <input
-          v-model="endDateInput"
-          type="date"
-          data-testid="end-date-filter"
+        <span
+          class="date-wrap"
+          :class="{ 'is-empty': !endDateInput }"
         >
+          <input
+            v-model="endDateInput"
+            type="date"
+            data-testid="end-date-filter"
+          >
+        </span>
       </label>
       <button
         type="submit"
@@ -420,7 +484,6 @@ onMounted(() => void refresh())
         <article class="chart-card trend-card">
           <header>
             <div><span class="eyebrow">TREND</span><h2>情感趋势</h2></div>
-            <small>{{ trend.length }} 个{{ granularityLabels[granularity] }}期</small>
           </header>
           <div
             class="legend"
@@ -595,6 +658,15 @@ onMounted(() => void refresh())
 .analytics-filters { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; border: 1px solid rgb(74 54 42 / 12%); border-radius: 16px; padding: 18px; background: rgb(255 255 255 / 62%); }
 .analytics-filters label { display: grid; gap: 7px; color: #695b51; font-size: .74rem; font-weight: 800; }
 .analytics-filters input, .analytics-filters select { min-height: 40px; border: 1px solid #d9ccc1; border-radius: 9px; padding: 8px 10px; background: #fffdfa; color: #392d26; }
+.date-wrap { position: relative; display: block; }
+.date-wrap input[type="date"] { width: 100%; }
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-year-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-month-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-day-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-text { color: transparent !important; }
+.date-wrap.is-empty::after { content: '请用日历选择日期'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #999; pointer-events: none; font-size: .78rem; }
 .analytics-filters button, .analytics-state button { min-height: 40px; border: 1px solid var(--brand); border-radius: 9px; padding: 8px 16px; background: var(--brand); color: white; cursor: pointer; font-weight: 800; }
 .analytics-filters button:disabled { cursor: wait; opacity: .6; }
 .filter-error { grid-column: 1 / -1; margin: 0; color: #a4362b; font-size: .78rem; }
