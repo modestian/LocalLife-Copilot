@@ -388,7 +388,7 @@ async def list_merchants(
 async def get_merchant(
     request: Request, merchant_id: UUID, principal: CurrentPrincipal
 ) -> dict[str, Any]:
-    _require_resource(principal, ResourceType.MERCHANT, merchant_id, "READ")
+    _require_permission(principal, "MERCHANT", "READ")
     result = await _repository(request).get_merchant(merchant_id)
     if result is None:
         raise AppError(404, "NOT_FOUND", "商家不存在")
@@ -408,7 +408,7 @@ async def list_merchant_reviews(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict[str, Any]:
-    _require_resource(principal, ResourceType.MERCHANT, merchant_id, "READ")
+    _require_permission(principal, "MERCHANT", "READ")
     if start_at and end_at and start_at >= end_at:
         raise AppError(422, "INVALID_TIME_RANGE", "开始时间必须早于结束时间")
     rows, total = await _repository(request).list_reviews(
@@ -604,7 +604,7 @@ async def merchant_sentiment(
     start_at: datetime | None = None,
     end_at: datetime | None = None,
 ) -> dict[str, Any]:
-    _require_resource(principal, ResourceType.MERCHANT, merchant_id, "READ")
+    _require_permission(principal, "MERCHANT", "READ")
     service = request.app.state.analytics_service
     trend = await service.get_sentiment_trend(
         str(merchant_id), granularity=granularity, start_date=start_at, end_date=end_at
@@ -641,7 +641,7 @@ async def merchant_topics(
     start_at: datetime | None = None,
     end_at: datetime | None = None,
 ) -> dict[str, Any]:
-    _require_resource(principal, ResourceType.MERCHANT, merchant_id, "READ")
+    _require_permission(principal, "MERCHANT", "READ")
     service = request.app.state.analytics_service
     evidence = await service.drill_down_reviews(
         str(merchant_id), start_date=start_at, end_date=end_at, limit=20
