@@ -53,6 +53,30 @@ def test_model_gateway_returns_deterministic_dimensioned_embeddings(monkeypatch)
     assert data[0]["embedding"] == data[1]["embedding"] == [0.0] * dim
 
 
+def test_model_gateway_returns_classifier_scores_as_mapping(monkeypatch) -> None:
+    pipeline = MagicMock(
+        return_value=[
+            {"label": "NEGATIVE", "score": 0.1},
+            {"label": "NEUTRAL", "score": 0.2},
+            {"label": "POSITIVE", "score": 0.7},
+        ]
+    )
+    monkeypatch.setattr("app.model_gateway._get_classifier", lambda: pipeline)
+
+    with TestClient(model_gateway_app) as client:
+        response = client.post(
+            "/v1/classify",
+            json={"model": "local-bert-classifier", "input": "推荐一家川菜馆"},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "model": "local-bert-classifier",
+        "predicted_label": "POSITIVE",
+        "scores": {"NEGATIVE": 0.1, "NEUTRAL": 0.2, "POSITIVE": 0.7},
+    }
+
+
 def test_worker_ping_task_contract() -> None:
     assert ping() == "pong"
 

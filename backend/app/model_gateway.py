@@ -81,15 +81,10 @@ class ClassificationRequest(BaseModel):
     return_all_scores: bool = True
 
 
-class ClassificationItem(BaseModel):
-    label: str
-    score: float
-
-
 class ClassificationResponse(BaseModel):
     model: str
     predicted_label: str
-    scores: list[ClassificationItem]
+    scores: dict[str, float]
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +100,7 @@ _generation_model_name: str = ""
 
 _classifier_pipeline = None
 _classifier_model_name: str = ""
+_DEFAULT_CLASSIFIER_MODEL = "/models/sentiment"
 
 
 def _get_classifier():
@@ -114,7 +110,7 @@ def _get_classifier():
     _HAS_TRANSFORMERS = True
     name = os.getenv(
         "CLASSIFIER_MODEL_NAME",
-        "D:/CodingProjects/LocalLife Copilot/backend/training/output/final_model",
+        _DEFAULT_CLASSIFIER_MODEL,
     )
     if _classifier_pipeline is None or _classifier_model_name != name:
         logger.info("Loading classification model %s on %s", name, _device())
@@ -273,15 +269,20 @@ async def classify(payload: ClassificationRequest) -> ClassificationResponse:
         raise HTTPException(status_code=503, detail=f"Classifier unavailable: {exc!s}") from exc
     if not results or not isinstance(results, list) or not results[0]:
         raise HTTPException(status_code=500, detail="Classifier returned no results")
+    items = results[0] if isinstance(results[0], list) else results
     scores = {}
-    for item in results[0]:
+    for item in items:
+        if not isinstance(item, dict):
+            continue
         label = str(item.get("label", "unknown")).strip()
         score = float(item.get("score", 0.0))
         scores[label] = score
+    if not scores:
+        raise HTTPException(status_code=500, detail="Classifier returned invalid scores")
     predicted = max(scores, key=scores.get) if scores else "unknown"
     pipeline_name = os.getenv(
         "CLASSIFIER_MODEL_NAME",
-        "D:/CodingProjects/LocalLife Copilot/backend/training/output/final_model",
+        _DEFAULT_CLASSIFIER_MODEL,
     )
     return ClassificationResponse(
         model=payload.model or pipeline_name,
@@ -294,7 +295,7 @@ async def classify(payload: ClassificationRequest) -> ClassificationResponse:
 async def classifier_model_info() -> ModelInfoResponse:
     name = os.getenv(
         "CLASSIFIER_MODEL_NAME",
-        "D:/CodingProjects/LocalLife Copilot/backend/training/output/final_model",
+        _DEFAULT_CLASSIFIER_MODEL,
     )
     return ModelInfoResponse(model_name=name, version=name, device=_device())
 

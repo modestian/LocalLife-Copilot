@@ -1,4 +1,5 @@
 from collections import defaultdict
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -17,6 +18,8 @@ from app.application.conversations import (
 )
 from app.infrastructure.db.base import utc_now
 from app.infrastructure.db.models.conversations import Conversation, Message, MessageSource
+
+_SCORE_QUANTUM = Decimal("0.0000001")
 
 
 class SQLAlchemyConversationRepository:
@@ -146,7 +149,7 @@ class SQLAlchemyConversationRepository:
                     message_id=row.id,
                     chunk_id=source.chunk_id,
                     rank_no=source.rank_no,
-                    score=source.score,
+                    score=_stored_score(source.score),
                     raw_score=source.raw_score,
                     source_location_snapshot=source.source_location_snapshot,
                     content_snapshot=source.content_snapshot,
@@ -250,6 +253,11 @@ def _settings_after_truncate(settings: dict[str, object]) -> dict[str, object]:
     settings.pop("_memory_summary", None)
     settings.pop("constraints", None)
     return settings
+
+
+def _stored_score(score: float | None) -> Decimal | None:
+    """Match the message_sources.score NUMERIC(8, 7) scale before MySQL insertion."""
+    return Decimal(str(score)).quantize(_SCORE_QUANTUM) if score is not None else None
 
 
 def _visible_branch_rows(

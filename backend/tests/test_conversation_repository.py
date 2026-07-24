@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 from sqlalchemy.dialects import mysql
 
-from app.application.conversations import MessageInput, MessageRole, MessageStatus
+from app.application.conversations import MessageInput, MessageRole, MessageStatus, SourceInput
 from app.core.ids import uuid7
 from app.infrastructure.db.models.conversations import Conversation, Message
 from app.infrastructure.db.repositories.conversations import SQLAlchemyConversationRepository
@@ -107,6 +107,35 @@ async def test_append_locks_owned_conversation_and_allocates_next_sequence() -> 
     assert "FOR UPDATE" in statement
     assert result.sequence_no == 5
     assert row.current_branch_message_id == result.id
+
+
+@pytest.mark.asyncio
+async def test_append_quantizes_source_score_to_database_scale() -> None:
+    owner_id = uuid7()
+    row = conversation(owner_id)
+    session = FakeSession([row, 0])
+    repository = SQLAlchemyConversationRepository(FakeFactory(session))  # type: ignore[arg-type]
+
+    await repository.append_message(
+        row.id,
+        owner_id,
+        MessageInput(
+            role=MessageRole.ASSISTANT,
+            content="推荐结果",
+            sources=(
+                SourceInput(
+                    chunk_id=uuid7(),
+                    rank_no=1,
+                    source_location_snapshot="demo",
+                    content_snapshot="证据",
+                    score=0.03278688524590164,
+                ),
+            ),
+        ),
+    )
+
+    source = next(item for item in session.added if item.__class__.__name__ == "MessageSource")
+    assert str(source.score) == "0.0327869"
 
 
 @pytest.mark.asyncio

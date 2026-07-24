@@ -1,6 +1,7 @@
 """Real LLM model adapter supporting local model gateway and Alibaba Bailian.
 
-Intent routing and constraint extraction go through the local BERT classifier.
+Intent routing goes through the local classifier when it exposes compatible
+intent labels. Constraint extraction falls back to the deterministic parser.
 RAG generation uses Bailian (DashScope) OpenAI-compatible API.
 """
 
@@ -29,8 +30,9 @@ _BAILIAN_MODEL = "qwen-plus"
 class TransformersModelAdapter(ModelAdapter):
     """Model adapter that routes tasks to the right backend.
 
-    - route_intent / extract_constraints  -> local BERT classifier (via model gateway)
-    - rag_* (generation)                  -> Alibaba Bailian API
+    - route_intent          -> local classifier (via model gateway), with rule fallback
+    - extract_constraints   -> deterministic parser fallback
+    - rag_* (generation)    -> Alibaba Bailian API
     """
 
     version = "bailian-rag-v1"
@@ -47,7 +49,9 @@ class TransformersModelAdapter(ModelAdapter):
         self._classification_url = classification_url
         self._bailian_api_base = bailian_api_base
         self._bailian_model = bailian_model
-        self._bailian_api_key = bailian_api_key or os.getenv("BAILIAN_API_KEY", "")
+        self._bailian_api_key = (
+            os.getenv("BAILIAN_API_KEY", "") if bailian_api_key is None else bailian_api_key
+        )
         self._timeout = timeout
         if not self._bailian_api_key:
             logger.warning(
@@ -66,9 +70,10 @@ class TransformersModelAdapter(ModelAdapter):
                 return ModelPrediction(text=text, structured=structured, model_version=self.version)
 
             if item.task == "extract_constraints":
-                text = self._call_classify(item.prompt)
-                structured = _parse_structured(text)
-                return ModelPrediction(text=text, structured=structured, model_version=self.version)
+                # The mounted classifier is a sentiment model, not a slot-extraction
+                # model. Returning an empty patch lets ConstraintExtractor use its
+                # deterministic Chinese parser without making a misleading call.
+                return ModelPrediction(text="{}", structured={}, model_version=self.version)
 
             # rag_* tasks -> Bailian
             text = self._call_bailian(item.task, item.prompt)
@@ -83,7 +88,7 @@ class TransformersModelAdapter(ModelAdapter):
         return ModelPrediction(text=text, structured=None, model_version=self.version)
 
     def _call_classify(self, prompt: str) -> str:
-        """Use the local BERT classifier for intent/constraint tasks."""
+        """Use the local classifier only when it exposes supported intent labels."""
         payload = json.dumps(
             {
                 "model": "local-bert-classifier",
@@ -100,28 +105,38 @@ class TransformersModelAdapter(ModelAdapter):
         with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
             body = json.load(response)
         if isinstance(body, dict):
-            scores = body.get("scores", {})
-            scores_normal = {}
-            for k, v in scores.items():
-                if k.lower() in ("positive", "negative", "neutral"):
-                    scores_normal[k.lower()] = float(v)
-                else:
-                    scores_normal[k] = float(v)
+            raw_scores = body.get("scores", {})
+            if isinstance(raw_scores, dict):
+                scores_normal = {
+                    str(key).lower(): float(value) for key, value in raw_scores.items()
+                }
+            elif isinstance(raw_scores, list):
+                scores_normal = {
+                    str(item.get("label", "")).lower(): float(item.get("score", 0.0))
+                    for item in raw_scores
+                    if isinstance(item, dict) and item.get("label")
+                }
+            else:
+                scores_normal = {}
             predicted = body.get("predicted_label", "").lower()
-            # Bailian classification returns different labels; map them
-            if predicted in ("positive",):
-                predicted = "knowledge_query"
-            elif predicted in ("negative",):
+            supported = {"knowledge_query", "tool_use", "general_chat"}
+            if predicted not in supported:
+                # The bundled artifact currently exposes sentiment labels. A zero
+                # confidence result makes IntentRouter use its deterministic rules.
                 predicted = "general_chat"
-            max_score = max(scores_normal.values()) if scores_normal else 0.0
+                confidence = 0.0
+            else:
+                confidence = scores_normal.get(predicted, 0.0)
             return json.dumps(
-                {"intent": predicted, "confidence": max_score, "scores": scores_normal},
+                {"intent": predicted, "confidence": confidence},
                 ensure_ascii=False,
             )
         return json.dumps({})
 
     def _call_bailian(self, task: str, prompt: str) -> str:
         """Call the Alibaba Bailian (DashScope) chat completion API."""
+        if not self._bailian_api_key:
+            raise RuntimeError("BAILIAN_API_KEY is not configured")
         messages = [
             {"role": "system", "content": _BAILIAN_SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
@@ -138,6 +153,7 @@ class TransformersModelAdapter(ModelAdapter):
                 "temperature": 0.3,
                 "max_tokens": 2048,
                 "top_p": 0.9,
+                "response_format": {"type": "json_object"},
             }
         ).encode("utf-8")
 

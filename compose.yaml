@@ -74,6 +74,7 @@ services:
     environment:
       SENTIMENT_MODEL: ${SENTIMENT_MODEL:-/models/sentiment}
       SENTIMENT_MODEL_REVISION: ${SENTIMENT_MODEL_REVISION:-}
+      CLASSIFIER_MODEL_NAME: /models/sentiment
       EMBEDDING_MODEL_NAME: BAAI/bge-small-zh-v1.5
       EMBEDDING_MODEL_PATH: /models/embedding-cache/bge-small-zh-v1.5
     volumes:
@@ -195,7 +196,11 @@ services:
   api:
     build:
       context: ./backend
-    environment: *api-environment
+    environment:
+      <<: *api-environment
+      BAILIAN_API_KEY: ${BAILIAN_API_KEY:-}
+      BAILIAN_MODEL: ${BAILIAN_MODEL:-qwen-plus}
+      BAILIAN_API_BASE: ${BAILIAN_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
     networks: [edge, backend]
     volumes:
       - knowledge-data:/data/knowledge

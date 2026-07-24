@@ -66,7 +66,8 @@
 
 ```bash
 # .env 中 RAG 相关配置
-CLASSIFIER_MODEL_NAME=D:\CodingProjects\LocalLife Copilot\backend\training\output\final_model
+# Docker Compose 将本地模型目录挂载到容器内的固定路径。
+CLASSIFIER_MODEL_NAME=/models/sentiment
 # Docker Compose 使用 BAAI/bge-small-zh-v1.5，并从构建时写入镜像的模型目录加载。
 EMBEDDING_MODEL_NAME=BAAI/bge-small-zh-v1.5
 BAILIAN_API_KEY=sk-your-bailian-api-key
