@@ -2,6 +2,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Request
+from sqlalchemy import select
 
 from app.api.dependencies.authorization import CurrentPrincipal
 from app.application.authorization import ResourceScopeDenied, ResourceType, RolePermissionDenied
@@ -9,6 +10,7 @@ from app.application.knowledge import DocumentNotFound
 from app.application.tasks import TaskStatus, can_retry, cancellation_target
 from app.core.api import success_response
 from app.core.errors import AppError
+from app.infrastructure.db.models.knowledge import Document
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -48,9 +50,24 @@ async def _visible_task(request: Request, principal: CurrentPrincipal, task_id: 
     return task
 
 
-def _task_data(task) -> dict[str, Any]:
+async def _task_data(task, request: Request) -> dict[str, Any]:
     cancellable = cancellation_target(task.status, task.stage) is not None
     retryable = can_retry(task.status, task.attempt_count, task.max_attempts)
+    files: list[dict[str, Any]] = []
+    if task.resource_type == "DOCUMENT":
+        display_name = await _document_display_name(request, task.resource_id)
+        if display_name:
+            files.append(
+                {
+                    "file_name": display_name,
+                    "document_id": str(task.resource_id),
+                    "status": task.status.value,
+                    "stage": task.stage.value,
+                    "progress": task.progress,
+                    "error_code": task.error_code,
+                    "error_message": task.error_message,
+                }
+            )
     return {
         "task_id": str(task.id),
         "task_type": task.task_type,
@@ -65,7 +82,7 @@ def _task_data(task) -> dict[str, Any]:
         "max_attempts": task.max_attempts,
         "error_code": task.error_code,
         "error_message": task.error_message,
-        "files": [],
+        "files": files,
         "result": task.result,
         "created_at": task.created_at.isoformat(),
         "updated_at": task.updated_at.isoformat(),
@@ -76,10 +93,22 @@ def _task_data(task) -> dict[str, Any]:
     }
 
 
+async def _document_display_name(request: Request, document_id: UUID) -> str | None:
+    """Best-effort lookup of the document display name for task file info."""
+    try:
+        async with request.app.state.session_factory() as session:
+            row = await session.scalar(
+                select(Document.display_name).where(Document.id == document_id)
+            )
+            return row
+    except Exception:
+        return None
+
+
 @router.get("/{task_id}")
 async def get_task(request: Request, task_id: UUID, principal: CurrentPrincipal) -> dict[str, Any]:
     task = await _visible_task(request, principal, task_id)
-    return success_response(request, _task_data(task))
+    return success_response(request, await _task_data(task, request))
 
 
 @router.post("/{task_id}/cancel")
@@ -91,7 +120,7 @@ async def cancel_task(
     if not accepted:
         raise AppError(409, "TASK_NOT_CANCELLABLE", "任务已进入不可中断阶段或已经结束")
     refreshed = await request.app.state.task_repository.get(task_id)
-    return success_response(request, _task_data(refreshed or task))
+    return success_response(request, await _task_data(refreshed or task, request))
 
 
 @router.post("/{task_id}/retry")
@@ -113,4 +142,4 @@ async def retry_task(
     ):
         raise AppError(409, "TASK_NOT_RETRYABLE", "任务当前不可重试")
     refreshed = await request.app.state.task_repository.get(task_id)
-    return success_response(request, _task_data(refreshed or task))
+    return success_response(request, await _task_data(refreshed or task, request))

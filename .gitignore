@@ -23,6 +23,7 @@ frontend/test-results/
 backend/training/output/
 backend/training/models/
 backend/training/artifacts/
+backend/bge-small-zh-v1.5/
 *.safetensors
 *.bin
 *.pt
