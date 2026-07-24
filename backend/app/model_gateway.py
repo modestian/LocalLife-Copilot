@@ -146,10 +146,15 @@ def _get_embedding_model():
 
     _HAS_ST = True
     name = os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-small-zh-v1.5")
-    if _embedding_model is None or _embedding_model_name != name:
-        logger.info("Loading embedding model %s on %s", name, _device())
-        _embedding_model = SentenceTransformer(name, device=_device(), trust_remote_code=True)
-        _embedding_model_name = name
+    source = os.getenv("EMBEDDING_MODEL_PATH") or name
+    if _embedding_model is None or _embedding_model_name != source:
+        logger.info("Loading embedding model %s from %s on %s", name, source, _device())
+        _embedding_model = SentenceTransformer(
+            source,
+            device=_device(),
+            trust_remote_code=True,
+        )
+        _embedding_model_name = source
     return _embedding_model
 
 
