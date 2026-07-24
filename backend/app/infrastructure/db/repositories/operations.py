@@ -383,6 +383,11 @@ class OperationsRepository:
             filters.append(Review.reviewed_at >= start_at)
         if end_at:
             filters.append(Review.reviewed_at < end_at)
+        analysis_filters = [ReviewAnalysis.merchant_id == str(merchant_id)]
+        if start_at:
+            analysis_filters.append(ReviewAnalysis.review_date >= start_at)
+        if end_at:
+            analysis_filters.append(ReviewAnalysis.review_date < end_at)
         async with self._session_factory() as session:
             rows = list(
                 (
@@ -395,11 +400,12 @@ class OperationsRepository:
                 (
                     await session.scalars(
                         select(ReviewAnalysis)
-                        .where(ReviewAnalysis.merchant_id == str(merchant_id))
+                        .where(*analysis_filters)
                         .order_by(ReviewAnalysis.review_date.desc())
                     )
                 ).all()
             )
+        # Merge both sources: user-submitted reviews + ETL-imported analyses
         items: list[dict[str, object]] = [
             {
                 "id": str(row.id),
@@ -410,23 +416,33 @@ class OperationsRepository:
                 "tags": row.tags_json or [],
                 "sentiment": None,
                 "confidence": None,
+                "source": "USER_SUBMITTED",
             }
             for row in rows
         ]
-        if not rows:
-            items = [
-                {
-                    "id": str(row.id),
-                    "content": row.review_text,
-                    "rating": None,
-                    "author_ref": None,
-                    "reviewed_at": row.review_date,
-                    "tags": row.aspect_labels or [],
-                    "sentiment": row.sentiment,
-                    "confidence": row.confidence,
-                }
-                for row in analysis_rows
-            ]
+        items += [
+            {
+                "id": str(row.id),
+                "content": row.review_text,
+                "rating": None,
+                "author_ref": None,
+                "reviewed_at": row.review_date,
+                "tags": (
+                    json.loads(row.aspect_labels)
+                    if isinstance(row.aspect_labels, str)
+                    else (row.aspect_labels or [])
+                ),
+                "sentiment": row.sentiment,
+                "confidence": row.confidence,
+                "source": "ETL_IMPORTED",
+            }
+            for row in analysis_rows
+        ]
+        # Sort merged list by date descending
+        items.sort(
+            key=lambda x: x["reviewed_at"] or datetime.min.replace(tzinfo=None),
+            reverse=True,
+        )
         if sentiment:
             items = [item for item in items if item["sentiment"] == sentiment]
         if tag:

@@ -13,6 +13,7 @@ interface ReviewRecord {
   tags: string[]
   sentiment: string | null
   confidence: number | null
+  source: string | null
 }
 
 const props = defineProps<{
@@ -165,11 +166,17 @@ function formatStars(rating: number | null): string {
       >
         <div class="review-top">
           <span class="review-author">{{ review.author_ref ?? '匿名顾客' }}</span>
-          <span
-            v-if="review.sentiment"
-            :class="['sentiment-badge', sentimentClass(review.sentiment)]"
-          >
-            {{ sentimentLabel(review.sentiment) }}
+          <span class="review-badges">
+            <span
+              v-if="review.sentiment"
+              :class="['sentiment-badge', sentimentClass(review.sentiment)]"
+            >
+              {{ sentimentLabel(review.sentiment) }}
+            </span>
+            <span
+              v-else
+              class="sentiment-badge is-unanalyzed"
+            >未分析</span>
           </span>
         </div>
         <div class="review-rating">
@@ -346,6 +353,26 @@ function formatStars(rating: number | null): string {
 .sentiment-badge.is-negative {
   background: #fce4ec;
   color: #c62828;
+}
+
+.sentiment-badge.is-unanalyzed {
+  background: #f5f5f5;
+  color: #909399;
+}
+
+.review-badges {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.source-badge {
+  font-size: 0.66rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #e8eaf6;
+  color: #3949ab;
 }
 
 .review-rating {
