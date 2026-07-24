@@ -260,14 +260,20 @@ onMounted(() => void loadReviews())
           type="button"
           @click="addCompetitor"
         >添加</button></label>
-        <label><span>开始日期</span><input
+        <label><span>开始日期</span><span
+          class="date-wrap"
+          :class="{ 'is-empty': !compareStartDate }"
+        ><input
           v-model="compareStartDate"
           type="date"
-        ></label>
-        <label><span>结束日期</span><input
+        ></span></label>
+        <label><span>结束日期</span><span
+          class="date-wrap"
+          :class="{ 'is-empty': !compareEndDate }"
+        ><input
           v-model="compareEndDate"
           type="date"
-        ></label>
+        ></span></label>
         <div
           class="competitor-chips"
           aria-label="已选竞品"
@@ -417,14 +423,20 @@ onMounted(() => void loadReviews())
         class="suggestion-form"
         @submit.prevent="generateBusinessSuggestions"
       >
-        <label><span>开始日期</span><input
+        <label><span>开始日期</span><span
+          class="date-wrap"
+          :class="{ 'is-empty': !suggestionStartDate }"
+        ><input
           v-model="suggestionStartDate"
           type="date"
-        ></label>
-        <label><span>结束日期</span><input
+        ></span></label>
+        <label><span>结束日期</span><span
+          class="date-wrap"
+          :class="{ 'is-empty': !suggestionEndDate }"
+        ><input
           v-model="suggestionEndDate"
           type="date"
-        ></label>
+        ></span></label>
         <label class="is-wide"><span>关注特征（用逗号分隔）</span><input
           v-model="focusAspectsInput"
           placeholder="如：服务，等位，环境"
@@ -495,6 +507,15 @@ onMounted(() => void loadReviews())
 .comparison-meta { display: flex; flex-wrap: wrap; gap: 6px 15px; margin: 16px 0 9px; color: #7a6a60; font-size: .67rem; }.comparison-table { overflow: auto; border: 1px solid #e0d4c9; border-radius: 10px; }.comparison-row { display: grid; grid-template-columns: minmax(110px, 1.1fr) 45px 58px 42px minmax(165px, 1.5fr); gap: 10px; align-items: center; border-top: 1px solid #eadfd5; padding: 10px; color: #4b3b32; font-size: .7rem; }.comparison-row:first-child { border-top: 0; }.comparison-head { background: #f5eee6; color: #79695e; font-size: .64rem; font-weight: 800; }.comparison-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.comparison-row small { color: #8a786d; font-size: .64rem; }
 .reply-controls { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }.selected-review { margin: 15px 0; border-left: 3px solid #d98a4f; padding: 9px 12px; background: #fff9f3; }.selected-review span, .selected-review small { color: #806f64; font-size: .67rem; }.selected-review p { margin: 7px 0; color: #493a31; font-size: .78rem; line-height: 1.65; }.draft-actions { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-top: 10px; }.draft-actions small, .copy-message, .trace-meta { color: #7b6d63; font-size: .67rem; }.copy-message { margin: 9px 0 0; color: #2c704b; }
 .suggestion-form { grid-template-columns: 1fr 1fr auto; align-items: end; }.suggestion-form .is-wide { grid-column: 1 / 3; }.suggestion-detail { margin-top: 12px; border: 1px solid #e0d4c9; border-radius: 11px; padding: 0 14px; background: #fffdfa; }.suggestion-detail summary { display: flex; justify-content: space-between; gap: 14px; padding: 14px 0; cursor: pointer; color: #493a31; font-size: .82rem; font-weight: 800; }.suggestion-detail summary small { color: #806226; font-size: .67rem; }.suggestion-detail > p { margin: 0 0 10px; color: #5e4d43; font-size: .78rem; line-height: 1.7; }.suggestion-period { color: #8a786d; font-size: .66rem; }.evidence-list { display: grid; gap: 8px; margin: 13px 0; border-top: 1px solid #eadfd5; padding-top: 12px; }.evidence-list > strong { color: #695b51; font-size: .72rem; }.evidence-list article { border-left: 2px solid #ddc4af; padding-left: 9px; }.evidence-list article span { color: #8a786d; font-size: .64rem; }.evidence-list article p { margin: 4px 0 0; color: #5a493e; font-size: .72rem; line-height: 1.55; }.trace-meta { display: block; margin-top: 12px; }
+.date-wrap { position: relative; display: block; }
+.date-wrap input[type="date"] { width: 100%; }
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-year-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-month-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-day-field,
+.date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-text { color: transparent !important; }
+.date-wrap.is-empty::after { content: '请用日历选择日期'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #999; pointer-events: none; font-size: .78rem; }
 @media (max-width: 850px) { .insight-workbench { grid-template-columns: 1fr; }.suggestion-card { grid-column: auto; }.reply-controls, .suggestion-form { grid-template-columns: 1fr 1fr; }.reply-controls .primary-button, .suggestion-form .primary-button { grid-column: 1 / -1; }.suggestion-form .is-wide { grid-column: 1 / -1; } }
 @media (max-width: 520px) { .insight-card { padding: 17px; }.insight-card > header { align-items: flex-start; flex-direction: column; }.insight-card header small { text-align: left; }.compare-form, .reply-controls, .suggestion-form { grid-template-columns: 1fr; }.compare-form label:first-child { grid-template-columns: 1fr; }.compare-form .primary-button, .reply-controls .primary-button, .suggestion-form .primary-button, .suggestion-form .is-wide { grid-column: auto; }.comparison-row { grid-template-columns: 92px 38px 48px 36px minmax(130px, 1fr); gap: 7px; padding: 9px 7px; }.draft-actions { align-items: flex-start; flex-direction: column; } }
 </style>

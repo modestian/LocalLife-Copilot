@@ -366,7 +366,7 @@ class ReplyGenerator:
         reply_text = self._fill_template(template, aspects)
 
         # Apply tone adjustment
-        reply_text = self._apply_tone(reply_text, tone)
+        reply_text = self._apply_tone(reply_text, tone, sentiment, aspects)
 
         # Check compliance including prohibited_commitments
         violations = check_compliance(reply_text)
@@ -385,20 +385,40 @@ class ReplyGenerator:
             violations=violations,
         )
 
-    def _apply_tone(self, text: str, tone: str) -> str:
-        """Apply tone adjustments to the reply text."""
-        if tone == "CONCISE":
-            # Trim to first sentence for concise tone
-            for sep in ("。", "！", "？"):
-                idx = text.find(sep)
-                if idx != -1:
-                    return text[: idx + 1]
+    def _apply_tone(self, text: str, tone: str, sentiment: str, aspects: list[str]) -> str:
+        """Generate tone-specific reply text.
+
+        Each tone produces genuinely different wording rather than merely
+        truncating or prefixing the empathetic default.
+        """
+        if tone == "EMPATHETIC":
             return text
+
+        aspect_str = _aspects_to_chinese(aspects)
+
+        if tone == "CONCISE":
+            if sentiment == "POSITIVE":
+                return f"谢谢认可，{aspect_str}方面我们会继续保持。"
+            if sentiment == "NEUTRAL":
+                return f"收到反馈，{aspect_str}方面会持续改进。"
+            return f"抱歉体验不佳，{aspect_str}问题已在整改。"
+
         if tone == "PROFESSIONAL":
-            # Keep the same evidence-backed content while making the register
-            # observably more formal than the empathetic default.
-            return f"您好。{text.replace('！', '。')}"
-        # EMPATHETIC keeps the warmer wording from the selected template.
+            if sentiment == "POSITIVE":
+                return (
+                    f"您好。感谢您在{aspect_str}方面给予的肯定，"
+                    "我们将持续保持服务品质，期待您的再次光临。"
+                )
+            if sentiment == "NEUTRAL":
+                return (
+                    f"您好。已收到您关于{aspect_str}的反馈，"
+                    "我们会纳入改进计划，争取下次为您提供更好的体验。"
+                )
+            return (
+                f"您好。对于{aspect_str}方面的不足我们深表歉意，"
+                "已启动专项改进，期待后续能重新获得您的认可。"
+            )
+
         return text
 
     def _select_template(self, sentiment: str, negative_reasons: list[str]) -> ReplyTemplate:
