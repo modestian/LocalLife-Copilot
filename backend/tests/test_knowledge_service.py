@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from uuid import UUID
 
 import pytest
@@ -18,6 +19,7 @@ from app.application.knowledge import (
     normalize_name,
 )
 from app.core.ids import uuid7
+from app.infrastructure.db.base import utc_now
 
 
 class InMemoryKnowledgeRepository:
@@ -133,6 +135,7 @@ class InMemoryKnowledgeRepository:
     async def create_document(self, payload: DocumentInput) -> DocumentView:
         self._knowledge_base(payload.knowledge_base_id)
         source_type = payload.source_type.strip().upper()
+        now = utc_now().isoformat()
         for row in self.documents.values():
             if (
                 row.knowledge_base_id == payload.knowledge_base_id
@@ -150,6 +153,8 @@ class InMemoryKnowledgeRepository:
                     current_version_no=row.current_version_no,
                     last_error_code=row.last_error_code,
                     version=row.version + 1,
+                    created_at=row.created_at,
+                    updated_at=now,
                 )
                 self.documents[row.id] = updated
                 return updated
@@ -164,20 +169,41 @@ class InMemoryKnowledgeRepository:
             current_version_no=0,
             last_error_code=None,
             version=1,
+            created_at=now,
+            updated_at=now,
         )
         self.documents[row.id] = row
         return row
 
     async def list_documents(
-        self, knowledge_base_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        knowledge_base_id: UUID,
+        *,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[DocumentView]:
         self._knowledge_base(knowledge_base_id)
         rows = [
             row
             for row in self.documents.values()
-            if row.knowledge_base_id == knowledge_base_id and row.status != "DELETED"
+            if row.knowledge_base_id == knowledge_base_id
+            and row.status != "DELETED"
+            and (status is None or row.status == status)
         ]
         return rows[offset : offset + limit]
+
+    async def count_documents(self, knowledge_base_id: UUID, *, status: str | None = None) -> int:
+        self._knowledge_base(knowledge_base_id)
+        return len(
+            [
+                row
+                for row in self.documents.values()
+                if row.knowledge_base_id == knowledge_base_id
+                and row.status != "DELETED"
+                and (status is None or row.status == status)
+            ]
+        )
 
     async def update_document(self, document_id: UUID, patch: DocumentPatch) -> DocumentView:
         row = self._document(document_id)
@@ -429,3 +455,45 @@ async def test_service_rejects_invalid_payloads() -> None:
                 splitter_config={},
             )
         )
+
+
+@pytest.mark.asyncio
+async def test_document_view_serialization_includes_timestamps_and_chunk_count() -> None:
+    """The _serialize(asdict(DocumentView)) output MUST include updated_at, created_at, chunk_count.
+
+    This verifies the API response contract that the frontend relies on.
+    """
+    service = KnowledgeService(InMemoryKnowledgeRepository())
+    kb = await service.create_knowledge_base(
+        KnowledgeBaseInput(
+            owner_id=uuid7(), name="API test", embedding_model_version_id=uuid7(), tenant_id=uuid7()
+        )
+    )
+    document = await service.create_document(
+        DocumentInput(kb.id, "file", "data.csv", "Data", "text/csv")
+    )
+
+    # Verify the dataclass has timestamps set
+    assert document.created_at is not None, "created_at must be set on document creation"
+    assert document.updated_at is not None, "updated_at must be set on document creation"
+    assert document.chunk_count == 0
+
+    # Verify serialization output (simulates what the API endpoint does)
+    serialized = asdict(document)
+    for key, item in serialized.items():
+        if isinstance(item, UUID):
+            serialized[key] = str(item)
+
+    assert "updated_at" in serialized, "serialized output must include updated_at"
+    assert "created_at" in serialized, "serialized output must include created_at"
+    assert "chunk_count" in serialized, "serialized output must include chunk_count"
+    assert serialized["updated_at"] is not None, "updated_at must not be None"
+    assert serialized["created_at"] is not None, "created_at must not be None"
+    assert isinstance(serialized["updated_at"], str)
+    assert "T" in serialized["updated_at"], "updated_at must be ISO format"
+
+    # Verify the list_documents also returns timestamps
+    listed = await service.list_documents(kb.id)
+    assert len(listed) == 1
+    assert listed[0].updated_at is not None
+    assert listed[0].created_at is not None

@@ -21,7 +21,7 @@ from app.application.knowledge import (
     normalize_name,
 )
 from app.infrastructure.db.base import utc_now
-from app.infrastructure.db.models.knowledge import Document, DocumentVersion, KnowledgeBase
+from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
 
 
 class SQLAlchemyKnowledgeRepository:
@@ -305,28 +305,111 @@ class SQLAlchemyKnowledgeRepository:
             return _document_view(row)
 
     async def list_documents(
-        self, knowledge_base_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        knowledge_base_id: UUID,
+        *,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[DocumentView]:
         async with self._session_factory() as session:
             await self._active_knowledge_base(session, knowledge_base_id, action="READ")
+            conditions = [
+                Document.knowledge_base_id == knowledge_base_id,
+                Document.deleted_at.is_(None),
+                Document.status != "DELETED",
+            ]
+            if status:
+                conditions.append(Document.status == status)
             rows = (
                 await session.scalars(
                     select(Document)
-                    .where(
-                        Document.knowledge_base_id == knowledge_base_id,
-                        Document.deleted_at.is_(None),
-                        Document.status != "DELETED",
-                    )
+                    .where(*conditions)
                     .order_by(Document.created_at.desc(), Document.id)
                     .limit(limit)
                     .offset(offset)
                 )
             ).all()
-            return [_document_view(row) for row in rows]
+            if not rows:
+                return []
+
+            doc_ids = [d.id for d in rows]
+            # Fetch file_size from current versions
+            version_rows = (
+                await session.execute(
+                    select(DocumentVersion.document_id, DocumentVersion.file_size).where(
+                        DocumentVersion.document_id.in_(doc_ids),
+                        DocumentVersion.is_current.is_(True),
+                    )
+                )
+            ).all()
+            file_sizes = {r[0]: r[1] for r in version_rows}
+
+            # Fetch chunk counts from current versions
+            chunk_rows = (
+                await session.execute(
+                    select(
+                        DocumentVersion.document_id,
+                        func.count(Chunk.id).label("cnt"),
+                    )
+                    .join(Chunk, Chunk.document_version_id == DocumentVersion.id)
+                    .where(
+                        DocumentVersion.document_id.in_(doc_ids),
+                        DocumentVersion.is_current.is_(True),
+                    )
+                    .group_by(DocumentVersion.document_id)
+                )
+            ).all()
+            chunk_counts = {r[0]: r[1] for r in chunk_rows}
+
+            return [
+                _document_view(
+                    row,
+                    file_size=file_sizes.get(row.id),
+                    chunk_count=chunk_counts.get(row.id, 0),
+                )
+                for row in rows
+            ]
+
+    async def count_documents(self, knowledge_base_id: UUID, *, status: str | None = None) -> int:
+        async with self._session_factory() as session:
+            await self._active_knowledge_base(session, knowledge_base_id, action="READ")
+            conditions = [
+                Document.knowledge_base_id == knowledge_base_id,
+                Document.deleted_at.is_(None),
+                Document.status != "DELETED",
+            ]
+            if status:
+                conditions.append(Document.status == status)
+            result = await session.scalar(
+                select(func.count()).select_from(Document).where(*conditions)
+            )
+            return result or 0
 
     async def get_document(self, document_id: UUID) -> DocumentView:
         async with self._session_factory() as session:
-            return _document_view(await self._active_document(session, document_id, action="READ"))
+            document = await self._active_document(session, document_id, action="READ")
+            # Fetch file_size and chunk_count from current version
+            version_row = (
+                await session.execute(
+                    select(DocumentVersion.file_size, DocumentVersion.id).where(
+                        DocumentVersion.document_id == document_id,
+                        DocumentVersion.is_current.is_(True),
+                    )
+                )
+            ).one_or_none()
+            file_size = version_row[0] if version_row else None
+            version_id = version_row[1] if version_row else None
+            chunk_count = 0
+            if version_id is not None:
+                chunk_count = (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(Chunk)
+                        .where(Chunk.document_version_id == version_id)
+                    )
+                ) or 0
+            return _document_view(document, file_size=file_size, chunk_count=chunk_count)
 
     async def get_document_knowledge_base_id(
         self, document_id: UUID, *, action: str = "READ"
@@ -499,7 +582,9 @@ def _knowledge_base_view(row: KnowledgeBase) -> KnowledgeBaseView:
     )
 
 
-def _document_view(row: Document) -> DocumentView:
+def _document_view(
+    row: Document, *, file_size: int | None = None, chunk_count: int = 0
+) -> DocumentView:
     return DocumentView(
         id=row.id,
         knowledge_base_id=row.knowledge_base_id,
@@ -511,6 +596,10 @@ def _document_view(row: Document) -> DocumentView:
         current_version_no=row.current_version_no,
         last_error_code=row.last_error_code,
         version=row.version,
+        file_size=file_size,
+        chunk_count=chunk_count,
+        created_at=row.created_at.isoformat() if row.created_at else None,
+        updated_at=row.updated_at.isoformat() if row.updated_at else None,
     )
 
 

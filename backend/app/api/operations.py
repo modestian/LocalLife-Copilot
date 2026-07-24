@@ -292,8 +292,10 @@ async def preview_document(
     request: Request,
     document_id: UUID,
     principal: CurrentPrincipal,
+    version_no: Annotated[int | None, Query(ge=1)] = None,
     query: Annotated[str | None, Query(max_length=200)] = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    chunk_page: Annotated[int, Query(ge=1)] = 1,
+    chunk_page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> dict[str, Any]:
     try:
         knowledge_base_id = await request.app.state.knowledge_repository.scoped(
@@ -302,7 +304,13 @@ async def preview_document(
     except DocumentNotFound as exc:
         raise AppError(404, "NOT_FOUND", "文档不存在") from exc
     _require_resource(principal, ResourceType.KNOWLEDGE_BASE, knowledge_base_id, "READ")
-    result = await _repository(request).preview_document(document_id, query=query, limit=limit)
+    result = await _repository(request).preview_document(
+        document_id,
+        version_no=version_no,
+        query=query,
+        chunk_page=chunk_page,
+        chunk_page_size=chunk_page_size,
+    )
     if result is None:
         raise AppError(404, "NOT_FOUND", "文档不存在")
     return success_response(request, result)

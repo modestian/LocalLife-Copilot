@@ -89,6 +89,10 @@ class DocumentView:
     version: int
     mime_type: str | None = None
     last_error_code: str | None = None
+    file_size: int | None = None
+    chunk_count: int = 0
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,8 +151,17 @@ class KnowledgeRepository(Protocol):
     async def create_document(self, payload: DocumentInput) -> DocumentView: ...
 
     async def list_documents(
-        self, knowledge_base_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        knowledge_base_id: UUID,
+        *,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[DocumentView]: ...
+
+    async def count_documents(
+        self, knowledge_base_id: UUID, *, status: str | None = None
+    ) -> int: ...
 
     async def get_document(self, document_id: UUID) -> DocumentView: ...
 
@@ -230,11 +243,22 @@ class KnowledgeService:
         return await self._repository.create_document(payload)
 
     async def list_documents(
-        self, knowledge_base_id: UUID, *, limit: int = 50, offset: int = 0
+        self,
+        knowledge_base_id: UUID,
+        *,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[DocumentView]:
         return await self._repository.list_documents(
-            knowledge_base_id, limit=_validate_limit(limit), offset=_validate_offset(offset)
+            knowledge_base_id,
+            status=status,
+            limit=_validate_limit(limit),
+            offset=_validate_offset(offset),
         )
+
+    async def count_documents(self, knowledge_base_id: UUID, *, status: str | None = None) -> int:
+        return await self._repository.count_documents(knowledge_base_id, status=status)
 
     async def get_document(self, document_id: UUID) -> DocumentView:
         return await self._repository.get_document(document_id)

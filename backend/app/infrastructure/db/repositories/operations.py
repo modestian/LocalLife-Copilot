@@ -264,7 +264,13 @@ class OperationsRepository:
             return clone, task_ids
 
     async def preview_document(
-        self, document_id: UUID, *, query: str | None, limit: int
+        self,
+        document_id: UUID,
+        *,
+        version_no: int | None = None,
+        query: str | None,
+        chunk_page: int = 1,
+        chunk_page_size: int = 20,
     ) -> dict[str, object] | None:
         async with self._session_factory() as session:
             document = await session.scalar(
@@ -276,24 +282,64 @@ class OperationsRepository:
             )
             if document is None:
                 return None
-            version = await session.scalar(
-                select(DocumentVersion).where(
-                    DocumentVersion.document_id == document_id,
-                    DocumentVersion.is_current.is_(True),
+
+            # Determine which version to preview
+            version = None
+            if version_no is not None:
+                version = await session.scalar(
+                    select(DocumentVersion).where(
+                        DocumentVersion.document_id == document_id,
+                        DocumentVersion.version_no == version_no,
+                    )
                 )
-            )
-            chunks = []
+            if version is None:
+                version = await session.scalar(
+                    select(DocumentVersion).where(
+                        DocumentVersion.document_id == document_id,
+                        DocumentVersion.is_current.is_(True),
+                    )
+                )
+
+            # Fetch original content (file URI reference)
+            original_content = ""
+            original_truncated = False
+            if version is not None and version.file_uri:
+                try:
+                    path = Path(version.file_uri)
+                    if path.exists():
+                        raw = path.read_text(encoding="utf-8", errors="replace")
+                        if len(raw) > 100_000:
+                            original_content = raw[:100_000]
+                            original_truncated = True
+                        else:
+                            original_content = raw
+                except Exception:
+                    original_content = ""
+
+            # Fetch chunks with pagination
+            chunks: list[Chunk] = []
+            chunk_total = 0
             if version is not None:
+                chunk_total = (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(Chunk)
+                        .where(Chunk.document_version_id == version.id)
+                    )
+                ) or 0
+                offset = (chunk_page - 1) * chunk_page_size
                 chunks = list(
                     (
                         await session.scalars(
                             select(Chunk)
                             .where(Chunk.document_version_id == version.id)
                             .order_by(Chunk.chunk_no)
-                            .limit(limit)
+                            .offset(offset)
+                            .limit(chunk_page_size)
                         )
                     ).all()
                 )
+
             needle = (query or "").strip()
             items = []
             for chunk in chunks:
@@ -303,10 +349,11 @@ class OperationsRepository:
                     highlighted = content.replace(needle, f"<mark>{needle}</mark>")
                 items.append(
                     {
-                        "chunk_id": str(chunk.id),
+                        "id": str(chunk.id),
                         "chunk_no": chunk.chunk_no,
                         "content": content,
                         "highlighted_content": highlighted,
+                        "token_count": chunk.token_count,
                         "page_number": chunk.page_number,
                         "metadata": chunk.metadata_json,
                     }
@@ -317,7 +364,12 @@ class OperationsRepository:
                 "version_no": version.version_no if version else 0,
                 "source_uri": version.file_uri if version else None,
                 "query": needle or None,
+                "original_content": original_content,
+                "original_truncated": original_truncated,
                 "chunks": items,
+                "chunk_page": chunk_page,
+                "chunk_page_size": chunk_page_size,
+                "chunk_total": chunk_total,
             }
 
     async def list_merchants(
