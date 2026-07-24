@@ -2,7 +2,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import numpy as np
 from fastapi.testclient import TestClient
-from sentence_transformers import SentenceTransformer
 
 from app import init_runtime
 from app.agents.memory import ConversationMemoryService
@@ -20,6 +19,11 @@ from app.main import create_app
 from app.model_gateway import app as model_gateway_app
 from app.worker import ping
 
+try:
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    SentenceTransformer = None
+
 
 def test_model_gateway_liveness() -> None:
     with TestClient(model_gateway_app) as client:
@@ -31,7 +35,8 @@ def test_model_gateway_liveness() -> None:
 
 def test_model_gateway_returns_deterministic_dimensioned_embeddings(monkeypatch) -> None:
     dim = Settings().embedding_dimension
-    mock_st = MagicMock(spec=SentenceTransformer)
+    spec = SentenceTransformer if SentenceTransformer is not None else None
+    mock_st = MagicMock(spec=spec)
     mock_st.encode.return_value = np.zeros((2, dim))
     monkeypatch.setattr("app.model_gateway._get_embedding_model", lambda: mock_st)
 
