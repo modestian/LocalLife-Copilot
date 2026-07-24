@@ -169,7 +169,7 @@ function autoGranularity(points: SentimentTrendPoint[]): TrendGranularity {
   return 'day'
 }
 
-async function refresh(): Promise<void> {
+async function refresh(options: { allowAutoGranularity?: boolean } = {}): Promise<void> {
   const version = ++requestVersion
   loading.value = true
   errorMessage.value = ''
@@ -191,7 +191,7 @@ async function refresh(): Promise<void> {
     ])
     if (version !== requestVersion) return
 
-    if (noRange && nextTrend.length > 1) {
+    if (options.allowAutoGranularity && noRange && nextTrend.length > 1) {
       const suggested = autoGranularity(nextTrend)
       if (suggested !== granularity.value) {
         granularity.value = suggested
@@ -304,7 +304,7 @@ watch(() => props.merchantId, () => {
   void refresh()
 })
 
-onMounted(() => void refresh())
+onMounted(() => void refresh({ allowAutoGranularity: true }))
 </script>
 
 <template>
@@ -376,7 +376,7 @@ onMounted(() => void refresh())
       <button
         v-if="!forbidden"
         type="button"
-        @click="refresh"
+        @click="() => refresh()"
       >
         重新加载
       </button>
