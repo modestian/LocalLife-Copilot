@@ -1,9 +1,11 @@
 """Endpoints completing the API specification's operational workflows."""
 
+import logging
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
@@ -18,8 +20,11 @@ from app.application.authorization import (
 from app.application.content_safety import ContentDirection
 from app.application.knowledge import DocumentNotFound
 from app.core.api import get_request_id, success_response
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.infrastructure.db.repositories.operations import OperationsRepository
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["operations"])
 
@@ -159,6 +164,45 @@ def _accepted(task_id: UUID, **extra: object) -> dict[str, object]:
         "status_url": f"/api/v1/tasks/{task_id}",
         **extra,
     }
+
+
+async def _analyze_approved_review(request: Request, review: object) -> None:
+    """Best-effort sentiment analysis via model-gateway after review approval."""
+    settings = get_settings()
+    content = getattr(review, "content", "") or ""
+    merchant_id = str(getattr(review, "merchant_id", ""))
+    reviewed_at = getattr(review, "reviewed_at", None)
+    if not content or not merchant_id:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                settings.model_gateway_sentiment_url,
+                json={"reviews": [content]},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        results = data.get("results", [])
+        if not results:
+            return
+        result = results[0]
+        await _repository(request).create_review_analysis(
+            merchant_id=merchant_id,
+            review_text=content,
+            sentiment=result.get("sentiment", "NEUTRAL"),
+            confidence=float(result.get("confidence", 0.0)),
+            model_version=data.get("model_version", "unknown"),
+            aspect_labels=result.get("aspect_labels", []),
+            negative_reasons=result.get("negative_reason", []),
+            review_date=reviewed_at,
+        )
+        logger.info("Sentiment analysis completed for review %s", getattr(review, "id", ""))
+    except Exception:
+        logger.warning(
+            "Sentiment analysis failed for review %s (non-blocking)",
+            getattr(review, "id", ""),
+            exc_info=True,
+        )
 
 
 @router.post("/knowledge-bases/{knowledge_base_id}/data-sources", status_code=201)
@@ -520,6 +564,9 @@ async def moderate_user_review(
         raise AppError(404, "NOT_FOUND", "评论不存在") from exc
     except ValueError as exc:
         raise AppError(422, "INVALID_STATUS_TRANSITION", str(exc)) from exc
+    # Trigger sentiment analysis on approval (best-effort)
+    if review.status == "PUBLISHED":
+        await _analyze_approved_review(request, review)
     return success_response(
         request,
         {

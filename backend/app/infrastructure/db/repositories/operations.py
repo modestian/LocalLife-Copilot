@@ -406,38 +406,63 @@ class OperationsRepository:
                 ).all()
             )
         # Merge both sources: user-submitted reviews + ETL-imported analyses
-        items: list[dict[str, object]] = [
-            {
-                "id": str(row.id),
-                "content": row.content,
-                "rating": float(row.rating) if row.rating is not None else None,
-                "author_ref": row.author_ref,
-                "reviewed_at": row.reviewed_at,
-                "tags": row.tags_json or [],
-                "sentiment": None,
-                "confidence": None,
-                "source": "USER_SUBMITTED",
-            }
-            for row in rows
-        ]
-        items += [
-            {
-                "id": str(row.id),
-                "content": row.review_text,
-                "rating": None,
-                "author_ref": None,
-                "reviewed_at": row.review_date,
-                "tags": (
-                    json.loads(row.aspect_labels)
-                    if isinstance(row.aspect_labels, str)
-                    else (row.aspect_labels or [])
-                ),
-                "sentiment": row.sentiment,
-                "confidence": row.confidence,
-                "source": "ETL_IMPORTED",
-            }
-            for row in analysis_rows
-        ]
+        # Build a content-based lookup to avoid duplicates when a user review
+        # has been analyzed and written to review_analyses.
+        items: list[dict[str, object]] = []
+        user_review_texts: set[str] = set()
+        analysis_by_text: dict[str, object] = {}
+        for row in analysis_rows:
+            analysis_by_text.setdefault(row.review_text, row)
+
+        for row in rows:
+            user_review_texts.add(row.content)
+            # Enrich with sentiment from analysis if available
+            matched = analysis_by_text.get(row.content)
+            if matched is not None:
+                item_sentiment = matched.sentiment
+                item_confidence = matched.confidence
+                item_tags = (
+                    json.loads(matched.aspect_labels)
+                    if isinstance(matched.aspect_labels, str)
+                    else (matched.aspect_labels or [])
+                )
+            else:
+                item_sentiment = None
+                item_confidence = None
+                item_tags = row.tags_json or []
+            items.append(
+                {
+                    "id": str(row.id),
+                    "content": row.content,
+                    "rating": float(row.rating) if row.rating is not None else None,
+                    "author_ref": row.author_ref,
+                    "reviewed_at": row.reviewed_at,
+                    "tags": item_tags,
+                    "sentiment": item_sentiment,
+                    "confidence": item_confidence,
+                }
+            )
+
+        # Only add analysis entries that don't correspond to a user review
+        for row in analysis_rows:
+            if row.review_text in user_review_texts:
+                continue
+            items.append(
+                {
+                    "id": str(row.id),
+                    "content": row.review_text,
+                    "rating": None,
+                    "author_ref": None,
+                    "reviewed_at": row.review_date,
+                    "tags": (
+                        json.loads(row.aspect_labels)
+                        if isinstance(row.aspect_labels, str)
+                        else (row.aspect_labels or [])
+                    ),
+                    "sentiment": row.sentiment,
+                    "confidence": row.confidence,
+                }
+            )
         # Sort merged list by date descending
         items.sort(
             key=lambda x: x["reviewed_at"] or datetime.min.replace(tzinfo=None),
@@ -799,6 +824,35 @@ class OperationsRepository:
                 ).all()
             )
         return rows, total
+
+    async def create_review_analysis(
+        self,
+        *,
+        merchant_id: str,
+        review_text: str,
+        sentiment: str,
+        confidence: float,
+        model_version: str,
+        aspect_labels: list[str],
+        negative_reasons: list[str],
+        review_date: datetime | None,
+    ) -> ReviewAnalysis:
+        """Persist sentiment analysis result for a user-submitted review."""
+        async with self._session_factory() as session, session.begin():
+            analysis = ReviewAnalysis(
+                id=uuid7(),
+                merchant_id=merchant_id,
+                review_text=review_text,
+                sentiment=sentiment,
+                confidence=confidence,
+                model_version=model_version,
+                aspect_labels=json.dumps(aspect_labels, ensure_ascii=False),
+                negative_reasons=json.dumps(negative_reasons, ensure_ascii=False),
+                review_date=review_date,
+            )
+            session.add(analysis)
+            await session.flush()
+            return analysis
 
 
 def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
