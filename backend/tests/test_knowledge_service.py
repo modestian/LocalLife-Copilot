@@ -37,6 +37,9 @@ class InMemoryKnowledgeRepository:
             description=payload.description,
             status="ACTIVE",
             version=1,
+            embedding_model_version_id=payload.embedding_model_version_id,
+            chunk_size=payload.chunk_size,
+            chunk_overlap=payload.chunk_overlap,
         )
         self.knowledge_bases[row.id] = row
         return row
@@ -89,7 +92,7 @@ class InMemoryKnowledgeRepository:
         )
         updated = KnowledgeBaseView(
             id=row.id,
-            owner_id=row.owner_id,
+            owner_id=patch.owner_id if patch.owner_id is not None else row.owner_id,
             department_id=row.department_id,
             tenant_id=row.tenant_id,
             name=name,
@@ -97,6 +100,15 @@ class InMemoryKnowledgeRepository:
             description=patch.description if patch.description is not None else row.description,
             status=patch.status if patch.status is not None else row.status,
             version=row.version + 1,
+            embedding_model_version_id=(
+                patch.embedding_model_id
+                if patch.embedding_model_id is not None
+                else row.embedding_model_version_id
+            ),
+            chunk_size=patch.chunk_size if patch.chunk_size is not None else row.chunk_size,
+            chunk_overlap=(
+                patch.chunk_overlap if patch.chunk_overlap is not None else row.chunk_overlap
+            ),
         )
         self.knowledge_bases[row.id] = updated
         return updated
@@ -113,6 +125,9 @@ class InMemoryKnowledgeRepository:
             description=row.description,
             status="DELETED",
             version=row.version + 1,
+            embedding_model_version_id=row.embedding_model_version_id,
+            chunk_size=row.chunk_size,
+            chunk_overlap=row.chunk_overlap,
         )
 
     async def create_document(self, payload: DocumentInput) -> DocumentView:

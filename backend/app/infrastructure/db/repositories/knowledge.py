@@ -491,6 +491,11 @@ def _knowledge_base_view(row: KnowledgeBase) -> KnowledgeBaseView:
         description=row.description,
         status=row.status,
         version=row.version,
+        embedding_model_version_id=row.embedding_model_version_id,
+        chunk_size=row.chunk_size,
+        chunk_overlap=row.chunk_overlap,
+        created_at=row.created_at.isoformat() if row.created_at else None,
+        updated_at=row.updated_at.isoformat() if row.updated_at else None,
     )
 
 
