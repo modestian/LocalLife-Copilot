@@ -34,8 +34,7 @@ ARG EMBEDDING_MODEL_DIR=/models/embedding-cache/bge-small-zh-v1.5
 RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch \
     && pip install --no-cache-dir ".[model]"
 ENV SENTENCE_TRANSFORMERS_HOME=/models/embedding-cache
-RUN mkdir -p "${EMBEDDING_MODEL_DIR}" \
-    && python -c "from huggingface_hub import snapshot_download; from sentence_transformers import SentenceTransformer; model_dir = snapshot_download(repo_id='${EMBEDDING_MODEL_ID}', local_dir='${EMBEDDING_MODEL_DIR}'); SentenceTransformer(model_dir)"
+COPY bge-small-zh-v1.5 ${EMBEDDING_MODEL_DIR}
 ENV EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_ID} \
     EMBEDDING_MODEL_PATH=${EMBEDDING_MODEL_DIR} \
     HF_HUB_OFFLINE=1 \

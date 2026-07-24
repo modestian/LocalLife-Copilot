@@ -32,6 +32,9 @@ services:
       - "127.0.0.1:${OPENSEARCH_PERFORMANCE_PORT:-19600}:9600"
 
   model-gateway:
+    volumes:
+      - ./backend/training/output/final_model:/models/sentiment:ro
+      - ./backend/bge-small-zh-v1.5:/models/embedding-cache/bge-small-zh-v1.5
     build:
       args: *backend-build-args
 
@@ -56,6 +59,11 @@ services:
       args: *backend-build-args
 
   worker:
+    volumes:
+      - knowledge-data:/data/knowledge:ro
+      - training-artifacts:/data/training
+      - ./backend/training/output/final_model:/models/sentiment:ro
+      - ./backend/bge-small-zh-v1.5:/models/embedding-cache/bge-small-zh-v1.5
     build:
       args: *backend-build-args
 
