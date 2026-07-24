@@ -243,6 +243,53 @@ def test_admin_can_register_transition_list_and_deploy_model() -> None:
     assert repository.last_deployment_request.request_id == "deploy-request"
 
 
+def test_admin_can_approve_evaluated_model_and_reason_is_mandatory() -> None:
+    repository = GovernanceStub()
+    with _client(repository) as client:
+        evaluated = client.post(
+            f"/api/v1/models/{repository.model_id}/status",
+            json={"status": "EVALUATED", "reason": "fixed-set metrics verified"},
+        )
+        approved = client.post(
+            f"/api/v1/models/{repository.model_id}/status",
+            json={"status": "APPROVED", "reason": "human review passed"},
+        )
+        missing_reason = client.post(
+            f"/api/v1/models/{repository.model_id}/status",
+            json={"status": "APPROVED"},
+        )
+
+    assert evaluated.json()["data"]["status"] == "EVALUATED"
+    assert approved.json()["data"]["status"] == "APPROVED"
+    assert missing_reason.status_code == 422
+
+
+def test_admin_can_roll_back_model_deployment_with_scene_confirmation() -> None:
+    repository = GovernanceStub()
+    with _client(repository) as client:
+        response = client.post(
+            f"/api/v1/models/{repository.model_id}/rollback",
+            json={
+                "scene": "merchant_analytics",
+                "environment": "production",
+                "reason": "canary error rate exceeded threshold",
+            },
+        )
+        missing_scene = client.post(
+            f"/api/v1/models/{repository.model_id}/rollback",
+            json={"environment": "production", "reason": "missing scene"},
+        )
+
+    assert response.status_code == 201
+    data = response.json()["data"]
+    assert data["action"] == "ROLLBACK"
+    assert data["scene"] == "merchant_analytics"
+    assert data["environment"] == "production"
+    assert data["traffic_percent"] == 100
+    assert data["reason"] == "canary error rate exceeded threshold"
+    assert missing_scene.status_code == 422
+
+
 def test_failed_release_is_returned_as_conflict_and_audited() -> None:
     repository = GovernanceStub()
     repository.fail_publish = True

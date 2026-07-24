@@ -42,10 +42,26 @@ function createApi(): ModelLifecycleApi {
     registerModel: vi.fn(),
     listModels: vi.fn().mockResolvedValue([approvedModel]),
     createModel: vi.fn(),
-    updateModelStatus: vi.fn(),
+    updateModelStatus: vi.fn().mockResolvedValue({ ...approvedModel, status: 'APPROVED' }),
     deployModel: vi.fn().mockResolvedValue(undefined),
-    rollbackModel: vi.fn(),
-    listDeployments: vi.fn().mockResolvedValue([]),
+    rollbackModel: vi.fn().mockResolvedValue({
+      id: 'deployment-1',
+      model_version_id: 'model-1',
+      scene: 'merchant_analytics',
+      environment: 'staging',
+      traffic_percent: 100,
+      status: 'ACTIVE',
+      action: 'ROLLBACK',
+      result: 'SUCCEEDED',
+    }),
+    listDeployments: vi.fn().mockResolvedValue([{
+      deployment_id: 'deployment-1',
+      model_version_id: 'model-1',
+      scene: 'merchant_analytics',
+      environment: 'staging',
+      traffic_percent: 100,
+      status: 'ACTIVE',
+    }]),
     compareDeployments: vi.fn(),
   }
 }
@@ -92,14 +108,51 @@ describe('ModelLifecycleWorkbench', () => {
     })
   })
 
-  it('does not fabricate approval or rollback state without a documented endpoint', async () => {
+  it('submits human approval through the model status endpoint with a mandatory reason', async () => {
+    const api = createApi()
+    const evaluatedModel = { ...approvedModel, status: 'EVALUATED' as const }
+    vi.mocked(api.listModels).mockResolvedValue([evaluatedModel])
+    const wrapper = mount(ModelLifecycleWorkbench, { props: { api, initialModels: [evaluatedModel] } })
+    const approvalForm = wrapper.findAll('form')[3]
+    const approveButton = approvalForm.get('button[type="submit"]')
+
+    expect(approveButton.attributes('disabled')).toBeDefined()
+    await approvalForm.get('textarea').setValue('固定集指标达标，人工抽检通过。')
+    await approvalForm.get('input[type="checkbox"]').setValue(true)
+    expect(approveButton.attributes('disabled')).toBeUndefined()
+    await approvalForm.trigger('submit')
+    await flushPromises()
+
+    expect(api.updateModelStatus).toHaveBeenCalledWith('model-1', {
+      status: 'APPROVED',
+      reason: '固定集指标达标，人工抽检通过。',
+    })
+    expect(api.listModels).toHaveBeenCalled()
+    expect(wrapper.text()).toContain('审批结论已提交')
+  })
+
+  it('rolls back through the documented endpoint and refreshes deployments and audit receipt', async () => {
     const api = createApi()
     const wrapper = mount(ModelLifecycleWorkbench, { props: { api, initialModels: [approvedModel] } })
+    const rollbackForm = wrapper.findAll('form')[4]
+    const rollbackButton = rollbackForm.get('button[type="submit"]')
 
-    await wrapper.findAll('.model-lifecycle__actions button').at(-1)?.trigger('click')
+    expect(rollbackButton.attributes('disabled')).toBeDefined()
+    await rollbackForm.get('textarea').setValue('灰度错误率超过阈值，执行回滚。')
+    await rollbackForm.get('input[type="checkbox"]').setValue(true)
+    expect(rollbackButton.attributes('disabled')).toBeUndefined()
+    await rollbackForm.trigger('submit')
+    await flushPromises()
 
-    expect(wrapper.text()).toContain('回滚接口尚未在 API 文档中定义')
-    expect(api.deployModel).not.toHaveBeenCalled()
+    expect(api.rollbackModel).toHaveBeenCalledWith('model-1', {
+      scene: 'merchant_analytics',
+      environment: 'staging',
+      reason: '灰度错误率超过阈值，执行回滚。',
+    })
+    expect(api.listModels).toHaveBeenCalled()
+    expect(api.listDeployments).toHaveBeenCalledWith({ scene: 'merchant_analytics', environment: 'staging' })
+    expect(wrapper.text()).toContain('最近回执：ROLLBACK / ACTIVE / SUCCEEDED')
+    expect(wrapper.text()).toContain('回滚已执行')
   })
 
   it('keeps deployment disabled for a model that has not passed the APPROVED state', async () => {
