@@ -1,13 +1,20 @@
 # Automatically loaded by `docker compose` for local development only.
+x-backend-build-args: &backend-build-args
+  PYTHON_IMAGE: public.ecr.aws/docker/library/python:3.13.14-slim
+  PIP_INDEX_URL: https://pypi.org/simple
+  TORCH_INDEX_URL: https://download.pytorch.org/whl/cpu
+  EMBEDDING_MODEL_ID: BAAI/bge-small-zh-v1.5
+
 services:
   nginx:
+    build:
+      args:
+        NGINX_IMAGE: public.ecr.aws/docker/library/nginx:1.27-alpine
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:8080"
   api:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+      args: *backend-build-args
     ports:
       - "127.0.0.1:${API_PORT:-18000}:8000"
   mysql:
@@ -26,42 +33,34 @@ services:
 
   model-gateway:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+      args: *backend-build-args
 
   migrate:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+      args: *backend-build-args
 
   init:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+      args: *backend-build-args
 
   seed:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+      args: *backend-build-args
 
   prepare-knowledge-data:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+      args: *backend-build-args
 
   prepare-training-data:
     build:
-      args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+      args: *backend-build-args
 
   worker:
     build:
+      args: *backend-build-args
+
+  frontend:
+    build:
       args:
-        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
+        NODE_IMAGE: public.ecr.aws/docker/library/node:22-alpine
+        NPM_REGISTRY: https://registry.npmjs.org

@@ -1,9 +1,11 @@
-FROM public.ecr.aws/docker/library/node:22-alpine AS build
+ARG NODE_IMAGE=public.ecr.aws/docker/library/node:22-alpine
+FROM ${NODE_IMAGE} AS build
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+ARG NPM_REGISTRY=https://registry.npmjs.org
 RUN --mount=type=cache,target=/root/.npm,sharing=locked \
-    npm ci \
+    npm ci --registry=${NPM_REGISTRY} \
     --prefer-offline \
     --no-audit \
     --no-fund \
@@ -17,7 +19,7 @@ ARG VITE_API_BASE_URL=
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build
 
-FROM public.ecr.aws/docker/library/node:22-alpine AS runtime
+FROM ${NODE_IMAGE} AS runtime
 
 ENV NODE_ENV=production
 WORKDIR /app

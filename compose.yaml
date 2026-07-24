@@ -74,6 +74,8 @@ services:
     environment:
       SENTIMENT_MODEL: ${SENTIMENT_MODEL:-/models/sentiment}
       SENTIMENT_MODEL_REVISION: ${SENTIMENT_MODEL_REVISION:-}
+      EMBEDDING_MODEL_NAME: BAAI/bge-small-zh-v1.5
+      EMBEDDING_MODEL_PATH: /models/embedding-cache/bge-small-zh-v1.5
     volumes:
       - ./backend/training/output/final_model:/models/sentiment:ro
     networks: [backend]

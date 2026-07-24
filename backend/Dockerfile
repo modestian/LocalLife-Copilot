@@ -26,14 +26,20 @@ RUN mkdir -p app \
 FROM base AS model
 
 ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+ARG EMBEDDING_MODEL_ID=BAAI/bge-small-zh-v1.5
+ARG EMBEDDING_MODEL_DIR=/models/embedding-cache/bge-small-zh-v1.5
 
 # Model stage: torch + transformers + sentence-transformers.
 # Only used by model-gateway; other services build from base directly.
 RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch \
     && pip install --no-cache-dir ".[model]"
 ENV SENTENCE_TRANSFORMERS_HOME=/models/embedding-cache
-RUN mkdir -p /models/embedding-cache \
-    && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5', cache_folder='/models/embedding-cache')"
+RUN mkdir -p "${EMBEDDING_MODEL_DIR}" \
+    && python -c "from huggingface_hub import snapshot_download; from sentence_transformers import SentenceTransformer; model_dir = snapshot_download(repo_id='${EMBEDDING_MODEL_ID}', local_dir='${EMBEDDING_MODEL_DIR}'); SentenceTransformer(model_dir)"
+ENV EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_ID} \
+    EMBEDDING_MODEL_PATH=${EMBEDDING_MODEL_DIR} \
+    HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
 
 COPY app ./app
 COPY training ./training
