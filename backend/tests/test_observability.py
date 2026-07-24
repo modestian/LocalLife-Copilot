@@ -138,8 +138,8 @@ def _audit_client(
     app.include_router(audit_router, prefix=settings.api_v1_prefix)
     app.include_router(metrics_router)
     app.dependency_overrides[get_audit_service] = lambda: service
-    app.dependency_overrides[get_chat_log_service] = lambda: chat_service or ChatLogQueryService(
-        InMemoryChatLogRepository([])
+    app.dependency_overrides[get_chat_log_service] = lambda: (
+        chat_service or ChatLogQueryService(InMemoryChatLogRepository([]))
     )
     app.dependency_overrides[get_current_principal] = lambda: principal or _principal()
     return TestClient(app)

@@ -16,7 +16,8 @@ def test_chunk_index_mapping_is_strict_and_dimensioned() -> None:
     assert "zh_search" in body["settings"]["analysis"]["analyzer"]
     assert body["mappings"]["dynamic"] == "strict"
     properties = body["mappings"]["properties"]
-    assert properties["content"]["analyzer"] == "zh_search"
+    assert properties["content"]["analyzer"] == "zh_index"
+    assert properties["content"]["search_analyzer"] == "zh_search"
     assert properties["content_vector"] == {
         "type": "knn_vector",
         "dimension": 512,

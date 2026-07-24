@@ -29,12 +29,19 @@ class Settings(BaseSettings):
     embedding_dimension: int = 512
     embedding_batch_size: int = 32
     embedding_model: str = "local-deterministic-v1"
+    embedding_model_name: str = "BAAI/bge-small-zh-v1.5"
+    generation_model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"
     knowledge_data_root: str = "/data/knowledge"
     training_artifact_root: str = "/data/training/artifacts"
     max_ingestion_source_bytes: int = 20 * 1024 * 1024
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     model_gateway_embedding_url: str = "http://model-gateway:8001/v1/embeddings"
+    model_gateway_generate_url: str = "http://model-gateway:8001/v1/generate"
     dependency_timeout_seconds: float = 2.0
+    bailian_api_key: str = ""
+    bailian_model: str = "qwen-plus"
+    bailian_api_base: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
     search_minimum_score: float = 0.2
     jwt_secret_key: SecretStr = SecretStr("development-only-change-this-jwt-secret-key")
     jwt_issuer: str = "local-life-copilot"
