@@ -25,6 +25,8 @@ RUN mkdir -p app \
 
 FROM base AS model
 
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
 # Model stage: torch + transformers + sentence-transformers.
 # Only used by model-gateway; other services build from base directly.
 RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch \
