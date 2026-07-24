@@ -157,11 +157,24 @@ function periodRange(period: string): AnalyticsDateRange {
   return appliedRange.value
 }
 
-async function refresh(): Promise<void> {
+function autoGranularity(points: SentimentTrendPoint[]): TrendGranularity {
+  if (points.length < 2) return 'day'
+  const first = points[0]?.period ?? ''
+  const last = points[points.length - 1]?.period ?? ''
+  const start = new Date(first.length <= 7 ? `${first}-01` : first)
+  const end = new Date(last.length <= 7 ? `${last}-01` : last)
+  const spanDays = (end.getTime() - start.getTime()) / 86_400_000
+  if (spanDays > 60) return 'month'
+  if (spanDays > 14) return 'week'
+  return 'day'
+}
+
+async function refresh(options: { allowAutoGranularity?: boolean } = {}): Promise<void> {
   const version = ++requestVersion
   loading.value = true
   errorMessage.value = ''
   forbidden.value = false
+  const noRange = !appliedRange.value.start_date && !appliedRange.value.end_date
   try {
     const range = appliedRange.value
     const [nextTrend, nextReasons, nextReviews] = await Promise.all([
@@ -177,7 +190,24 @@ async function refresh(): Promise<void> {
       }),
     ])
     if (version !== requestVersion) return
-    trend.value = nextTrend
+
+    if (options.allowAutoGranularity && noRange && nextTrend.length > 1) {
+      const suggested = autoGranularity(nextTrend)
+      if (suggested !== granularity.value) {
+        granularity.value = suggested
+        const betterTrend = await merchantAnalyticsApi.getSentimentTrend(props.merchantId, {
+          granularity: suggested,
+          ...range,
+        })
+        if (version !== requestVersion) return
+        trend.value = betterTrend
+      } else {
+        trend.value = nextTrend
+      }
+    } else {
+      trend.value = nextTrend
+    }
+
     negativeReasons.value = nextReasons.map((item) => ({ label: item.reason, count: item.count }))
     analysisReviews.value = nextReviews
   } catch (error) {
@@ -265,12 +295,16 @@ function closeDrawer(): void {
   drawerOpen.value = false
 }
 
+watch(granularity, () => {
+  void refresh()
+})
+
 watch(() => props.merchantId, () => {
   drawerOpen.value = false
   void refresh()
 })
 
-onMounted(() => void refresh())
+onMounted(() => void refresh({ allowAutoGranularity: true }))
 </script>
 
 <template>
@@ -342,7 +376,7 @@ onMounted(() => void refresh())
       <button
         v-if="!forbidden"
         type="button"
-        @click="refresh"
+        @click="() => refresh()"
       >
         重新加载
       </button>
@@ -393,7 +427,7 @@ onMounted(() => void refresh())
       <section class="analytics-grid">
         <article class="chart-card sentiment-card">
           <header>
-            <div><span class="eyebrow">SENTIMENT</span><h2>情感分布</h2></div>
+            <div><span class="eyebrow">情感分布</span><h2>正面 / 中性 / 负面</h2></div>
             <small>点击分类查看原点评</small>
           </header>
           <div
@@ -419,8 +453,8 @@ onMounted(() => void refresh())
 
         <article class="chart-card trend-card">
           <header>
-            <div><span class="eyebrow">TREND</span><h2>情感趋势</h2></div>
-            <small>{{ trend.length }} 个{{ granularityLabels[granularity] }}期</small>
+            <div><span class="eyebrow">情感趋势</span><h2>按{{ granularityLabels[granularity] }}统计</h2></div>
+            <small>共 {{ sampleSize }} 条 · {{ trend.length }} 个{{ granularityLabels[granularity] }}期</small>
           </header>
           <div
             class="legend"
@@ -458,8 +492,8 @@ onMounted(() => void refresh())
 
         <article class="chart-card">
           <header>
-            <div><span class="eyebrow">ASPECTS</span><h2>点评特征</h2></div>
-            <small>来自点评 aspect_labels</small>
+            <div><span class="eyebrow">点评特征</span><h2>特征标签排行</h2></div>
+            <small>来自点评特征标签</small>
           </header>
           <div
             v-if="aspectCounts.length"
@@ -487,7 +521,7 @@ onMounted(() => void refresh())
 
         <article class="chart-card">
           <header>
-            <div><span class="eyebrow">ATTRIBUTION</span><h2>差评归因</h2></div>
+            <div><span class="eyebrow">差评归因</span><h2>负面原因排行</h2></div>
             <small>仅统计负面点评</small>
           </header>
           <div
@@ -529,7 +563,7 @@ onMounted(() => void refresh())
         :aria-label="drawerTitle"
       >
         <header>
-          <div><span class="eyebrow">REVIEW DRILL-DOWN</span><h2>{{ drawerTitle }}</h2><p>{{ drawerDescription }}</p></div>
+          <div><span class="eyebrow">点评下钻</span><h2>{{ drawerTitle }}</h2><p>{{ drawerDescription }}</p></div>
           <button
             type="button"
             aria-label="关闭点评下钻"
@@ -626,8 +660,8 @@ onMounted(() => void refresh())
 .legend .neutral::before { background: #c79a43; }
 .legend .negative::before { background: #c95745; }
 .trend-chart { display: grid; gap: 10px; max-height: 340px; overflow: auto; padding-right: 3px; }
-.trend-row { display: grid; grid-template-columns: minmax(78px, auto) 1fr; gap: 10px; align-items: center; }
-.trend-row > span { overflow: hidden; color: #77675d; font-size: .68rem; text-overflow: ellipsis; white-space: nowrap; }
+.trend-row { display: grid; grid-template-columns: max-content 1fr; gap: 10px; align-items: center; }
+.trend-row > span { color: #77675d; font-size: .68rem; white-space: nowrap; }
 .trend-row > div { display: flex; min-width: 0; height: 28px; overflow: hidden; border-radius: 7px; background: #eee5dc; }
 .trend-row button { min-width: 0; border: 0; padding: 0 3px; background: #3f9467; color: white; cursor: pointer; font-size: .65rem; font-weight: 800; }
 .trend-row button.is-neutral { background: #c79a43; }
