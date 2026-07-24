@@ -1,6 +1,8 @@
 from unittest.mock import AsyncMock, MagicMock
 
+import numpy as np
 from fastapi.testclient import TestClient
+from sentence_transformers import SentenceTransformer
 
 from app import init_runtime
 from app.agents.memory import ConversationMemoryService
@@ -27,7 +29,12 @@ def test_model_gateway_liveness() -> None:
     assert response.json() == {"status": "alive"}
 
 
-def test_model_gateway_returns_deterministic_dimensioned_embeddings() -> None:
+def test_model_gateway_returns_deterministic_dimensioned_embeddings(monkeypatch) -> None:
+    dim = Settings().embedding_dimension
+    mock_st = MagicMock(spec=SentenceTransformer)
+    mock_st.encode.return_value = np.zeros((2, dim))
+    monkeypatch.setattr("app.model_gateway._get_embedding_model", lambda: mock_st)
+
     with TestClient(model_gateway_app) as client:
         response = client.post(
             "/v1/embeddings",
@@ -38,7 +45,7 @@ def test_model_gateway_returns_deterministic_dimensioned_embeddings() -> None:
     data = response.json()["data"]
     assert [item["index"] for item in data] == [0, 1]
     assert len(data[0]["embedding"]) == Settings().embedding_dimension
-    assert data[0]["embedding"] == data[1]["embedding"]
+    assert data[0]["embedding"] == data[1]["embedding"] == [0.0] * dim
 
 
 def test_worker_ping_task_contract() -> None:
