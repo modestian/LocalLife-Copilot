@@ -125,6 +125,8 @@ services:
       JWT_ISSUER: ${JWT_ISSUER:-local-life-copilot}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-local-life-copilot-api}
       ACCESS_TOKEN_TTL_MINUTES: ${ACCESS_TOKEN_TTL_MINUTES:-30}
+      SENTIMENT_MODEL: ${SENTIMENT_MODEL:-/models/sentiment}
+      SENTIMENT_MODEL_REVISION: ${SENTIMENT_MODEL_REVISION:-}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-7}
     networks: [backend]
     depends_on:
@@ -243,6 +245,7 @@ services:
   worker:
     build:
       context: ./backend
+      target: model
     command:
       [
         "celery",
@@ -260,6 +263,7 @@ services:
     volumes:
       - knowledge-data:/data/knowledge:ro
       - training-artifacts:/data/training
+      - ./backend/training/output/final_model:/models/sentiment:ro
     depends_on: *application-dependencies
     healthcheck:
       test:

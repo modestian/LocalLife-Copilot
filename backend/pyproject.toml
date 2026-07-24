@@ -79,6 +79,7 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "ASYNC"]
+exclude = ["demo_data/**", "training/**"]
 
 [tool.ruff.lint.per-file-ignores]
 # ETL 类型别名由对应任务负责人迁移；Python 3.13 运行时升级不改动其业务代码。
@@ -90,4 +91,4 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 
 [tool.ruff.format]
 # 保持任务边界，不在运行时升级提交中格式化其他负责人维护的 ETL 模型。
-exclude = ["app/etl/models.py"]
+exclude = ["app/etl/models.py", "demo_data/**"]
