@@ -59,10 +59,16 @@ describe('ProductTopBar role navigation', () => {
     localStorage.clear()
   })
 
-  it.each([undefined, 'USER'])('shows only discovery for %s', async (role) => {
-    const wrapper = await mountTopBar(role)
+  it('shows only discovery for unauthenticated users', async () => {
+    const wrapper = await mountTopBar(undefined)
 
     expect(wrapper.findAll('nav a').map((link) => link.text())).toEqual(['探店'])
+  })
+
+  it('shows discovery and review link for USER', async () => {
+    const wrapper = await mountTopBar('USER')
+
+    expect(wrapper.findAll('nav a').map((link) => link.text())).toEqual(['探店', '写评论'])
   })
 
   it('shows only the merchant workspace to merchants', async () => {

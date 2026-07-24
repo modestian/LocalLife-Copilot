@@ -61,6 +61,12 @@ async function logout(): Promise<void> {
         探店
       </router-link>
       <router-link
+        v-if="showDiscover && authStore.isAuthenticated"
+        to="/app/reviews"
+      >
+        写评论
+      </router-link>
+      <router-link
         v-if="showMerchant"
         to="/merchant"
         :class="{ 'is-active': props.active === 'merchant' }"

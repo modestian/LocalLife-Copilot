@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { merchantDirectoryApi } from '@/api/merchants'
 import MerchantAnalyticsDashboard from '@/components/MerchantAnalyticsDashboard.vue'
 import MerchantInsightWorkbench from '@/components/MerchantInsightWorkbench.vue'
+import MerchantReviewsPanel from '@/components/MerchantReviewsPanel.vue'
 import ProductTopBar from '@/components/ProductTopBar.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -149,6 +150,12 @@ watch(merchantIds, (ids) => {
     <MerchantAnalyticsDashboard
       v-if="selectedMerchantId"
       :key="selectedMerchantId"
+      :merchant-id="selectedMerchantId"
+    />
+
+    <MerchantReviewsPanel
+      v-if="selectedMerchantId"
+      :key="`${selectedMerchantId}-reviews`"
       :merchant-id="selectedMerchantId"
     />
 

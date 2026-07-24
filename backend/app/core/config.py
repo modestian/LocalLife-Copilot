@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     model_gateway_health_url: str = "http://model-gateway:8001/health/live"
     model_gateway_embedding_url: str = "http://model-gateway:8001/v1/embeddings"
     model_gateway_generate_url: str = "http://model-gateway:8001/v1/generate"
+    model_gateway_sentiment_url: str = "http://model-gateway:8001/v1/sentiment/batch"
     dependency_timeout_seconds: float = 2.0
     bailian_api_key: str = ""
     bailian_model: str = "qwen-plus"

@@ -19,6 +19,36 @@ from app.infrastructure.db.models.operations import DataSource, FineTuningJob, M
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
 from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 
+# English aspect code -> Chinese display label
+_ASPECT_CN: dict[str, str] = {
+    "taste": "口味",
+    "portion": "分量",
+    "price": "价格",
+    "freshness": "新鲜度",
+    "appearance": "卖相",
+    "variety": "品种",
+    "space": "空间",
+    "quiet": "环境安静度",
+    "decoration": "装修环境",
+    "hygiene": "卫生",
+    "location": "位置",
+    "seating": "座位",
+    "waiting_time": "等待时间",
+    "attitude": "服务态度",
+    "efficiency": "效率",
+    "parking": "停车",
+    "packing": "打包",
+    "discount": "优惠",
+    "set_meal": "套餐",
+    "equipment": "设施",
+    "overall": "整体体验",
+}
+
+
+def _translate_tags(tags: list) -> list[str]:
+    """Translate English aspect codes to Chinese labels."""
+    return [_ASPECT_CN.get(t, t) for t in tags if t]
+
 
 class OperationsRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
@@ -329,6 +359,21 @@ class OperationsRepository:
             ]
         return candidates[offset : offset + limit], len(candidates)
 
+    async def search_merchants_directory(
+        self,
+        *,
+        keyword: str | None = None,
+        limit: int = 50,
+    ) -> list[Merchant]:
+        """Lightweight merchant directory for all authenticated users (no resource scoping)."""
+        async with self._session_factory() as session:
+            stmt = select(Merchant).order_by(Merchant.name)
+            if keyword:
+                pattern = f"%{keyword}%"
+                stmt = stmt.where(Merchant.name.like(pattern) | Merchant.category.like(pattern))
+            rows = list((await session.scalars(stmt.limit(limit))).all())
+        return rows
+
     async def get_merchant(self, merchant_id: UUID) -> tuple[Merchant, dict[str, object]] | None:
         async with self._session_factory() as session:
             merchant = await session.get(Merchant, merchant_id)
@@ -368,6 +413,11 @@ class OperationsRepository:
             filters.append(Review.reviewed_at >= start_at)
         if end_at:
             filters.append(Review.reviewed_at < end_at)
+        analysis_filters = [ReviewAnalysis.merchant_id == str(merchant_id)]
+        if start_at:
+            analysis_filters.append(ReviewAnalysis.review_date >= start_at)
+        if end_at:
+            analysis_filters.append(ReviewAnalysis.review_date < end_at)
         async with self._session_factory() as session:
             rows = list(
                 (
@@ -380,38 +430,74 @@ class OperationsRepository:
                 (
                     await session.scalars(
                         select(ReviewAnalysis)
-                        .where(ReviewAnalysis.merchant_id == str(merchant_id))
+                        .where(*analysis_filters)
                         .order_by(ReviewAnalysis.review_date.desc())
                     )
                 ).all()
             )
-        items: list[dict[str, object]] = [
-            {
-                "id": str(row.id),
-                "content": row.content,
-                "rating": float(row.rating) if row.rating is not None else None,
-                "author_ref": row.author_ref,
-                "reviewed_at": row.reviewed_at,
-                "tags": row.tags_json or [],
-                "sentiment": None,
-                "confidence": None,
-            }
-            for row in rows
-        ]
-        if not rows:
-            items = [
+        # Merge both sources: user-submitted reviews + ETL-imported analyses
+        # Build a content-based lookup to avoid duplicates when a user review
+        # has been analyzed and written to review_analyses.
+        items: list[dict[str, object]] = []
+        user_review_texts: set[str] = set()
+        analysis_by_text: dict[str, object] = {}
+        for row in analysis_rows:
+            analysis_by_text.setdefault(row.review_text, row)
+
+        for row in rows:
+            user_review_texts.add(row.content)
+            # Enrich with sentiment from analysis if available
+            matched = analysis_by_text.get(row.content)
+            if matched is not None:
+                item_sentiment = matched.sentiment
+                item_confidence = matched.confidence
+                item_tags = _translate_tags(
+                    json.loads(matched.aspect_labels)
+                    if isinstance(matched.aspect_labels, str)
+                    else (matched.aspect_labels or [])
+                )
+            else:
+                item_sentiment = None
+                item_confidence = None
+                item_tags = _translate_tags(row.tags_json or [])
+            items.append(
+                {
+                    "id": str(row.id),
+                    "content": row.content,
+                    "rating": float(row.rating) if row.rating is not None else None,
+                    "author_ref": row.author_ref,
+                    "reviewed_at": row.reviewed_at,
+                    "tags": item_tags,
+                    "sentiment": item_sentiment,
+                    "confidence": item_confidence,
+                }
+            )
+
+        # Only add analysis entries that don't correspond to a user review
+        for row in analysis_rows:
+            if row.review_text in user_review_texts:
+                continue
+            items.append(
                 {
                     "id": str(row.id),
                     "content": row.review_text,
                     "rating": None,
                     "author_ref": None,
                     "reviewed_at": row.review_date,
-                    "tags": row.aspect_labels or [],
+                    "tags": _translate_tags(
+                        json.loads(row.aspect_labels)
+                        if isinstance(row.aspect_labels, str)
+                        else (row.aspect_labels or [])
+                    ),
                     "sentiment": row.sentiment,
                     "confidence": row.confidence,
                 }
-                for row in analysis_rows
-            ]
+            )
+        # Sort merged list by date descending
+        items.sort(
+            key=lambda x: x["reviewed_at"] or datetime.min.replace(tzinfo=None),
+            reverse=True,
+        )
         if sentiment:
             items = [item for item in items if item["sentiment"] == sentiment]
         if tag:
@@ -659,6 +745,144 @@ class OperationsRepository:
             ),
             "average_response_time_ms": None,
         }
+
+    # ------------------------------------------------------------------
+    # User-submitted reviews
+    # ------------------------------------------------------------------
+
+    async def create_user_review(
+        self,
+        *,
+        merchant_id: UUID,
+        user_id: UUID,
+        content: str,
+        rating: float,
+        author_name: str | None = None,
+    ) -> Review:
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        async with self._session_factory() as session, session.begin():
+            merchant = await session.scalar(select(Merchant).where(Merchant.id == merchant_id))
+            if merchant is None:
+                raise LookupError("merchant not found")
+            # Idempotency: same user + same merchant + same content hash
+            existing = await session.scalar(
+                select(Review).where(
+                    Review.merchant_id == merchant_id,
+                    Review.user_id == user_id,
+                    Review.content_hash == content_hash,
+                    Review.status != "DELETED",
+                )
+            )
+            if existing is not None:
+                return existing
+            review = Review(
+                id=uuid7(),
+                merchant_id=merchant_id,
+                user_id=user_id,
+                author_ref=author_name,
+                content=content,
+                content_hash=content_hash,
+                rating=rating,
+                reviewed_at=utc_now(),
+                source_type="USER_SUBMITTED",
+                source_review_id=None,
+                status="PENDING",
+            )
+            session.add(review)
+            await session.flush()
+            return review
+
+    async def list_user_reviews(
+        self,
+        user_id: UUID,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Review], int]:
+        async with self._session_factory() as session:
+            base = select(Review).where(Review.user_id == user_id)
+            total = int(
+                await session.scalar(select(func.count()).select_from(base.subquery())) or 0
+            )
+            rows = list(
+                (
+                    await session.scalars(
+                        base.order_by(Review.created_at.desc()).limit(limit).offset(offset)
+                    )
+                ).all()
+            )
+        return rows, total
+
+    async def moderate_user_review(
+        self,
+        review_id: UUID,
+        *,
+        decision: str,
+        reason: str,
+        moderator_id: UUID,
+    ) -> Review:
+        async with self._session_factory() as session, session.begin():
+            review = await session.scalar(
+                select(Review).where(Review.id == review_id).with_for_update()
+            )
+            if review is None:
+                raise LookupError("review not found")
+            if review.status != "PENDING":
+                raise ValueError(f"review is not pending, current status: {review.status}")
+            review.status = "PUBLISHED" if decision == "APPROVE" else "REJECTED"
+            await session.flush()
+            return review
+
+    async def list_pending_reviews(
+        self,
+        *,
+        status: str = "PENDING",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Review], int]:
+        """List reviews by status for admin moderation."""
+        async with self._session_factory() as session:
+            base = select(Review).where(Review.status == status)
+            total = int(
+                await session.scalar(select(func.count()).select_from(base.subquery())) or 0
+            )
+            rows = list(
+                (
+                    await session.scalars(
+                        base.order_by(Review.created_at.asc()).limit(limit).offset(offset)
+                    )
+                ).all()
+            )
+        return rows, total
+
+    async def create_review_analysis(
+        self,
+        *,
+        merchant_id: str,
+        review_text: str,
+        sentiment: str,
+        confidence: float,
+        model_version: str,
+        aspect_labels: list[str],
+        negative_reasons: list[str],
+        review_date: datetime | None,
+    ) -> ReviewAnalysis:
+        """Persist sentiment analysis result for a user-submitted review."""
+        async with self._session_factory() as session, session.begin():
+            analysis = ReviewAnalysis(
+                id=uuid7(),
+                merchant_id=merchant_id,
+                review_text=review_text,
+                sentiment=sentiment,
+                confidence=confidence,
+                model_version=model_version,
+                aspect_labels=json.dumps(aspect_labels, ensure_ascii=False),
+                negative_reasons=json.dumps(negative_reasons, ensure_ascii=False),
+                review_date=review_date,
+            )
+            session.add(analysis)
+            await session.flush()
+            return analysis
 
 
 def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
