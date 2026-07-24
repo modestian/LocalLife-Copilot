@@ -143,7 +143,7 @@ async function rollback(): Promise<void> {
   previewError.value = ''
   try {
     const accepted = await documentApi.rollback(selected.value.id, versionNo)
-    trackTask(accepted)
+    trackTask(accepted, [selected.value.display_name])
     mutationMessage.value = `版本回滚任务已提交：${accepted.task_id}`
     const documentId = selected.value.id
     await loadDocuments()
@@ -164,7 +164,7 @@ async function deleteDocument(): Promise<void> {
   previewError.value = ''
   try {
     const accepted = await documentApi.delete(selected.value.id)
-    trackTask(accepted)
+    trackTask(accepted, [selected.value.display_name])
     mutationMessage.value = `删除任务已提交：${accepted.task_id}`
     closePreview()
     await loadDocuments()
