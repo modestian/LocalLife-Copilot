@@ -4,6 +4,10 @@ services:
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-3000}:8080"
   api:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     ports:
       - "127.0.0.1:${API_PORT:-18000}:8000"
   mysql:
@@ -19,3 +23,45 @@ services:
     ports:
       - "127.0.0.1:${OPENSEARCH_PORT:-19200}:9200"
       - "127.0.0.1:${OPENSEARCH_PERFORMANCE_PORT:-19600}:9600"
+
+  model-gateway:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+  migrate:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+  init:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+  seed:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+  prepare-knowledge-data:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+  prepare-training-data:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+  worker:
+    build:
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple

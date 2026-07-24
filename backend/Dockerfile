@@ -1,33 +1,26 @@
 ARG PYTHON_IMAGE=public.ecr.aws/docker/library/python:3.13.14-slim
 FROM ${PYTHON_IMAGE} AS base
 
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ARG PIP_INDEX_URL=https://pypi.org/simple
 ARG TORCH_INDEX_URL=${PIP_INDEX_URL}
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PIP_INDEX_URL=${PIP_INDEX_URL}
+ENV PYTHONDONTWRITEBYTECODE=1     PYTHONUNBUFFERED=1     PIP_DISABLE_PIP_VERSION_CHECK=1     PIP_INDEX_URL=${PIP_INDEX_URL}
 
 WORKDIR /app
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# Layer 1: PyTorch ¡ª large wheel (~200 MB), rarely changes, independently cached.
+# Layer 1: PyTorch -- large wheel (~200 MB), rarely changes, independently cached.
 RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch
 
-# Layer 2: All other project dependencies ¡ª only rebuilds when pyproject.toml changes.
+# Layer 2: All other project dependencies -- only rebuilds when pyproject.toml changes.
 COPY pyproject.toml ./
-RUN mkdir -p app \
-    && touch app/__init__.py \
-    && pip install --no-cache-dir . \
-    && rm -rf app
+RUN mkdir -p app     && touch app/__init__.py     && pip install --no-cache-dir .     && rm -rf app
 
 # Pre-download the embedding model into the image so no network is needed at runtime.
 # BAAI/bge-small-zh-v1.5 is MIT-licensed, ~130 MB, 512-dim Chinese-optimized.
 ENV SENTENCE_TRANSFORMERS_HOME=/models/embedding-cache
-RUN mkdir -p /models/embedding-cache \
-    && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5', cache_folder='/models/embedding-cache')"
+RUN mkdir -p /models/embedding-cache     && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5', cache_folder='/models/embedding-cache')"
 
 COPY app ./app
 COPY training ./training
