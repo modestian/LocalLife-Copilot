@@ -15,6 +15,7 @@ from app.application.authorization import (
     RolePermissionDenied,
     filter_authorized_resources,
 )
+from app.application.content_safety import ContentDirection
 from app.application.knowledge import DocumentNotFound
 from app.core.api import get_request_id, success_response
 from app.core.errors import AppError
@@ -104,6 +105,20 @@ class ModerationDecisionDTO(BaseModel):
 
     decision: Literal["APPROVE", "REJECT", "ESCALATE"]
     reason: str = Field(min_length=1, max_length=1000)
+
+
+class UserReviewCreateDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    content: str = Field(min_length=1, max_length=10000)
+    rating: float = Field(ge=0, le=5)
+
+
+class ReviewModerateDTO(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    decision: Literal["APPROVE", "REJECT"]
+    reason: str = Field(default="", max_length=1000)
 
 
 def _repository(request: Request) -> OperationsRepository:
@@ -249,6 +264,31 @@ async def preview_document(
     return success_response(request, result)
 
 
+@router.get("/merchants/directory")
+async def merchants_directory(
+    request: Request,
+    principal: CurrentPrincipal,
+    keyword: str | None = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> dict[str, Any]:
+    """Public merchant directory for all authenticated users (no resource scoping)."""
+    rows = await _repository(request).search_merchants_directory(keyword=keyword, limit=limit)
+    return success_response(
+        request,
+        {
+            "items": [
+                {
+                    "id": str(row.id),
+                    "name": row.name,
+                    "category": row.category,
+                    "address": row.address,
+                }
+                for row in rows
+            ],
+        },
+    )
+
+
 @router.get("/merchants")
 async def list_merchants(
     request: Request,
@@ -344,6 +384,150 @@ async def list_merchant_reviews(
             "page_size": page_size,
             "total": total,
         },
+    )
+
+
+@router.post("/merchants/{merchant_id}/reviews", status_code=201)
+async def submit_user_review(
+    request: Request,
+    merchant_id: UUID,
+    body: UserReviewCreateDTO,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    # Any authenticated user can submit a review (no resource grant required)
+    # Sensitive word check
+    safety_service = getattr(request.app.state, "content_safety_service", None)
+    if safety_service is not None:
+        check_result = await safety_service.check(
+            content=body.content,
+            direction=ContentDirection.INPUT,
+            actor_id=principal.user_id,
+            request_id=get_request_id(request),
+        )
+        if not check_result.allowed:
+            raise AppError(422, "SENSITIVE_CONTENT_REJECTED", "评论包含受限内容，已拒绝提交")
+    try:
+        review = await _repository(request).create_user_review(
+            merchant_id=merchant_id,
+            user_id=principal.user_id,
+            content=body.content,
+            rating=body.rating,
+            author_name=principal.display_name,
+        )
+    except LookupError as exc:
+        raise AppError(404, "NOT_FOUND", "商家不存在") from exc
+    return success_response(
+        request,
+        {
+            "id": str(review.id),
+            "merchant_id": str(review.merchant_id),
+            "status": review.status,
+            "rating": float(review.rating) if review.rating is not None else None,
+            "created_at": review.created_at.isoformat(),
+        },
+        message="评论已提交，等待审核",
+    )
+
+
+@router.get("/users/me/reviews")
+async def list_my_reviews(
+    request: Request,
+    principal: CurrentPrincipal,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> dict[str, Any]:
+    rows, total = await _repository(request).list_user_reviews(
+        principal.user_id, limit=page_size, offset=(page - 1) * page_size
+    )
+    return success_response(
+        request,
+        {
+            "items": [
+                {
+                    "id": str(row.id),
+                    "merchant_id": str(row.merchant_id),
+                    "content": row.content,
+                    "rating": float(row.rating) if row.rating is not None else None,
+                    "status": row.status,
+                    "created_at": row.created_at.isoformat(),
+                }
+                for row in rows
+            ],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+        },
+    )
+
+
+@router.get("/reviews/pending")
+async def list_pending_reviews(
+    request: Request,
+    principal: CurrentPrincipal,
+    status: Literal["PENDING", "PUBLISHED", "REJECTED"] = "PENDING",
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> dict[str, Any]:
+    """Admin: list reviews by status for moderation."""
+    _require_admin(principal)
+    rows, total = await _repository(request).list_pending_reviews(
+        status=status,
+        limit=page_size,
+        offset=(page - 1) * page_size,
+    )
+    return success_response(
+        request,
+        {
+            "items": [
+                {
+                    "id": str(row.id),
+                    "merchant_id": str(row.merchant_id),
+                    "author": row.author_ref,
+                    "content": row.content,
+                    "rating": float(row.rating) if row.rating is not None else None,
+                    "status": row.status,
+                    "source_type": row.source_type,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in rows
+            ],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+        },
+    )
+
+
+@router.post("/reviews/{review_id}/moderate")
+async def moderate_user_review(
+    request: Request,
+    review_id: UUID,
+    body: ReviewModerateDTO,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    _require_admin(principal)
+    reason = body.reason
+    if not reason:
+        reason = "审核通过" if body.decision == "APPROVE" else "不符合社区规范"
+    try:
+        review = await _repository(request).moderate_user_review(
+            review_id,
+            decision=body.decision,
+            reason=reason,
+            moderator_id=principal.user_id,
+        )
+    except LookupError as exc:
+        raise AppError(404, "NOT_FOUND", "评论不存在") from exc
+    except ValueError as exc:
+        raise AppError(422, "INVALID_STATUS_TRANSITION", str(exc)) from exc
+    return success_response(
+        request,
+        {
+            "id": str(review.id),
+            "status": review.status,
+            "moderated_by": str(principal.user_id),
+        },
+        message="审核完成",
     )
 
 

@@ -7,6 +7,11 @@ import {
   ElFormItem,
   ElInput,
   ElMessage,
+  ElOption,
+  ElPagination,
+  ElRate,
+  ElSelect,
+  ElTag,
 } from 'element-plus'
 import { createPinia } from 'pinia'
 
@@ -22,6 +27,11 @@ import 'element-plus/es/components/form/style/css'
 import 'element-plus/es/components/form-item/style/css'
 import 'element-plus/es/components/input/style/css'
 import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/option/style/css'
+import 'element-plus/es/components/pagination/style/css'
+import 'element-plus/es/components/rate/style/css'
+import 'element-plus/es/components/select/style/css'
+import 'element-plus/es/components/tag/style/css'
 import './style.css'
 
 const app = createApp(App)
@@ -35,6 +45,11 @@ app.use(ElConfigProvider)
 app.use(ElForm)
 app.use(ElFormItem)
 app.use(ElInput)
+app.use(ElOption)
+app.use(ElPagination)
+app.use(ElRate)
+app.use(ElSelect)
+app.use(ElTag)
 
 const authStore = useAuthStore(pinia)
 setAuthExpiredHandler(() => {

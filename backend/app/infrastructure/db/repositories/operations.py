@@ -329,6 +329,21 @@ class OperationsRepository:
             ]
         return candidates[offset : offset + limit], len(candidates)
 
+    async def search_merchants_directory(
+        self,
+        *,
+        keyword: str | None = None,
+        limit: int = 50,
+    ) -> list[Merchant]:
+        """Lightweight merchant directory for all authenticated users (no resource scoping)."""
+        async with self._session_factory() as session:
+            stmt = select(Merchant).order_by(Merchant.name)
+            if keyword:
+                pattern = f"%{keyword}%"
+                stmt = stmt.where(Merchant.name.like(pattern) | Merchant.category.like(pattern))
+            rows = list((await session.scalars(stmt.limit(limit))).all())
+        return rows
+
     async def get_merchant(self, merchant_id: UUID) -> tuple[Merchant, dict[str, object]] | None:
         async with self._session_factory() as session:
             merchant = await session.get(Merchant, merchant_id)
@@ -659,6 +674,115 @@ class OperationsRepository:
             ),
             "average_response_time_ms": None,
         }
+
+    # ------------------------------------------------------------------
+    # User-submitted reviews
+    # ------------------------------------------------------------------
+
+    async def create_user_review(
+        self,
+        *,
+        merchant_id: UUID,
+        user_id: UUID,
+        content: str,
+        rating: float,
+        author_name: str | None = None,
+    ) -> Review:
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        async with self._session_factory() as session, session.begin():
+            merchant = await session.scalar(select(Merchant).where(Merchant.id == merchant_id))
+            if merchant is None:
+                raise LookupError("merchant not found")
+            # Idempotency: same user + same merchant + same content hash
+            existing = await session.scalar(
+                select(Review).where(
+                    Review.merchant_id == merchant_id,
+                    Review.user_id == user_id,
+                    Review.content_hash == content_hash,
+                    Review.status != "DELETED",
+                )
+            )
+            if existing is not None:
+                return existing
+            review = Review(
+                id=uuid7(),
+                merchant_id=merchant_id,
+                user_id=user_id,
+                author_ref=author_name,
+                content=content,
+                content_hash=content_hash,
+                rating=rating,
+                reviewed_at=utc_now(),
+                source_type="USER_SUBMITTED",
+                source_review_id=None,
+                status="PENDING",
+            )
+            session.add(review)
+            await session.flush()
+            return review
+
+    async def list_user_reviews(
+        self,
+        user_id: UUID,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Review], int]:
+        async with self._session_factory() as session:
+            base = select(Review).where(Review.user_id == user_id)
+            total = int(
+                await session.scalar(select(func.count()).select_from(base.subquery())) or 0
+            )
+            rows = list(
+                (
+                    await session.scalars(
+                        base.order_by(Review.created_at.desc()).limit(limit).offset(offset)
+                    )
+                ).all()
+            )
+        return rows, total
+
+    async def moderate_user_review(
+        self,
+        review_id: UUID,
+        *,
+        decision: str,
+        reason: str,
+        moderator_id: UUID,
+    ) -> Review:
+        async with self._session_factory() as session, session.begin():
+            review = await session.scalar(
+                select(Review).where(Review.id == review_id).with_for_update()
+            )
+            if review is None:
+                raise LookupError("review not found")
+            if review.status != "PENDING":
+                raise ValueError(f"review is not pending, current status: {review.status}")
+            review.status = "PUBLISHED" if decision == "APPROVE" else "REJECTED"
+            await session.flush()
+            return review
+
+    async def list_pending_reviews(
+        self,
+        *,
+        status: str = "PENDING",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Review], int]:
+        """List reviews by status for admin moderation."""
+        async with self._session_factory() as session:
+            base = select(Review).where(Review.status == status)
+            total = int(
+                await session.scalar(select(func.count()).select_from(base.subquery())) or 0
+            )
+            rows = list(
+                (
+                    await session.scalars(
+                        base.order_by(Review.created_at.asc()).limit(limit).offset(offset)
+                    )
+                ).all()
+            )
+        return rows, total
 
 
 def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

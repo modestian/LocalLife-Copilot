@@ -33,6 +33,12 @@ const router = createRouter({
       meta: { publicReadOnly: true, roles: ['USER'], title: '用户工作台' },
     },
     {
+      path: '/app/reviews',
+      name: 'user-reviews',
+      component: () => import('@/views/UserReviewView.vue'),
+      meta: { requiresAuth: true, roles: ['USER'], title: '发表评价' },
+    },
+    {
       path: '/merchant/:merchantId?',
       name: 'merchant-home',
       component: () => import('@/views/merchant/MerchantAnalyticsView.vue'),
@@ -64,6 +70,11 @@ const router = createRouter({
             to: '/admin/models',
             label: '进入模型管理',
             description: '管理数据集、LoRA 训练、模型卡、审批和发布操作。',
+          },
+          {
+            to: '/admin/reviews',
+            label: '进入评论审核',
+            description: '审核用户提交的商家评论，通过或拒绝待发布内容。',
           },
         ],
       },
@@ -112,6 +123,16 @@ const router = createRouter({
         requiresAuth: true,
         roles: ['PLATFORM_ADMIN', 'MODEL_ADMIN'],
         title: '模型管理',
+      },
+    },
+    {
+      path: '/admin/reviews',
+      name: 'review-moderation',
+      component: () => import('@/views/admin/ReviewModerationView.vue'),
+      meta: {
+        requiresAuth: true,
+        roles: ['PLATFORM_ADMIN'],
+        title: '评论审核',
       },
     },
     {

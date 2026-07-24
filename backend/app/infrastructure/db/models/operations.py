@@ -108,6 +108,11 @@ class Review(TimestampMixin, VersionMixin, Base):
     merchant_id: Mapped[UUID] = mapped_column(
         UUIDBinary(), ForeignKey("merchants.id", name="fk_reviews_merchant"), nullable=False
     )
+    user_id: Mapped[UUID | None] = mapped_column(
+        UUIDBinary(),
+        ForeignKey("users.id", name="fk_reviews_user", ondelete="SET NULL"),
+        nullable=True,
+    )
     author_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
