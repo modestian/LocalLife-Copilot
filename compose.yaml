@@ -1,9 +1,5 @@
 name: local-life-copilot
 
-x-backend-args: &backend-args
-  args:
-    PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-    TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
 services:
   mysql:
     image: public.ecr.aws/docker/library/mysql:8.4
@@ -72,16 +68,14 @@ services:
   model-gateway:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     command: ["uvicorn", "app.model_gateway:app", "--host", "0.0.0.0", "--port", "8001"]
     expose: ["8001"]
     environment:
       SENTIMENT_MODEL: ${SENTIMENT_MODEL:-/models/sentiment}
       SENTIMENT_MODEL_REVISION: ${SENTIMENT_MODEL_REVISION:-}
-      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-BAAI/bge-small-zh-v1.5}
-      SENTENCE_TRANSFORMERS_HOME: /models/embedding-cache
-      CLASSIFIER_MODEL_NAME: ${CLASSIFIER_MODEL_NAME:-/app/training/output/final_model}
-      GENERATION_MODEL_NAME: ${GENERATION_MODEL_NAME:-Qwen/Qwen2.5-0.5B-Instruct}
     volumes:
       - ./backend/training/output/final_model:/models/sentiment:ro
     networks: [backend]
@@ -105,7 +99,9 @@ services:
   migrate:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     command: ["alembic", "upgrade", "head"]
     environment: &api-environment
       APP_ENVIRONMENT: development
@@ -144,7 +140,9 @@ services:
   init:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     command: ["python", "-m", "app.init_runtime"]
     environment: *api-environment
     networks: [backend]
@@ -161,7 +159,9 @@ services:
   seed:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     command: ["python", "-m", "app.cli.seed_demo_data"]
     environment:
       <<: *api-environment
@@ -180,7 +180,9 @@ services:
   prepare-knowledge-data:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     command: ["sh", "-c", "mkdir -p /data/knowledge && chown -R app:app /data/knowledge"]
     user: "0:0"
     volumes:
@@ -193,7 +195,9 @@ services:
   prepare-training-data:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     command: ["sh", "-c", "mkdir -p /data/training/artifacts && chown -R app:app /data/training"]
     user: "0:0"
     volumes:
@@ -206,7 +210,9 @@ services:
   api:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     environment: *api-environment
     networks: [edge, backend]
     volumes:
@@ -250,7 +256,9 @@ services:
   worker:
     build:
       context: ./backend
-      <<: *backend-args
+      args:
+        PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
     command:
       [
         "celery",

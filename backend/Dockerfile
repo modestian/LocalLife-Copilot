@@ -30,7 +30,7 @@ RUN mkdir -p /models/embedding-cache \
     && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-small-zh-v1.5', cache_folder='/models/embedding-cache')"
 
 COPY app ./app
-COPY training/output/final_model ./training/output/final_model
+COPY training ./training
 COPY evaluation ./evaluation
 COPY alembic.ini ./
 COPY migrations ./migrations
