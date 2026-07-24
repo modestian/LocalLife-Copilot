@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import { documentApi } from '@/api/documents'
 import { getUserFacingError } from '@/api/errors'
@@ -9,7 +9,7 @@ import type {
   DocumentStatus,
   DocumentSummary,
 } from '@/types/document'
-import type { AcceptedTask, TrackedTask } from '@/types/task'
+import type { AcceptedTask, AsyncTaskDetail, TrackedTask } from '@/types/task'
 import { formatFileSize } from '@/utils/document-upload'
 
 import DocumentUploadPanel from './DocumentUploadPanel.vue'
@@ -30,7 +30,7 @@ const pageSize = 10
 const status = ref<'' | Exclude<DocumentStatus, 'DELETED'>>('')
 const loading = ref(false)
 const listError = ref('')
-const trackedTasks = ref<TrackedTask[]>([])
+const trackedTasks = ref<TrackedTask[]>(loadTrackedTasks(props.knowledgeBaseId))
 
 const selected = ref<DocumentDetail | null>(null)
 const preview = ref<DocumentPreview | null>(null)
@@ -187,7 +187,36 @@ function trackTask(task: AcceptedTask, fileNames: string[] = []): void {
   ]
 }
 
-function onTaskTerminal(): void {
+function loadTrackedTasks(kbId: string): TrackedTask[] {
+  try {
+    const raw = sessionStorage.getItem(`tracked-tasks:${kbId}`)
+    if (!raw) return []
+    const parsed: TrackedTask[] = JSON.parse(raw)
+    // Only restore non-terminal tasks; terminal ones are no longer interesting
+    return parsed.filter(
+      (item) =>
+        item.accepted &&
+        item.accepted.task_id &&
+        !['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(item.accepted.status),
+    )
+  } catch {
+    return []
+  }
+}
+
+watch(trackedTasks, (tasks) => {
+  try {
+    sessionStorage.setItem(`tracked-tasks:${props.knowledgeBaseId}`, JSON.stringify(tasks))
+  } catch { /* storage full – ignore */ }
+}, { deep: true })
+
+function onTaskTerminal(detail: AsyncTaskDetail): void {
+  // Update stored status so sessionStorage reflects the terminal state
+  const tracked = trackedTasks.value.find((t) => t.accepted.task_id === detail.task_id)
+  if (tracked) {
+    tracked.accepted.status = detail.status
+    tracked.accepted.progress = detail.progress
+  }
   void loadDocuments()
 }
 
