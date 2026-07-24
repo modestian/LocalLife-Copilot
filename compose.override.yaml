@@ -7,7 +7,7 @@ services:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
     ports:
       - "127.0.0.1:${API_PORT:-18000}:8000"
   mysql:
@@ -28,40 +28,40 @@ services:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
 
   migrate:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
 
   init:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
 
   seed:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
 
   prepare-knowledge-data:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
 
   prepare-training-data:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu
 
   worker:
     build:
       args:
         PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
-        TORCH_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+        TORCH_INDEX_URL: https://mirrors.aliyun.com/pytorch-whl/cpu

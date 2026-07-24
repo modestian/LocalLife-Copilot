@@ -4,19 +4,15 @@ import traceback
 from contextlib import asynccontextmanager
 from typing import Literal
 
-import torch
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from sentence_transformers import SentenceTransformer
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    StoppingCriteria,
-    StoppingCriteriaList,
-)
-from transformers import pipeline as hf_pipeline
 
 from app.analytics import SentimentAnalyzer, SentimentResult
+
+# Lazy ML imports — torch / transformers / sentence-transformers are optional
+# model dependencies.  They are imported inside the functions that need them
+# so that the module remains importable in CI without installing [model] extras.
+_HAS_ML = _HAS_TORCH = _HAS_TRANSFORMERS = _HAS_ST = False
 
 logger = logging.getLogger(__name__)
 analyzer = SentimentAnalyzer()
@@ -100,11 +96,11 @@ class ClassificationResponse(BaseModel):
 # Model lifecycle
 # ---------------------------------------------------------------------------
 
-_embedding_model: SentenceTransformer | None = None
+_embedding_model: object | None = None
 _embedding_model_name: str = ""
 
-_generation_model: AutoModelForCausalLM | None = None
-_generation_tokenizer: AutoTokenizer | None = None
+_generation_model: object | None = None
+_generation_tokenizer: object | None = None
 _generation_model_name: str = ""
 
 _classifier_pipeline = None
@@ -112,7 +108,10 @@ _classifier_model_name: str = ""
 
 
 def _get_classifier():
-    global _classifier_pipeline, _classifier_model_name
+    global _classifier_pipeline, _classifier_model_name, _HAS_TRANSFORMERS
+    from transformers import pipeline as hf_pipeline  # noqa: F811
+
+    _HAS_TRANSFORMERS = True
     name = os.getenv(
         "CLASSIFIER_MODEL_NAME",
         "D:/CodingProjects/LocalLife Copilot/backend/training/output/final_model",
@@ -131,11 +130,21 @@ def _get_classifier():
 
 
 def _device() -> str:
+    global _HAS_TORCH
+    try:
+        import torch  # noqa: F811
+    except ImportError:
+        _HAS_TORCH = False
+        return "cpu"
+    _HAS_TORCH = True
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def _get_embedding_model() -> SentenceTransformer:
-    global _embedding_model, _embedding_model_name
+def _get_embedding_model():
+    global _embedding_model, _embedding_model_name, _HAS_ST
+    from sentence_transformers import SentenceTransformer  # noqa: F811
+
+    _HAS_ST = True
     name = os.getenv("EMBEDDING_MODEL_NAME", "BAAI/bge-small-zh-v1.5")
     if _embedding_model is None or _embedding_model_name != name:
         logger.info("Loading embedding model %s on %s", name, _device())
@@ -144,8 +153,18 @@ def _get_embedding_model() -> SentenceTransformer:
     return _embedding_model
 
 
-def _get_generation_model() -> tuple[AutoModelForCausalLM, AutoTokenizer]:
+def _get_generation_model():
     global _generation_model, _generation_tokenizer, _generation_model_name
+    global _HAS_TRANSFORMERS, _HAS_TORCH
+    from transformers import AutoModelForCausalLM, AutoTokenizer  # noqa: F811
+
+    _HAS_TRANSFORMERS = True
+    try:
+        import torch  # noqa: F811
+
+        _HAS_TORCH = True
+    except ImportError as err:
+        raise ImportError("torch is required for text generation (install [model] extras)") from err
     name = os.getenv("GENERATION_MODEL_NAME", "Qwen/Qwen2.5-0.5B-Instruct")
     if _generation_model is None or _generation_model_name != name:
         logger.info("Loading generation model %s on %s", name, _device())
@@ -313,18 +332,25 @@ async def embedding_model_info() -> ModelInfoResponse:
 # ---------------------------------------------------------------------------
 
 
-class _EOSStoppingCriteria(StoppingCriteria):
-    def __init__(self, stop_ids: list[list[int]]) -> None:
-        super().__init__()
-        self._stop_sequences = stop_ids
+def _make_eos_stopping_criteria(stop_ids: list[list[int]]):
+    """Create a StoppingCriteria subclass lazily to avoid hard imports."""
+    import torch  # noqa: F811
+    from transformers import StoppingCriteria  # noqa: F811
 
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> bool:  # type: ignore[override]
-        for stop_ids in self._stop_sequences:
-            if len(stop_ids) > input_ids.shape[1]:
-                continue
-            if torch.equal(input_ids[0, -len(stop_ids) :], torch.tensor(stop_ids)):
-                return True
-        return False
+    class _EOSStoppingCriteria(StoppingCriteria):
+        def __init__(self, stop_ids: list[list[int]]) -> None:
+            super().__init__()
+            self._stop_sequences = stop_ids
+
+        def __call__(self, input_ids, scores) -> bool:  # type: ignore[override]
+            for stop_ids_inner in self._stop_sequences:
+                if len(stop_ids_inner) > input_ids.shape[1]:
+                    continue
+                if torch.equal(input_ids[0, -len(stop_ids_inner) :], torch.tensor(stop_ids_inner)):
+                    return True
+            return False
+
+    return _EOSStoppingCriteria(stop_ids)
 
 
 @app.post("/v1/generate", response_model=GenerationResponse)
@@ -349,9 +375,10 @@ async def generate(payload: GenerationRequest) -> GenerationResponse:
     for token in payload.stop:
         stop_ids.append(tokenizer.encode(token, add_special_tokens=False))
 
-    stopping: StoppingCriteriaList | None = (
-        StoppingCriteriaList([_EOSStoppingCriteria(stop_ids)]) if stop_ids else None
-    )
+    import torch  # noqa: F811
+    from transformers import StoppingCriteriaList  # noqa: F811
+
+    stopping = StoppingCriteriaList([_make_eos_stopping_criteria(stop_ids)]) if stop_ids else None
 
     with torch.inference_mode():
         outputs = model.generate(

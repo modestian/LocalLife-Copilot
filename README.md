@@ -97,7 +97,7 @@ LocalLife Copilot 使用 Docker Compose 编排以下容器：
 - Docker Desktop 已启动，并支持 Docker Compose v2
 - 本机执行后端质量检查时使用 Python 3.13.14（仓库根目录 `.python-version` 已锁定）
 - 建议给 Docker 分配至少 4 GB 内存
-- 建议首次构建前至少保留 25 GB 可用磁盘空间；构建完成并清理缓存后，日常占用会明显下降
+- 建议首次构建前至少保留 10 GB 可用磁盘空间（开启 model-gateway 需含 torch 时保留 25 GB）
 
 首次获取项目：
 
@@ -129,7 +129,15 @@ Copy-Item .env.example .env
 docker compose up --build --wait
 ```
 
-后端镜像默认安装 CPU 版 PyTorch，不会下载未使用的 CUDA/NVIDIA 运行库。首次构建需要下载完整 Python 依赖，耗时可能较长；后续只修改 `backend/app` 或迁移代码时会复用由 `pyproject.toml` 决定的依赖层。只有依赖清单、基础镜像或 Dockerfile 的依赖安装步骤变化时，才需要重新生成该层。
+后端采用多阶段构建，依赖按需分层：
+
+| 阶段 | 安装内容 | 使用服务 |
+|------|---------|---------|
+| base | core 依赖（fastapi、celery、sqlalchemy 等） | 所有服务共享 |
+| model | + torch（CPU-only）、transformers、sentence-transformers、embedding 模型 | 仅 model-gateway |
+| runtime | 应用代码 | api / worker / migrate / init / seed |
+
+默认 docker compose up --build --wait 只构建 base → runtime 层，**不下载 torch**，构建约 10-15 秒完成。model-gateway 需要时单独走 model 层。仅 pyproject.toml 或 Dockerfile 层结构变化时才需重下依赖。详细说明见 [Docker 构建文档](./docs/development/docker-build.md)。
 
 启动顺序由健康检查控制：
 
