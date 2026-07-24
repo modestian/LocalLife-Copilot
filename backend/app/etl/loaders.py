@@ -38,7 +38,7 @@ def _source_metadata(
     result = dict(metadata or {})
     result.update(specific)
     result["source_type"] = source_type
-    result["location"] = source_key
+    result["_source_file"] = source_key
     return result
 
 
