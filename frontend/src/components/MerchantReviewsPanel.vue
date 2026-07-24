@@ -131,7 +131,9 @@ function formatStars(rating: number | null): string {
           type="date"
         >
       </label>
-      <button type="submit">筛选</button>
+      <button type="submit">
+        筛选
+      </button>
     </form>
 
     <p
@@ -183,7 +185,9 @@ function formatStars(rating: number | null): string {
           <span class="stars">{{ formatStars(review.rating) }}</span>
           <time>{{ formatDate(review.reviewed_at) }}</time>
         </div>
-        <p class="review-content">{{ review.content }}</p>
+        <p class="review-content">
+          {{ review.content }}
+        </p>
         <div
           v-if="review.tags && review.tags.length"
           class="review-tags"

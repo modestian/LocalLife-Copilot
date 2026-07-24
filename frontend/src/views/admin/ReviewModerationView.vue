@@ -102,7 +102,9 @@ function formatDate(iso: string | null): string {
   <main class="home-page">
     <ProductTopBar active="admin" />
     <h1>评论审核</h1>
-    <p class="intro">审核用户提交的商家评论，通过后评论将公开展示。</p>
+    <p class="intro">
+      审核用户提交的商家评论，通过后评论将公开展示。
+    </p>
 
     <div class="moderation-toolbar">
       <button
@@ -176,7 +178,9 @@ function formatDate(iso: string | null): string {
             disabled
           />
         </div>
-        <p class="review-content">{{ review.content }}</p>
+        <p class="review-content">
+          {{ review.content }}
+        </p>
         <div class="review-meta">
           <span>来源: {{ review.source_type }}</span>
           <span>时间: {{ formatDate(review.created_at) }}</span>
