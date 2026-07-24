@@ -68,6 +68,7 @@ services:
   model-gateway:
     build:
       context: ./backend
+      target: model
     command: ["uvicorn", "app.model_gateway:app", "--host", "0.0.0.0", "--port", "8001"]
     expose: ["8001"]
     environment:
