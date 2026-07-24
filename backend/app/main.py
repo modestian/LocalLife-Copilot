@@ -144,6 +144,7 @@ def create_app(
         app.state.websocket_heartbeat_interval = 30.0
         knowledge_repository = SQLAlchemyKnowledgeRepository(session_factory)
         conversation_repository = SQLAlchemyConversationRepository(session_factory)
+        app.state.session_factory = session_factory
         app.state.knowledge_repository = knowledge_repository
         app.state.knowledge_service = KnowledgeService(knowledge_repository)
         app.state.task_repository = SQLAlchemyTaskRepository(session_factory)

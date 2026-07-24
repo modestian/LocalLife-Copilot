@@ -23,7 +23,10 @@ const form = reactive({
   name: '',
   description: '',
   owner_id: '',
+  department_id: '',
   embedding_model_id: '',
+  chunk_size: 500,
+  chunk_overlap: 80,
 })
 const access = computed(() => canUpdateKnowledgeBase(authStore.currentUser, id.value))
 
@@ -34,7 +37,10 @@ watch(
     form.name = detail.name
     form.description = detail.description ?? ''
     form.owner_id = detail.owner_id
+    form.department_id = detail.department_id ?? ''
     form.embedding_model_id = detail.embedding_model_id
+    form.chunk_size = detail.chunk_size
+    form.chunk_overlap = detail.chunk_overlap
   },
   { immediate: true },
 )
@@ -61,7 +67,10 @@ function cancelEdit(): void {
     form.name = store.detail.name
     form.description = store.detail.description ?? ''
     form.owner_id = store.detail.owner_id
+    form.department_id = store.detail.department_id ?? ''
     form.embedding_model_id = store.detail.embedding_model_id
+    form.chunk_size = store.detail.chunk_size
+    form.chunk_overlap = store.detail.chunk_overlap
   }
   formError.value = ''
   editing.value = false
@@ -82,6 +91,14 @@ async function save(): Promise<void> {
     formError.value = '负责人和默认 Embedding 模型不能为空。'
     return
   }
+  if (form.chunk_size < 100 || form.chunk_size > 4000) {
+    formError.value = '切分大小必须在 100 到 4000 之间。'
+    return
+  }
+  if (form.chunk_overlap < 0 || form.chunk_overlap >= form.chunk_size) {
+    formError.value = '重叠大小必须为非负数且小于切分大小。'
+    return
+  }
 
   try {
     await store.updateDetail(id.value, {
@@ -89,6 +106,8 @@ async function save(): Promise<void> {
       description: form.description.trim() || null,
       owner_id: form.owner_id.trim(),
       embedding_model_id: form.embedding_model_id.trim(),
+      chunk_size: form.chunk_size,
+      chunk_overlap: form.chunk_overlap,
     })
     editing.value = false
     savedMessage.value = '知识库配置已保存。'
@@ -228,10 +247,33 @@ onMounted(() => store.loadDetail(id.value))
             >
           </label>
           <label>
+            <span>所属部门 ID</span>
+            <input
+              v-model="form.department_id"
+            >
+          </label>
+          <label>
             <span>默认 Embedding 模型 *</span>
             <input
               v-model="form.embedding_model_id"
               required
+            >
+          </label>
+          <label>
+            <span>切分大小</span>
+            <input
+              v-model.number="form.chunk_size"
+              type="number"
+              min="100"
+              max="4000"
+            >
+          </label>
+          <label>
+            <span>重叠大小</span>
+            <input
+              v-model.number="form.chunk_overlap"
+              type="number"
+              min="0"
             >
           </label>
           <p

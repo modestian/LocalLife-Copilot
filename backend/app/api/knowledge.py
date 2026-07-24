@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import func, select
 
 from app.api.dependencies.authorization import CurrentPrincipal
 from app.application.authorization import (
@@ -31,6 +32,8 @@ from app.application.upload_security import UnsafeUploadError, validate_upload
 from app.core.api import success_response
 from app.core.errors import AppError
 from app.core.ids import uuid7
+from app.infrastructure.db.models.identity import Department, User
+from app.infrastructure.db.models.knowledge import Document
 
 router = APIRouter(tags=["knowledge"])
 
@@ -133,6 +136,91 @@ def _serialize(value: object) -> dict[str, Any]:
     return result
 
 
+async def _enrich_knowledge_base_data(request: Request, items: list[dict[str, Any]]) -> None:
+    """Enrich serialized knowledge base dicts with related names and statistics."""
+    if not items:
+        return
+    session_factory = request.app.state.session_factory
+    owner_ids = {UUID(item["owner_id"]) for item in items if item.get("owner_id")}
+    department_ids = {UUID(item["department_id"]) for item in items if item.get("department_id")}
+    kb_ids = {UUID(item["id"]) for item in items}
+
+    async with session_factory() as session:
+        # Resolve user display names
+        user_names: dict[UUID, str] = {}
+        if owner_ids:
+            rows = await session.scalars(select(User).where(User.id.in_(owner_ids)))
+            user_names = {u.id: u.display_name for u in rows.all()}
+
+        # Resolve department names
+        dept_names: dict[UUID, str] = {}
+        if department_ids:
+            rows = await session.scalars(
+                select(Department).where(Department.id.in_(department_ids))
+            )
+            dept_names = {d.id: d.name for d in rows.all()}
+
+        # Compute document statistics per knowledge base
+        stats_query = (
+            select(
+                Document.knowledge_base_id,
+                func.count().label("document_count"),
+                func.sum(Document.status == "READY").label("ready_document_count"),
+                func.sum(Document.status == "FAILED").label("failed_document_count"),
+                func.max(Document.updated_at).label("latest_indexed_at"),
+            )
+            .where(
+                Document.knowledge_base_id.in_(kb_ids),
+                Document.deleted_at.is_(None),
+                Document.status != "DELETED",
+            )
+            .group_by(Document.knowledge_base_id)
+        )
+        stats_rows = (await session.execute(stats_query)).all()
+        chunk_count_query = (
+            select(
+                Document.knowledge_base_id,
+                func.coalesce(func.sum(Document.current_version_no), 0).label("chunk_count"),
+            )
+            .where(
+                Document.knowledge_base_id.in_(kb_ids),
+                Document.deleted_at.is_(None),
+                Document.status != "DELETED",
+            )
+            .group_by(Document.knowledge_base_id)
+        )
+        chunk_rows = (await session.execute(chunk_count_query)).all()
+        chunk_counts = {r[0]: r[1] for r in chunk_rows}
+
+    for item in items:
+        kb_id = UUID(item["id"])
+        owner_id = UUID(item["owner_id"]) if item.get("owner_id") else None
+        dept_id = UUID(item["department_id"]) if item.get("department_id") else None
+
+        item["owner_name"] = user_names.get(owner_id, "") if owner_id else ""
+        item["department_name"] = dept_names.get(dept_id) if dept_id else None
+        item["embedding_model_id"] = item.get("embedding_model_version_id") or ""
+        item["embedding_model_name"] = item.get("embedding_model_version_id") or ""
+
+        stat = next((r for r in stats_rows if r[0] == kb_id), None)
+        if stat:
+            item["statistics"] = {
+                "document_count": stat[1] or 0,
+                "chunk_count": int(chunk_counts.get(kb_id, 0) or 0),
+                "ready_document_count": int(stat[2] or 0),
+                "failed_document_count": int(stat[3] or 0),
+            }
+            item["latest_indexed_at"] = stat[4].isoformat() if stat[4] else None
+        else:
+            item["statistics"] = {
+                "document_count": 0,
+                "chunk_count": 0,
+                "ready_document_count": 0,
+                "failed_document_count": 0,
+            }
+            item["latest_indexed_at"] = None
+
+
 def _accepted(task_id: UUID) -> dict[str, object]:
     return {
         "task_id": str(task_id),
@@ -179,7 +267,9 @@ async def create_knowledge_base(
         )
     except ValueError as exc:
         raise AppError(400, "INVALID_KNOWLEDGE_BASE", str(exc)) from exc
-    return success_response(request, _serialize(created))
+    data = _serialize(created)
+    await _enrich_knowledge_base_data(request, [data])
+    return success_response(request, data)
 
 
 @router.get("/knowledge-bases")
@@ -224,10 +314,12 @@ async def list_knowledge_bases(
         status=status,
         department_id=department_id,
     )
+    items = [_serialize(row) for row in rows]
+    await _enrich_knowledge_base_data(request, items)
     return success_response(
         request,
         {
-            "items": [_serialize(row) for row in rows],
+            "items": items,
             "page": page,
             "page_size": page_size,
             "total": total,
@@ -244,7 +336,9 @@ async def get_knowledge_base(
         row = await _knowledge_service(request, principal).get_knowledge_base(knowledge_base_id)
     except KnowledgeBaseNotFound as exc:
         raise AppError(404, "NOT_FOUND", "知识库不存在") from exc
-    return success_response(request, _serialize(row))
+    data = _serialize(row)
+    await _enrich_knowledge_base_data(request, [data])
+    return success_response(request, data)
 
 
 @router.patch("/knowledge-bases/{knowledge_base_id}")
@@ -261,7 +355,9 @@ async def update_knowledge_base(
         )
     except (KnowledgeBaseNotFound, ValueError) as exc:
         raise AppError(404, "NOT_FOUND", "知识库不存在或更新无效") from exc
-    return success_response(request, _serialize(row))
+    data = _serialize(row)
+    await _enrich_knowledge_base_data(request, [data])
+    return success_response(request, data)
 
 
 @router.delete("/knowledge-bases/{knowledge_base_id}", status_code=202)
