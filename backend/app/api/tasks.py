@@ -57,15 +57,17 @@ async def _task_data(task, request: Request) -> dict[str, Any]:
     if task.resource_type == "DOCUMENT":
         display_name = await _document_display_name(request, task.resource_id)
         if display_name:
-            files.append({
-                "file_name": display_name,
-                "document_id": str(task.resource_id),
-                "status": task.status.value,
-                "stage": task.stage.value,
-                "progress": task.progress,
-                "error_code": task.error_code,
-                "error_message": task.error_message,
-            })
+            files.append(
+                {
+                    "file_name": display_name,
+                    "document_id": str(task.resource_id),
+                    "status": task.status.value,
+                    "stage": task.stage.value,
+                    "progress": task.progress,
+                    "error_code": task.error_code,
+                    "error_message": task.error_message,
+                }
+            )
     return {
         "task_id": str(task.id),
         "task_type": task.task_type,
