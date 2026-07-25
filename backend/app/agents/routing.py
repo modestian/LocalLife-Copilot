@@ -234,6 +234,10 @@ _CUISINE_ALIASES: Mapping[str, str] = {
     "素食": "素食",
     "咖啡": "咖啡",
     "甜品": "甜品",
+    "面": "面食",
+    "面条": "面食",
+    "拉面": "面食",
+    "面馆": "面食",
 }
 _ATMOSPHERE_ALIASES: Mapping[str, str] = {
     "安静": "安静",
@@ -383,7 +387,8 @@ def merge_constraints(base: ChatConstraints, patch: ChatConstraints) -> ChatCons
         name = item.name
         value = getattr(patch, name)
         if name in {"cuisines", "atmospheres", "scenes"}:
-            updates[name] = _ordered_unique((*getattr(base, name), *value))
+            if value:
+                updates[name] = value
         elif value is not None:
             updates[name] = value
     return replace(base, **updates)

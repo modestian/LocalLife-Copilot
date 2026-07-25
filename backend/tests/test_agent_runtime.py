@@ -227,12 +227,12 @@ async def test_runtime_rebuilds_constraints_without_assistant_recommendation_ter
     )
 
     constraints = retriever.requests[0].constraints
-    assert constraints.cuisines == ()
+    assert constraints.cuisines == ("面食",)
     assert constraints.atmospheres == ()
     assert constraints.distance_meter_lte == 3000
     assert constraints.budget_cent_per_person_lte == 8000
     assert constraints.party_size == 2
-    assert repository.settings_updates[-1]["constraints"]["cuisines"] == ()
+    assert repository.settings_updates[-1]["constraints"]["cuisines"] == ("面食",)
     assert repository.settings_updates[-1]["constraints"]["atmospheres"] == ()
 
 
