@@ -412,6 +412,132 @@ async def generate_reply(
 
 
 # ---------------------------------------------------------------------------
+# Reply submission & retrieval endpoints
+# ---------------------------------------------------------------------------
+
+
+class ReplyCreateRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=5000)
+    tone: str = "EMPATHETIC"
+    source: str = "MANUAL"
+
+
+class MerchantReplyResponse(BaseModel):
+    id: str
+    review_id: str
+    merchant_id: str
+    content: str
+    tone: str
+    source: str
+    created_at: str
+    updated_at: str
+
+
+def _ops_repository(request: Request):
+    repository = getattr(request.app.state, "operations_repository", None)
+    if repository is None:
+        raise AppError(503, "SERVICE_UNAVAILABLE", "运营数据服务尚未配置")
+    return repository
+
+
+@reviews_router.post("/{review_id}/replies", status_code=201)
+async def submit_reply(
+    review_id: str,
+    request: Request,
+    body: ReplyCreateRequest,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    """Submit a merchant reply for a review."""
+    valid_tones = {"EMPATHETIC", "PROFESSIONAL", "CONCISE"}
+    if body.tone not in valid_tones:
+        raise AppError(
+            400,
+            "INVALID_PARAMETER",
+            f"tone must be one of {valid_tones}, got {body.tone!r}",
+        )
+    valid_sources = {"SUGGESTION", "MANUAL"}
+    if body.source not in valid_sources:
+        raise AppError(
+            400,
+            "INVALID_PARAMETER",
+            f"source must be one of {valid_sources}, got {body.source!r}",
+        )
+
+    try:
+        review_uuid = UUID(review_id)
+    except ValueError as exc:
+        raise AppError(422, "VALIDATION_ERROR", "review_id 格式无效") from exc
+
+    repo = _ops_repository(request)
+    review = await repo.get_review(review_uuid)
+    if review is None:
+        raise AppError(404, "NOT_FOUND", "点评不存在")
+
+    merchant_id = await repo.resolve_merchant_id(review_uuid) or str(review_uuid)
+
+    reply = await repo.create_reply(
+        review_id=review_uuid,
+        merchant_id=merchant_id,
+        content=body.content,
+        tone=body.tone,
+        source=body.source,
+        created_by=principal.user_id,
+    )
+
+    return success_response(
+        request,
+        {
+            "id": str(reply.id),
+            "review_id": str(reply.review_id),
+            "merchant_id": str(reply.merchant_id),
+            "content": reply.content,
+            "tone": reply.tone,
+            "source": reply.source,
+            "status": reply.status,
+            "created_at": reply.created_at.isoformat(),
+            "updated_at": reply.updated_at.isoformat(),
+        },
+        message="回复已提交，等待审核",
+    )
+
+
+@reviews_router.get("/{review_id}/replies")
+async def list_replies(
+    review_id: str,
+    request: Request,
+) -> dict[str, Any]:
+    """List all merchant replies for a given review."""
+    try:
+        review_uuid = UUID(review_id)
+    except ValueError as exc:
+        raise AppError(422, "VALIDATION_ERROR", "review_id 格式无效") from exc
+
+    repo = _ops_repository(request)
+    replies = await repo.get_replies_for_review(review_uuid)
+
+    return success_response(
+        request,
+        {
+            "items": [
+                {
+                    "id": str(reply.id),
+                    "review_id": str(reply.review_id),
+                    "merchant_id": str(reply.merchant_id),
+                    "content": reply.content,
+                    "tone": reply.tone,
+                    "source": reply.source,
+                    "status": reply.status,
+                    "created_at": reply.created_at.isoformat(),
+                    "updated_at": reply.updated_at.isoformat(),
+                }
+                for reply in replies
+            ],
+            "total": len(replies),
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Business suggestions endpoint (TK-402-04)
 # ---------------------------------------------------------------------------
 

@@ -210,6 +210,29 @@ function merchantName(merchantId: string): string {
             <span v-if="review.rating !== null">★ {{ review.rating }}</span>
             <time>{{ new Date(review.created_at).toLocaleDateString('zh-CN') }}</time>
           </div>
+          <div
+            v-if="review.replies && review.replies.length > 0"
+            class="merchant-replies"
+          >
+            <div
+              v-for="reply in review.replies"
+              :key="reply.id"
+              class="merchant-reply"
+            >
+              <div class="merchant-reply__header">
+                <el-tag
+                  type="warning"
+                  size="small"
+                >
+                  商家回复
+                </el-tag>
+                <time>{{ new Date(reply.created_at).toLocaleDateString('zh-CN') }}</time>
+              </div>
+              <p class="merchant-reply__content">
+                {{ reply.content }}
+              </p>
+            </div>
+          </div>
         </li>
       </ul>
       <div
@@ -243,5 +266,10 @@ function merchantName(merchantId: string): string {
 .review-item__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .review-item__content { margin: 0 0 8px; font-size: .88rem; color: #392d26; line-height: 1.6; }
 .review-item__meta { display: flex; gap: 14px; font-size: .76rem; color: #88776c; }
+.merchant-replies { margin-top: 10px; display: grid; gap: 8px; }
+.merchant-reply { background: #faf5ec; border-radius: 10px; padding: 10px 12px; }
+.merchant-reply__header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.merchant-reply__header time { font-size: .74rem; color: #88776c; }
+.merchant-reply__content { margin: 0; font-size: .84rem; color: #4b3f36; line-height: 1.6; }
 .pagination { margin-top: 16px; display: flex; justify-content: center; }
 </style>

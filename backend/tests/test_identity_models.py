@@ -39,6 +39,7 @@ def test_identity_metadata_contains_required_tables() -> None:
         "feedback_audits",
         "fine_tuning_jobs",
         "knowledge_bases",
+        "merchant_replies",
         "message_sources",
         "messages",
         "model_definitions",

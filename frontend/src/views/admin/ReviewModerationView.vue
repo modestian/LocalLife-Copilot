@@ -2,13 +2,16 @@
 import { onMounted, ref } from 'vue'
 
 import { getUserFacingError } from '@/api/errors'
-import { reviewsApi, type AdminReviewItem } from '@/api/reviews'
+import { reviewsApi, type AdminReplyItem, type AdminReviewItem } from '@/api/reviews'
 import ProductTopBar from '@/components/ProductTopBar.vue'
 
 type StatusFilter = 'PENDING' | 'PUBLISHED' | 'REJECTED'
+type ModerationTarget = 'REVIEW' | 'REPLY'
 
+const moderationTarget = ref<ModerationTarget>('REVIEW')
 const statusFilter = ref<StatusFilter>('PENDING')
 const reviews = ref<AdminReviewItem[]>([])
+const replies = ref<AdminReplyItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
@@ -19,16 +22,22 @@ const moderatingId = ref<string | null>(null)
 const moderateReason = ref('')
 
 onMounted(() => {
-  void loadReviews()
+  void loadItems()
 })
 
-async function loadReviews(): Promise<void> {
+async function loadItems(): Promise<void> {
   loading.value = true
   errorMessage.value = ''
   try {
-    const result = await reviewsApi.getPendingReviews(statusFilter.value, page.value, 10)
-    reviews.value = result.items
-    total.value = result.total
+    if (moderationTarget.value === 'REVIEW') {
+      const result = await reviewsApi.getPendingReviews(statusFilter.value, page.value, 10)
+      reviews.value = result.items
+      total.value = result.total
+    } else {
+      const result = await reviewsApi.getPendingReplies(statusFilter.value, page.value, 10)
+      replies.value = result.items
+      total.value = result.total
+    }
   } catch (err: unknown) {
     errorMessage.value = getUserFacingError(err)
   } finally {
@@ -36,19 +45,28 @@ async function loadReviews(): Promise<void> {
   }
 }
 
+function switchTarget(target: ModerationTarget): void {
+  moderationTarget.value = target
+  statusFilter.value = 'PENDING'
+  page.value = 1
+  notice.value = ''
+  moderatingId.value = null
+  void loadItems()
+}
+
 function switchStatus(status: StatusFilter): void {
   statusFilter.value = status
   page.value = 1
-  void loadReviews()
+  void loadItems()
 }
 
 function onPageChange(newPage: number): void {
   page.value = newPage
-  void loadReviews()
+  void loadItems()
 }
 
-function startModerate(reviewId: string): void {
-  moderatingId.value = reviewId
+function startModerate(itemId: string): void {
+  moderatingId.value = itemId
   moderateReason.value = ''
 }
 
@@ -61,17 +79,29 @@ async function submitModerate(decision: 'APPROVE' | 'REJECT'): Promise<void> {
   if (!moderatingId.value) return
   errorMessage.value = ''
   try {
-    await reviewsApi.moderateReview(moderatingId.value, {
-      decision,
-      reason: moderateReason.value.trim(),
-    })
-    notice.value = decision === 'APPROVE' ? '已通过该评论' : '已拒绝该评论'
+    const payload = { decision, reason: moderateReason.value.trim() }
+    if (moderationTarget.value === 'REVIEW') {
+      await reviewsApi.moderateReview(moderatingId.value, payload)
+      notice.value = decision === 'APPROVE' ? '已通过该评论' : '已拒绝该评论'
+    } else {
+      await reviewsApi.moderateReply(moderatingId.value, payload)
+      notice.value = decision === 'APPROVE' ? '已通过该商家回复' : '已拒绝该商家回复'
+    }
     moderatingId.value = null
     moderateReason.value = ''
-    await loadReviews()
+    await loadItems()
   } catch (err: unknown) {
     errorMessage.value = getUserFacingError(err)
   }
+}
+
+function toneLabel(tone: string): string {
+  const map: Record<string, string> = {
+    EMPATHETIC: '真诚共情',
+    PROFESSIONAL: '专业克制',
+    CONCISE: '简洁直接',
+  }
+  return map[tone] ?? tone
 }
 
 function statusLabel(status: string): string {
@@ -101,10 +131,27 @@ function formatDate(iso: string | null): string {
 <template>
   <main class="home-page">
     <ProductTopBar active="admin" />
-    <h1>评论审核</h1>
+    <h1>内容审核</h1>
     <p class="intro">
-      审核用户提交的商家评论，通过后评论将公开展示。
+      {{ moderationTarget === 'REVIEW'
+        ? '审核用户提交的商家评论，通过后评论将公开展示。'
+        : '审核商家对用户点评的回复，通过后回复将对用户展示。' }}
     </p>
+
+    <div class="moderation-toolbar target-toolbar">
+      <button
+        :class="['filter-btn', { active: moderationTarget === 'REVIEW' }]"
+        @click="switchTarget('REVIEW')"
+      >
+        用户评论
+      </button>
+      <button
+        :class="['filter-btn', { active: moderationTarget === 'REPLY' }]"
+        @click="switchTarget('REPLY')"
+      >
+        商家回复
+      </button>
+    </div>
 
     <div class="moderation-toolbar">
       <button
@@ -148,14 +195,14 @@ function formatDate(iso: string | null): string {
     </div>
 
     <div
-      v-else-if="reviews.length === 0"
+      v-else-if="(moderationTarget === 'REVIEW' ? reviews.length : replies.length) === 0"
       class="empty"
     >
-      暂无{{ statusLabel(statusFilter) }}的评论
+      暂无{{ statusLabel(statusFilter) }}的{{ moderationTarget === 'REVIEW' ? '评论' : '商家回复' }}
     </div>
 
     <div
-      v-else
+      v-else-if="moderationTarget === 'REVIEW'"
       class="review-list"
     >
       <div
@@ -236,6 +283,83 @@ function formatDate(iso: string | null): string {
       </div>
     </div>
 
+    <div
+      v-else
+      class="review-list"
+    >
+      <div
+        v-for="reply in replies"
+        :key="reply.id"
+        class="review-card"
+      >
+        <div class="review-header">
+          <span class="review-author">商家回复</span>
+          <el-tag
+            :type="statusType(reply.status)"
+            size="small"
+          >
+            {{ statusLabel(reply.status) }}
+          </el-tag>
+        </div>
+        <p class="review-content">
+          {{ reply.content }}
+        </p>
+        <div class="review-meta">
+          <span>语气: {{ toneLabel(reply.tone) }}</span>
+          <span>来源: {{ reply.source === 'SUGGESTION' ? 'AI建议' : '手动输入' }}</span>
+          <span>时间: {{ formatDate(reply.created_at) }}</span>
+        </div>
+
+        <!-- Moderation actions -->
+        <div
+          v-if="reply.status === 'PENDING'"
+          class="review-actions"
+        >
+          <template v-if="moderatingId === reply.id">
+            <div class="moderate-form">
+              <el-input
+                v-model="moderateReason"
+                placeholder="拒绝理由（留空则默认“不符合社区规范”）"
+                :maxlength="1000"
+                show-word-limit
+              />
+              <div class="moderate-buttons">
+                <el-button
+                  type="success"
+                  size="small"
+                  @click="submitModerate('APPROVE')"
+                >
+                  通过
+                </el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  @click="submitModerate('REJECT')"
+                >
+                  拒绝
+                </el-button>
+                <el-button
+                  size="small"
+                  @click="cancelModerate"
+                >
+                  取消
+                </el-button>
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <el-button
+              type="primary"
+              size="small"
+              @click="startModerate(reply.id)"
+            >
+              审核
+            </el-button>
+          </template>
+        </div>
+      </div>
+    </div>
+
     <el-pagination
       v-if="total > 10"
       :current-page="page"
@@ -252,6 +376,12 @@ function formatDate(iso: string | null): string {
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+.target-toolbar {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ebeef5;
 }
 
 .filter-btn {

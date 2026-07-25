@@ -3,8 +3,10 @@ import type {
   BusinessSuggestionResult,
   MerchantComparisonRequest,
   MerchantComparisonResult,
+  MerchantReply,
   ReplySuggestionRequest,
   ReplySuggestionResult,
+  ReplySubmitRequest,
 } from '@/types/merchant-insights'
 
 import { requestData } from './client'
@@ -41,6 +43,24 @@ export const merchantInsightsApi = {
       method: 'POST',
       url: merchantUrl(merchantId, 'business-suggestions'),
       data: payload,
+    })
+  },
+
+  submitReply(
+    reviewId: string,
+    payload: ReplySubmitRequest,
+  ): Promise<MerchantReply> {
+    return requestData({
+      method: 'POST',
+      url: `/api/v1/reviews/${encodeURIComponent(reviewId)}/replies`,
+      data: payload,
+    })
+  },
+
+  getReplies(reviewId: string): Promise<{ items: MerchantReply[]; total: number }> {
+    return requestData({
+      method: 'GET',
+      url: `/api/v1/reviews/${encodeURIComponent(reviewId)}/replies`,
     })
   },
 }

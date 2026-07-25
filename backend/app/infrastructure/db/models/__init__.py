@@ -28,7 +28,13 @@ from app.infrastructure.db.models.identity import (
     UserRole,
 )
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.infrastructure.db.models.operations import DataSource, FineTuningJob, Merchant, Review
+from app.infrastructure.db.models.operations import (
+    DataSource,
+    FineTuningJob,
+    Merchant,
+    MerchantReply,
+    Review,
+)
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
 from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 
@@ -54,6 +60,7 @@ __all__ = [
     "ModelDeploymentRoute",
     "ModelVersion",
     "Merchant",
+    "MerchantReply",
     "OutboxEvent",
     "Permission",
     "PromptDefinition",

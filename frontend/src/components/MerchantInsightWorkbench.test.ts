@@ -13,6 +13,8 @@ vi.mock('@/api/merchant-insights', () => ({
     compare: vi.fn(),
     getReplySuggestion: vi.fn(),
     getBusinessSuggestions: vi.fn(),
+    submitReply: vi.fn(),
+    getReplies: vi.fn(),
   },
 }))
 vi.mock('@/api/reviews', () => ({
@@ -90,6 +92,8 @@ describe('MerchantInsightWorkbench', () => {
         },
       ],
     })
+    vi.mocked(merchantInsightsApi.submitReply).mockReset()
+    vi.mocked(merchantInsightsApi.getReplies).mockReset().mockResolvedValue({ items: [], total: 0 })
   })
 
   it('uses a two-to-four merchant comparison and renders the backend aggregates', async () => {
@@ -112,7 +116,7 @@ describe('MerchantInsightWorkbench', () => {
     expect(wrapper.text()).toContain('等位时间长(4)')
   })
 
-  it('generates an editable reply draft and exposes no publishing control', async () => {
+  it('generates an editable reply draft and exposes a submit button', async () => {
     const wrapper = mount(MerchantInsightWorkbench, { props: { merchantId: 'merchant-self' } })
     await flushPromises()
 
@@ -126,8 +130,8 @@ describe('MerchantInsightWorkbench', () => {
     })
     const replyDraft = wrapper.get('[data-testid="reply-draft"]').element as HTMLTextAreaElement
     expect(replyDraft.value).toContain('很抱歉让您久等了')
-    expect(wrapper.text()).toContain('不会自动发布')
-    expect(wrapper.findAll('button').some((button) => button.text().includes('发布'))).toBe(false)
+    expect(wrapper.text()).toContain('提交后立即发布')
+    expect(wrapper.findAll('button').some((button) => button.text().includes('提交回复'))).toBe(true)
   })
 
   it('displays business suggestions with expandable review evidence', async () => {

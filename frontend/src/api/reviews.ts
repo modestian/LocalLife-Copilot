@@ -1,5 +1,11 @@
 import { requestData } from './client'
 
+export interface ReviewReplyItem {
+  id: string
+  content: string
+  created_at: string
+}
+
 export interface ReviewItem {
   id: string
   merchant_id: string
@@ -7,6 +13,7 @@ export interface ReviewItem {
   rating: number | null
   status: string
   created_at: string
+  replies?: ReviewReplyItem[]
 }
 
 export interface ReviewListResponse {
@@ -59,6 +66,24 @@ export interface ModeratePayload {
   reason: string
 }
 
+export interface AdminReplyItem {
+  id: string
+  review_id: string
+  merchant_id: string
+  content: string
+  tone: string
+  source: string
+  status: string
+  created_at: string | null
+}
+
+export interface AdminReplyListResponse {
+  items: AdminReplyItem[]
+  page: number
+  page_size: number
+  total: number
+}
+
 export const reviewsApi = {
   submitReview(merchantId: string, payload: SubmitReviewPayload): Promise<SubmitReviewResponse> {
     return requestData({
@@ -100,6 +125,26 @@ export const reviewsApi = {
     return requestData({
       method: 'POST',
       url: `/api/v1/reviews/${encodeURIComponent(reviewId)}/moderate`,
+      data: payload,
+    })
+  },
+
+  getPendingReplies(
+    status = 'PENDING',
+    page = 1,
+    pageSize = 20,
+  ): Promise<AdminReplyListResponse> {
+    return requestData({
+      method: 'GET',
+      url: '/api/v1/merchant-replies/pending',
+      params: { status, page, page_size: pageSize },
+    })
+  },
+
+  moderateReply(replyId: string, payload: ModeratePayload): Promise<{ id: string; status: string }> {
+    return requestData({
+      method: 'POST',
+      url: `/api/v1/merchant-replies/${encodeURIComponent(replyId)}/moderate`,
       data: payload,
     })
   },
