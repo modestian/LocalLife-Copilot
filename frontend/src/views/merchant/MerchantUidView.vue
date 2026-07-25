@@ -132,7 +132,7 @@ async function logout(): Promise<void> {
         </el-button>
       </el-form>
 
-      <!-- 商户列表（仅供查看 UID，不可点击） -->
+      <!-- 商户列表（仅供展示） -->
       <div class="merchant-ref-section">
         <div class="merchant-ref-header">
           <span>我的商铺列表</span>
@@ -164,7 +164,6 @@ async function logout(): Promise<void> {
           >
             <span class="merchant-ref-name">{{ merchant.name }}</span>
             <span class="merchant-ref-category">{{ merchant.category }}</span>
-            <code class="merchant-ref-uid">{{ merchant.id }}</code>
           </li>
         </ul>
       </div>
@@ -224,8 +223,7 @@ async function logout(): Promise<void> {
   overflow-y: auto;
 }
 .merchant-ref-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
+  display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
@@ -251,13 +249,5 @@ async function logout(): Promise<void> {
   font-size: 0.68rem;
   font-weight: 600;
   white-space: nowrap;
-}
-.merchant-ref-uid {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 0.68rem;
-  color: #695b51;
-  word-break: break-all;
-  text-align: right;
-  min-width: 0;
 }
 </style>
