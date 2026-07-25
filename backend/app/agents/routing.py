@@ -316,10 +316,12 @@ class IntentRouter:
     def _predict(self, query: str, history_summary: str | None) -> IntentOutput | None:
         if self._model is None:
             return None
+        # Keep the prompt under BERT's 512-token limit: truncate history to 200 chars.
+        clipped = (history_summary or "无")[-200:]
         prompt = (
             "将输入分类为 knowledge_query、tool_use 或 general_chat。探店和评价摘要属于"
             " knowledge_query；只有明确要求调用工具才属于 tool_use。"
-            f"\n历史摘要：{history_summary or '无'}\n用户输入：{query}"
+            f"\n历史摘要：{clipped}\n用户输入：{query}"
         )
         try:
             result = _validated_prediction(
@@ -342,6 +344,11 @@ class ClarificationPlanner:
         if not _is_recommendation_request(context):
             return ClarificationDecision(False)
         constraints = state.get("constraints", ChatConstraints())
+        # When the user already supplied at least one concrete constraint
+        # (cuisine, atmosphere, scene, distance, etc.), proceed to retrieval
+        # rather than blocking on budget / party_size.
+        if _has_any_constraint(constraints):
+            return ClarificationDecision(False)
         missing: list[str] = []
         if constraints.budget_cent_per_person_lte is None:
             missing.append("budget_cent_per_person_lte")
