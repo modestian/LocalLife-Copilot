@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import asdict, dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import UUID, uuid4
 
 from anyio import to_thread
@@ -13,11 +13,13 @@ from langgraph.runtime import Runtime
 from app.agents.contracts import RetrievalRequest, RetrievalScope, RetrieverAdapter
 from app.agents.generation import GroundedGeneration  # kept for _generate_general / _tool_guard
 from app.agents.graph import ChatGraphNodes, build_chat_graph
-from app.agents.langchain_rag import SimpleRAGGenerator
 from app.agents.memory import ConversationMemoryService
 from app.agents.persistence import GroundedResponsePersister
 from app.agents.routing import ClarificationPlanner, ConstraintExtractor, IntentRouter
 from app.agents.state import ChatState
+
+if TYPE_CHECKING:
+    from app.agents.langchain_rag import SimpleRAGGenerator
 from app.agents.tools import (
     KnowledgeSearchResult,
     RegisteredToolPlanner,

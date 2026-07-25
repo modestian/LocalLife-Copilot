@@ -9,7 +9,6 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.agents.adapters import HybridSearchRetrieverAdapter
-from app.agents.langchain_rag import LangChainRAGAdapter, SimpleRAGGenerator
 from app.agents.memory import ConversationMemoryService
 from app.agents.routing import ConstraintExtractor, IntentRouter
 from app.agents.runtime import ChatAgentRuntime
@@ -185,6 +184,8 @@ def create_app(
             app.state.tool_registry,
             SQLAlchemyToolAuditRepository(session_factory),
         )
+        from app.agents.langchain_rag import LangChainRAGAdapter, SimpleRAGGenerator
+
         rag_model = LangChainRAGAdapter(
             api_key=app_settings.bailian_api_key,
             model=app_settings.bailian_model or "qwen-plus",

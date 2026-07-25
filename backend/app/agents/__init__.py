@@ -33,14 +33,27 @@ from app.agents.generation import (
     render_grounded_output,
 )
 from app.agents.graph import ChatGraphNodes, build_chat_graph
-from app.agents.langchain_rag import (
-    LangChainRAGAdapter,
-    RAGGeneration,
-    SimpleRAGGenerator,
-    chunks_to_citations,
-    chunks_to_context,
-    render_fallback,
-)
+
+# langchain_rag is optional — depends on langchain-openai which is only
+# installed inside Docker (model-network stage).  Tests running outside
+# Docker may not have it.
+try:
+    from app.agents.langchain_rag import (  # noqa: F811
+        LangChainRAGAdapter,
+        RAGGeneration,
+        SimpleRAGGenerator,
+        chunks_to_citations,
+        chunks_to_context,
+        render_fallback,
+    )
+except ImportError:
+    LangChainRAGAdapter = None  # type: ignore[assignment]
+    RAGGeneration = None  # type: ignore[assignment]
+    SimpleRAGGenerator = None  # type: ignore[assignment]
+    chunks_to_citations = None  # type: ignore[assignment]
+    chunks_to_context = None  # type: ignore[assignment]
+    render_fallback = None  # type: ignore[assignment]
+
 from app.agents.local_model import ExtractiveModelAdapter
 from app.agents.memory import (
     SUMMARY_SETTINGS_KEY,
