@@ -258,9 +258,17 @@ class SQLAlchemyLifecycleRepository:
         return self._merchant_importer.import_records(tenant_id, records)
 
     def complete_task(self, task_id: UUID, result: Mapping[str, JsonValue]) -> None:
+        """Mark the task SUCCEEDED regardless of lease or claim ownership.
+
+        The worker has finished processing and the document is ready.  The only
+        safety check is that the task must still be RUNNING — if another worker
+        has already finalised it we must not overwrite the terminal state.
+        """
         with self._session_factory.begin() as session:
-            task = self._owned_running_task(session, task_id, utc_now())
-            if task is None:
+            task = session.scalar(
+                select(AsyncTask).where(AsyncTask.id == task_id).with_for_update()
+            )
+            if task is None or task.status != TaskStatus.RUNNING.value:
                 return
             task.status = TaskStatus.SUCCEEDED.value
             task.progress = 100
@@ -269,9 +277,17 @@ class SQLAlchemyLifecycleRepository:
             self._claimed_by.pop(task_id, None)
 
     def fail_task(self, task_id: UUID, error_code: str, error_message: str) -> None:
+        """Mark the task FAILED regardless of lease or claim ownership.
+
+        Same safety semantics as ``complete_task``: only update when the task
+        is still RUNNING so we do not overwrite a terminal state set by another
+        worker.
+        """
         with self._session_factory.begin() as session:
-            task = self._owned_running_task(session, task_id, utc_now())
-            if task is None:
+            task = session.scalar(
+                select(AsyncTask).where(AsyncTask.id == task_id).with_for_update()
+            )
+            if task is None or task.status != TaskStatus.RUNNING.value:
                 return
             task.status = TaskStatus.FAILED.value
             task.error_code = error_code
@@ -303,8 +319,6 @@ class SQLAlchemyLifecycleRepository:
             task is None
             or task.status != TaskStatus.RUNNING.value
             or task.locked_by != self._claimed_by.get(task_id)
-            or task.locked_until is None
-            or task.locked_until <= now
         ):
             return None
         return task

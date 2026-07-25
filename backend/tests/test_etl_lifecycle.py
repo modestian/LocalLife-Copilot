@@ -222,6 +222,7 @@ def test_ingest_persists_projects_verifies_then_marks_document_ready() -> None:
         TaskStage.PERSISTING,
         TaskStage.INDEXING,
         TaskStage.VERIFYING,
+        TaskStage.VERIFYING,
     ]
 
 

@@ -405,6 +405,9 @@ class WorkerLifecycleService:
         ids = [projection_id(job.document_version_id, chunk.chunk_no) for chunk in chunks]
         self._repository.mark_chunks_indexed(job.document_version_id, ids)
         self._repository.mark_document_ready(job.document_id, job.document_version_id, actual)
+        # Defence-in-depth: push progress to 100 % so the frontend never gets
+        # stuck at an earlier checkpoint even when complete_task is delayed.
+        self._repository.update_progress(job.task_id, TaskStage.VERIFYING, 100)
         return {"document_version_id": str(job.document_version_id), "chunk_count": actual}
 
     @staticmethod

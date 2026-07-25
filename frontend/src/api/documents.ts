@@ -6,6 +6,7 @@ import type {
   DocumentPreview,
   DocumentPreviewParams,
   UploadDocumentsPayload,
+  UploadResult,
   UpdateDocumentPayload,
 } from '@/types/document'
 
@@ -24,7 +25,7 @@ export const documentApi = {
     })
   },
 
-  upload(knowledgeBaseId: string, payload: UploadDocumentsPayload): Promise<AcceptedTask> {
+  upload(knowledgeBaseId: string, payload: UploadDocumentsPayload): Promise<UploadResult> {
     const form = new FormData()
     for (const file of payload.files) form.append('files[]', file, file.name)
     form.append('splitter', payload.splitter)

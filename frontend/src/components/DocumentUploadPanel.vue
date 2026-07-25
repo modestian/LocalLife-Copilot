@@ -3,7 +3,7 @@ import { computed, reactive, ref } from 'vue'
 
 import { documentApi } from '@/api/documents'
 import { getUserFacingError } from '@/api/errors'
-import type { AcceptedTask, DocumentImportMode, SplitterStrategy } from '@/types/document'
+import type { DocumentImportMode, SplitterStrategy, UploadResult } from '@/types/document'
 import {
   acceptedDocumentExtensions,
   formatFileSize,
@@ -20,7 +20,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  accepted: [task: AcceptedTask, files: File[]]
+  accepted: [task: UploadResult, files: File[]]
 }>()
 
 const input = ref<HTMLInputElement | null>(null)

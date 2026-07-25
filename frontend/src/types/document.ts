@@ -87,6 +87,17 @@ export interface UploadDocumentsPayload {
   import_mode: DocumentImportMode
 }
 
+export interface UploadFileResult {
+  file_name: string
+  document_id: string
+  task_id: string
+}
+
+export interface UploadResult extends AcceptedTask {
+  task_ids: string[]
+  files: UploadFileResult[]
+}
+
 export interface UpdateDocumentPayload {
   display_name?: string
   mime_type?: string

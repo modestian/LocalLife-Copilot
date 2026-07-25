@@ -8,6 +8,7 @@ import type {
   DocumentPreview,
   DocumentStatus,
   DocumentSummary,
+  UploadResult,
 } from '@/types/document'
 import type { AcceptedTask, AsyncTaskDetail, TrackedTask } from '@/types/task'
 import { formatFileSize } from '@/utils/document-upload'
@@ -189,8 +190,22 @@ async function deleteDocument(): Promise<void> {
   }
 }
 
-function onUploadAccepted(task: AcceptedTask, files: File[]): void {
-  trackTask(task, files.map((file) => file.name))
+function onUploadAccepted(result: UploadResult, files: File[]): void {
+  // Multiple files with per-file task mapping → create one tracked task per file
+  if (result.task_ids && result.task_ids.length > 1 && result.files?.length) {
+    for (const fileResult of result.files) {
+      const singleTask: AcceptedTask = {
+        task_id: fileResult.task_id,
+        status: result.status,
+        progress: result.progress,
+        status_url: `/api/v1/tasks/${fileResult.task_id}`,
+      }
+      trackTask(singleTask, [fileResult.file_name])
+    }
+  } else {
+    // Single file or legacy response → single task
+    trackTask(result, files.map((file) => file.name))
+  }
   void loadDocuments(true)
 }
 
@@ -230,6 +245,15 @@ function onTaskTerminal(detail: AsyncTaskDetail): void {
   if (tracked) {
     tracked.accepted.status = detail.status
     tracked.accepted.progress = detail.progress
+  }
+  // Auto-dismiss successfully completed tasks after a short delay so the user
+  // can briefly see the 100 % completion state.
+  if (detail.status === 'SUCCEEDED' && detail.progress === 100) {
+    setTimeout(() => {
+      trackedTasks.value = trackedTasks.value.filter(
+        (t) => t.accepted.task_id !== detail.task_id,
+      )
+    }, 2000)
   }
   void loadDocuments()
 }
