@@ -274,3 +274,16 @@ def test_empty_tuple_keeps_base_for_scenes_too() -> None:
         existing=ChatConstraints(scenes=("聚会",)),
     )
     assert result.scenes == ("约会",)
+
+
+def test_merchant_name_guard_skips_recommendation_queries() -> None:
+    """_matches_merchant_name should skip when query contains recommendation keywords."""
+    from app.agents.adapters import _matches_merchant_name
+
+    # Recommendation queries: should NOT trigger merchant-name filter
+    assert _matches_merchant_name("想吃海鲜", {"merchant_name": "海味坊"}) is False
+    assert _matches_merchant_name("推荐川菜", {"merchant_name": "川味轩"}) is False
+
+    # Direct merchant name query (no recommendation keywords): should still work
+    assert _matches_merchant_name("清河面馆", {"merchant_name": "清河面馆"}) is True
+    assert _matches_merchant_name("清河", {"merchant_name": "清河面馆"}) is True

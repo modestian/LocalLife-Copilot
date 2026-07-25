@@ -210,8 +210,11 @@ _RECOMMENDATION_MARKERS = (
     "找店",
     "找一家",
     "想吃",
+    "想喝",
+    "想饮",
     "哪里吃",
     "吃什么",
+    "喝什么",
     "餐厅",
     "饭店",
     "菜馆",
@@ -224,6 +227,8 @@ _RECOMMENDATION_MARKERS = (
     "外卖",
     "附近",
     "周边",
+    "饮品",
+    "饮料",
 )
 _SOURCE_ID_PATTERN = re.compile(r"E[1-9][0-9]*\Z")
 _INLINE_SOURCE_PATTERN = re.compile(r"\[(E[1-9][0-9]*)]")
