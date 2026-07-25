@@ -1,7 +1,11 @@
 import type {
   AnalyticsDateRange,
   AnalyticsReview,
+  AspectHighlight,
+  HighlightsQuery,
   NegativeReasonPoint,
+  ReputationBucket,
+  ReputationChangeQuery,
   ReviewDrillDownQuery,
   SentimentTrendPoint,
   SentimentTrendQuery,
@@ -43,6 +47,28 @@ export const merchantAnalyticsApi = {
     return requestData({
       method: 'GET',
       url: analyticsUrl(merchantId, 'reviews'),
+      params: query,
+    })
+  },
+
+  getHighlights(
+    merchantId: string,
+    query: HighlightsQuery = {},
+  ): Promise<AspectHighlight[]> {
+    return requestData({
+      method: 'GET',
+      url: analyticsUrl(merchantId, 'highlights'),
+      params: query,
+    })
+  },
+
+  getReputationChange(
+    merchantId: string,
+    query: ReputationChangeQuery = {},
+  ): Promise<ReputationBucket[]> {
+    return requestData({
+      method: 'GET',
+      url: analyticsUrl(merchantId, 'reputation-change'),
       params: query,
     })
   },

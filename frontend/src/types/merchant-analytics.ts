@@ -39,3 +39,34 @@ export interface ReviewDrillDownQuery extends AnalyticsDateRange {
   limit?: number
   offset?: number
 }
+
+export interface AspectHighlight {
+  aspect: string
+  positive: number
+  neutral: number
+  negative: number
+  total: number
+  positive_rate: number
+}
+
+export interface HighlightsQuery extends AnalyticsDateRange {
+  top_n?: number
+  min_mentions?: number
+}
+
+export interface ReputationBucket {
+  period: string
+  positive: number
+  neutral: number
+  negative: number
+  total: number
+  positive_rate: number
+  change: number | null
+  trend: string
+}
+
+export type ReputationGranularity = 'day' | 'week' | 'month'
+
+export interface ReputationChangeQuery extends AnalyticsDateRange {
+  granularity?: ReputationGranularity
+}
