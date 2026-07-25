@@ -50,6 +50,9 @@ class HybridSearchRetrieverAdapter:
 
 
 def _matches_merchant_name(query: str, source: Mapping[str, Any]) -> bool:
+    merchant_query = query.partition("[探店条件]")[0].strip()
+    if len(merchant_query) < 2:
+        return False
     # Skip strict merchant-name matching for recommendation / general-search queries
     _recommendation_keywords = (
         "推荐",
@@ -64,10 +67,7 @@ def _matches_merchant_name(query: str, source: Mapping[str, Any]) -> bool:
         "预算",
         "评价",
     )
-    if any(kw in query for kw in _recommendation_keywords):
-        return False
-    merchant_query = query.partition("[探店条件]")[0].strip()
-    if len(merchant_query) < 2:
+    if any(kw in merchant_query for kw in _recommendation_keywords):
         return False
     metadata = source.get("metadata")
     nested = metadata if isinstance(metadata, Mapping) else {}
