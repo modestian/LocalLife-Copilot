@@ -7,7 +7,10 @@ import type { FeedbackApi } from '@/types/feedback'
 import MessageFeedbackControl from './MessageFeedbackControl.vue'
 
 function createApi(): FeedbackApi {
-  return { submit: vi.fn().mockResolvedValue(undefined) }
+  return {
+    submit: vi.fn().mockResolvedValue(undefined),
+    query: vi.fn().mockResolvedValue([]),
+  }
 }
 
 function mountControl(api = createApi()) {
@@ -78,6 +81,7 @@ describe('MessageFeedbackControl', () => {
         code: 'FEEDBACK_UNAVAILABLE',
         message: '反馈服务暂不可用',
       })),
+      query: vi.fn().mockResolvedValue([]),
     }
     const wrapper = mountControl(api)
 
