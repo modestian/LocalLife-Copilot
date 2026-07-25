@@ -110,6 +110,71 @@ async def test_task_and_dispatch_event_are_created_in_one_transaction() -> None:
 
 
 @pytest.mark.asyncio
+async def test_task_can_be_bound_to_a_specific_document_version() -> None:
+    session = FakeSession()
+    repository = SQLAlchemyTaskRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    await repository.create_with_outbox(
+        task_type="INGEST",
+        resource_type="DOCUMENT",
+        resource_id=uuid7(),
+        event_type="knowledge.ingest",
+        target_version_no=2,
+    )
+
+    task = session.added[0]
+    assert isinstance(task, AsyncTask)
+    assert task.target_version_no == 2
+
+
+@pytest.mark.asyncio
+async def test_stale_running_knowledge_task_is_requeued_with_outbox() -> None:
+    row = task_row(
+        status=TaskStatus.RUNNING.value,
+        stage=TaskStage.INDEXING.value,
+        progress=80,
+        attempt_count=1,
+        locked_by="worker-old",
+        locked_until=utc_now() - timedelta(seconds=1),
+    )
+    session = FakeSession(scalar=None, rows=[row])
+    repository = SQLAlchemyTaskRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    recovered = await repository.recover_stale_knowledge_tasks()
+
+    assert recovered == 1
+    assert row.status == TaskStatus.PENDING.value
+    assert row.stage == TaskStage.QUEUED.value
+    assert row.progress == 0
+    assert row.locked_by is None
+    event = session.added[0]
+    assert isinstance(event, OutboxEvent)
+    assert event.event_type == "knowledge.ingest"
+    assert event.payload_json == {"task_id": str(row.id), "recovered": True}
+
+
+@pytest.mark.asyncio
+async def test_stale_task_at_attempt_limit_is_failed_instead_of_requeued() -> None:
+    row = task_row(
+        status=TaskStatus.RUNNING.value,
+        stage=TaskStage.INDEXING.value,
+        progress=80,
+        attempt_count=3,
+        max_attempts=3,
+        locked_by="worker-old",
+        locked_until=utc_now() - timedelta(seconds=1),
+    )
+    session = FakeSession(scalar=None, rows=[row])
+    repository = SQLAlchemyTaskRepository(FakeSessionFactory(session))  # type: ignore[arg-type]
+
+    assert await repository.recover_stale_knowledge_tasks() == 0
+    assert row.status == TaskStatus.FAILED.value
+    assert row.error_code == "TASK_LEASE_EXPIRED"
+    assert row.locked_by is None
+    assert session.added == []
+
+
+@pytest.mark.asyncio
 async def test_task_claim_uses_row_lock_and_assigns_lease() -> None:
     row = task_row()
     session = FakeSession(scalar=row)
@@ -163,6 +228,26 @@ async def test_expired_worker_cannot_heartbeat_complete_or_cancel() -> None:
 
     row.status = TaskStatus.CANCEL_REQUESTED.value
     assert not await repository.acknowledge_cancellation(row.id, worker_id="worker-a")
+
+
+@pytest.mark.asyncio
+async def test_task_failure_truncates_oversized_dependency_errors() -> None:
+    row = task_row(
+        status=TaskStatus.RUNNING.value,
+        locked_by="worker-a",
+        locked_until=utc_now() + timedelta(seconds=30),
+    )
+    repository = SQLAlchemyTaskRepository(  # type: ignore[arg-type]
+        FakeSessionFactory(FakeSession(scalar=row))
+    )
+
+    assert await repository.fail(
+        row.id,
+        worker_id="worker-a",
+        error_code="INDEX_FAILED",
+        error_message="x" * 100_000,
+    )
+    assert row.error_message == "x" * 4000
 
 
 @pytest.mark.asyncio

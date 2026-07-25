@@ -565,7 +565,7 @@ async def _mark_current_version(
         version.is_current = version.id == target.id
     target.is_current = True
     document.current_version_no = target.version_no
-    document.status = "READY"
+    document.status = "INDEXING"
     document.last_error_code = None
 
 

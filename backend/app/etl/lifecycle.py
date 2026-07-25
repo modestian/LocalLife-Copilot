@@ -193,7 +193,9 @@ class LifecycleRepository(Protocol):
         self, document_id: UUID, document_version_id: UUID, chunk_count: int
     ) -> None: ...
 
-    def mark_document_failed(self, document_id: UUID, error_code: str) -> None: ...
+    def mark_document_failed(
+        self, document_id: UUID, document_version_id: UUID, error_code: str
+    ) -> None: ...
 
     def import_merchant_reviews(
         self, tenant_id: UUID, records: tuple[DocumentRecord, ...]
@@ -277,7 +279,9 @@ class WorkerLifecycleService:
             code = self._error_code(exc)
             self._repository.fail_task(task_id, code, str(exc))
             if operation is not TaskOperation.DELETE:
-                self._repository.mark_document_failed(job.document_id, code)
+                self._repository.mark_document_failed(
+                    job.document_id, job.document_version_id, code
+                )
             raise
         self._repository.complete_task(task_id, details)
         return WorkerTaskResult(task_id, operation, "SUCCEEDED", details)

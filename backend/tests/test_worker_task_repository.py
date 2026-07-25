@@ -15,6 +15,12 @@ def test_sync_database_url_uses_worker_compatible_driver() -> None:
     assert settings.sync_database_url.startswith("mysql+pymysql://worker:secret+value@db:")
 
 
+def test_celery_requeues_tasks_when_worker_process_is_lost() -> None:
+    assert worker.celery_app.conf.task_acks_late is True
+    assert worker.celery_app.conf.task_reject_on_worker_lost is True
+    assert worker.celery_app.conf.worker_prefetch_multiplier == 1
+
+
 def test_default_worker_lazily_wires_sqlalchemy_lifecycle_repository(monkeypatch) -> None:
     engine = MagicMock()
     session_factory = MagicMock()
@@ -66,4 +72,43 @@ async def test_outbox_publisher_marks_success_and_releases_failures_for_retry(mo
         publisher_id="celery-outbox-publisher",
         error_message="broker unavailable",
     )
+    engine.dispose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_stale_task_recovery_delegates_to_repository(monkeypatch) -> None:
+    repository = MagicMock()
+    repository.recover_stale_knowledge_tasks = AsyncMock(return_value=2)
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+
+    monkeypatch.setattr(worker, "create_async_engine", MagicMock(return_value=engine))
+    monkeypatch.setattr(worker, "async_sessionmaker", MagicMock())
+    monkeypatch.setattr(worker, "SQLAlchemyTaskRepository", MagicMock(return_value=repository))
+
+    assert await worker._recover_stale_knowledge_tasks() == {"recovered": 2}
+    repository.recover_stale_knowledge_tasks.assert_awaited_once()
+    engine.dispose.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_operational_task_uses_and_disposes_a_fresh_async_engine(monkeypatch) -> None:
+    task_id = uuid7()
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    runtime = MagicMock()
+    runtime.run_merchant_analysis = AsyncMock(return_value={"status": "SUCCEEDED"})
+    session_factory = MagicMock()
+
+    monkeypatch.setattr(worker, "create_async_engine", MagicMock(return_value=engine))
+    monkeypatch.setattr(worker, "async_sessionmaker", MagicMock(return_value=session_factory))
+    monkeypatch.setattr(worker, "OperationalTaskRuntime", MagicMock(return_value=runtime))
+
+    result = await worker._run_operational_task(task_id, "run_merchant_analysis")
+
+    assert result == {"status": "SUCCEEDED"}
+    worker.create_async_engine.assert_called_once_with(  # type: ignore[attr-defined]
+        worker.settings.database_url, pool_pre_ping=True
+    )
+    runtime.run_merchant_analysis.assert_awaited_once_with(task_id)
     engine.dispose.assert_awaited_once()

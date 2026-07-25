@@ -14,7 +14,10 @@ from app.etl.adapters import LocalSourceStorage, OpenSearchProjection
 from app.etl.embeddings import BatchedEmbedder, HttpEmbeddingProvider
 from app.etl.lifecycle import LifecycleRepository, TaskOperation, WorkerLifecycleService
 from app.infrastructure.db.repositories.lifecycle import SQLAlchemyLifecycleRepository
-from app.infrastructure.db.repositories.tasks import SQLAlchemyOutboxRepository
+from app.infrastructure.db.repositories.tasks import (
+    SQLAlchemyOutboxRepository,
+    SQLAlchemyTaskRepository,
+)
 from app.operations.task_runtime import OperationalTaskRuntime
 
 settings = get_settings()
@@ -30,11 +33,19 @@ celery_app.conf.update(
     accept_content=["json"],
     result_serializer="json",
     timezone="UTC",
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    worker_prefetch_multiplier=1,
+    broker_transport_options={"visibility_timeout": 3600},
     beat_schedule={
         "publish-outbox-events": {
             "task": "system.publish_outbox",
             "schedule": 5.0,
-        }
+        },
+        "recover-stale-knowledge-tasks": {
+            "task": "system.recover_stale_knowledge_tasks",
+            "schedule": 30.0,
+        },
     },
 )
 
@@ -77,10 +88,24 @@ async def _publish_outbox() -> dict[str, int]:
     return {"published": published, "failed": failed}
 
 
+@celery_app.task(name="system.recover_stale_knowledge_tasks")
+def recover_stale_knowledge_tasks() -> dict[str, int]:
+    return asyncio.run(_recover_stale_knowledge_tasks())
+
+
+async def _recover_stale_knowledge_tasks() -> dict[str, int]:
+    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    repository = SQLAlchemyTaskRepository(async_sessionmaker(engine, expire_on_commit=False))
+    try:
+        recovered = await repository.recover_stale_knowledge_tasks()
+    finally:
+        await engine.dispose()
+    return {"recovered": recovered}
+
+
 _lifecycle_service: WorkerLifecycleService | None = None
 _lifecycle_projection_client: OpenSearch | None = None
 _lifecycle_engine: Engine | None = None
-_operational_runtime: OperationalTaskRuntime | None = None
 
 
 def configure_lifecycle_service(service: WorkerLifecycleService) -> None:
@@ -95,7 +120,8 @@ def configure_lifecycle_repository(repository: LifecycleRepository) -> WorkerLif
     embedding_provider = HttpEmbeddingProvider(
         settings.model_gateway_embedding_url,
         model=settings.embedding_model,
-        timeout_seconds=settings.dependency_timeout_seconds,
+        timeout_seconds=settings.embedding_request_timeout_seconds,
+        max_attempts=settings.embedding_request_max_attempts,
     )
     embedder = BatchedEmbedder(
         embedding_provider,
@@ -134,16 +160,20 @@ def _configure_default_lifecycle_service() -> None:
     configure_lifecycle_repository(repository)
 
 
-def _operational() -> OperationalTaskRuntime:
-    global _operational_runtime
-    if _operational_runtime is None:
-        engine = create_async_engine(settings.database_url, pool_pre_ping=True)
-        _operational_runtime = OperationalTaskRuntime(
-            async_sessionmaker(engine, expire_on_commit=False),
-            artifact_root=Path(settings.training_artifact_root),
-            worker_id="celery-operational-worker",
-        )
-    return _operational_runtime
+async def _run_operational_task(task_id: UUID, method_name: str) -> dict[str, object]:
+    # Celery invokes each sync task through a fresh asyncio.run() event loop. An
+    # async connection pool therefore cannot be cached safely between tasks.
+    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    runtime = OperationalTaskRuntime(
+        async_sessionmaker(engine, expire_on_commit=False),
+        artifact_root=Path(settings.training_artifact_root),
+        worker_id="celery-operational-worker",
+    )
+    try:
+        method = getattr(runtime, method_name)
+        return await method(task_id)
+    finally:
+        await engine.dispose()
 
 
 @celery_app.task(name="knowledge.ingest")
@@ -175,17 +205,17 @@ def rebuild_document_projection(task_id: str) -> dict[str, object]:
 
 @celery_app.task(name="merchant.analysis")
 def analyze_merchant(task_id: str) -> dict[str, object]:
-    return asyncio.run(_operational().run_merchant_analysis(UUID(task_id)))
+    return asyncio.run(_run_operational_task(UUID(task_id), "run_merchant_analysis"))
 
 
 @celery_app.task(name="fine_tuning.train")
 def train_fine_tuning_job(task_id: str) -> dict[str, object]:
-    return asyncio.run(_operational().run_fine_tuning(UUID(task_id)))
+    return asyncio.run(_run_operational_task(UUID(task_id), "run_fine_tuning"))
 
 
 @celery_app.task(name="fine_tuning.evaluate")
 def evaluate_fine_tuning_job(task_id: str) -> dict[str, object]:
-    return asyncio.run(_operational().run_evaluation(UUID(task_id)))
+    return asyncio.run(_run_operational_task(UUID(task_id), "run_evaluation"))
 
 
 def dispatch_lifecycle_task(operation: TaskOperation, task_id: UUID) -> None:

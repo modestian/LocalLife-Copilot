@@ -58,15 +58,24 @@ class SQLAlchemyLifecycleRepository:
                 .where(Document.id == task.resource_id)
             ).one_or_none()
             if claimed_resource is None:
+                task.status = TaskStatus.FAILED.value
+                task.error_code = "TASK_RESOURCE_NOT_FOUND"
+                task.error_message = "task document no longer exists"
+                _release(task)
                 return None
             document, knowledge_base = claimed_resource
             version = session.scalar(
                 select(DocumentVersion).where(
                     DocumentVersion.document_id == document.id,
-                    DocumentVersion.version_no == document.current_version_no,
+                    DocumentVersion.version_no
+                    == (task.target_version_no or document.current_version_no),
                 )
             )
             if version is None:
+                task.status = TaskStatus.FAILED.value
+                task.error_code = "TASK_VERSION_NOT_FOUND"
+                task.error_message = "task document version no longer exists"
+                _release(task)
                 return None
 
             task.status = TaskStatus.RUNNING.value
@@ -241,14 +250,24 @@ class SQLAlchemyLifecycleRepository:
             version = session.get(DocumentVersion, document_version_id)
             if document is None or version is None or version.document_id != document.id:
                 raise ValueError("document version does not belong to document")
+            if document.current_version_no != version.version_no or not version.is_current:
+                return
             document.status = "READY"
-            document.current_version_no = version.version_no
             document.last_error_code = None
 
-    def mark_document_failed(self, document_id: UUID, error_code: str) -> None:
+    def mark_document_failed(
+        self, document_id: UUID, document_version_id: UUID, error_code: str
+    ) -> None:
         with self._session_factory.begin() as session:
             document = session.get(Document, document_id)
-            if document is not None:
+            version = session.get(DocumentVersion, document_version_id)
+            if (
+                document is not None
+                and version is not None
+                and version.document_id == document.id
+                and version.is_current
+                and document.current_version_no == version.version_no
+            ):
                 document.status = "FAILED"
                 document.last_error_code = error_code
 
@@ -275,7 +294,7 @@ class SQLAlchemyLifecycleRepository:
                 return
             task.status = TaskStatus.FAILED.value
             task.error_code = error_code
-            task.error_message = error_message
+            task.error_message = error_message[:4000]
             _release(task)
             self._claimed_by.pop(task_id, None)
 

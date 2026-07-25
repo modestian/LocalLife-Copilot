@@ -135,8 +135,11 @@ class MemoryRepository:
     ) -> None:
         self.ready = (document_id, document_version_id, chunk_count)
 
-    def mark_document_failed(self, document_id: UUID, error_code: str) -> None:
+    def mark_document_failed(
+        self, document_id: UUID, document_version_id: UUID, error_code: str
+    ) -> None:
         assert document_id == DOCUMENT_ID
+        assert document_version_id == VERSION_ID
         self.document_error = error_code
 
     def import_merchant_reviews(self, tenant_id, records):

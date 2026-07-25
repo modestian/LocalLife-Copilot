@@ -14,7 +14,7 @@ from app.etl.adapters import OpenSearchProjection
 from app.etl.embeddings import BatchedEmbedder
 from app.etl.models import ChunkRecord
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.infrastructure.search.indexes import chunk_index_body, switch_chunk_aliases
+from app.infrastructure.search.indexes import create_chunk_index, switch_chunk_aliases
 from app.operations.storage_recovery import ChunkFact, ProjectionRecord
 
 
@@ -94,7 +94,11 @@ class OpenSearchRebuildStore:
     def create_index(self, index: str) -> None:
         if self._client.indices.exists(index=index):
             raise RuntimeError(f"target index already exists: {index}")
-        self._client.indices.create(index=index, body=chunk_index_body(self._embedding_dimension))
+        create_chunk_index(
+            self._client,
+            index=index,
+            embedding_dimension=self._embedding_dimension,
+        )
 
     def list_projections(self, index: str) -> Sequence[ProjectionRecord]:
         if not self._client.indices.exists(index=index):
