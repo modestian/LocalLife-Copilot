@@ -131,8 +131,8 @@ def test_business_filters_are_identical_on_both_recall_paths_and_cannot_replace_
     distance_clause = {
         "bool": {
             "should": [
-                {"bool": {"must_not": [{"exists": {"field": "metadata.distance_meter"}}]}},
-                {"range": {"metadata.distance_meter": {"lte": 3000}}},
+                {"bool": {"must_not": [{"exists": {"field": "distance_meter"}}]}},
+                {"range": {"distance_meter": {"lte": 3000}}},
             ],
             "minimum_should_match": 1,
         }
