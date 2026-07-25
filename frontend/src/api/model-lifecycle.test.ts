@@ -17,7 +17,7 @@ describe('model lifecycle API', () => {
     await modelLifecycleApi.createDataset({
       name: 'feedback-set',
       task_type: 'sentiment_classification',
-      filter: { rating: -1, review_status: 'APPROVED' },
+      filters: { ratings: [-1], reviewed_only: true },
       split_config: { train_percent: 80, validation_percent: 10, test_percent: 10, isolation_key: 'CONVERSATION' },
     })
     await modelLifecycleApi.createJob({
@@ -28,7 +28,7 @@ describe('model lifecycle API', () => {
       hyperparameters: { r: 8, lora_alpha: 16, lora_dropout: 0.05, learning_rate: 0.0002, epochs: 3, batch_size: 16, seed: 42 },
     })
     await modelLifecycleApi.evaluateJob('job/id')
-    await modelLifecycleApi.registerModel('job/id', { code: 'test-model', name: '测试模型', version: '1.0.0' })
+    await modelLifecycleApi.registerModel('job/id')
 
     expect(requestData).toHaveBeenNthCalledWith(1, expect.objectContaining({
       method: 'POST',

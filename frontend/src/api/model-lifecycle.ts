@@ -9,7 +9,6 @@ import type {
   ModelRollbackRequest,
   ModelStatusRequest,
   ModelVersion,
-  RegisterModelRequest,
   TrainingDataset,
 } from '@/types/model-lifecycle'
 
@@ -66,16 +65,14 @@ export const modelLifecycleApi: ModelLifecycleApi = {
     return requestData({
       method: 'POST',
       url: `/api/v1/fine-tuning/jobs/${encoded(jobId)}/evaluate`,
-      data: { benchmark: 'fixed-test-v1' },
       headers: idempotencyHeaders(),
     })
   },
 
-  registerModel(jobId: string, payload: RegisterModelRequest): Promise<ModelVersion> {
+  registerModel(jobId: string): Promise<ModelVersion> {
     return requestData({
       method: 'POST',
       url: `/api/v1/fine-tuning/jobs/${encoded(jobId)}/register-model`,
-      data: payload,
       headers: idempotencyHeaders(),
     })
   },
