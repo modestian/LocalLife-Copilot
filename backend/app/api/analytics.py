@@ -415,6 +415,7 @@ async def generate_reply(
 # Reply submission & retrieval endpoints
 # ---------------------------------------------------------------------------
 
+
 class ReplyCreateRequest(BaseModel):
     content: str = Field(min_length=1, max_length=5000)
     tone: str = "EMPATHETIC"
@@ -433,7 +434,6 @@ class MerchantReplyResponse(BaseModel):
 
 
 def _ops_repository(request: Request):
-
     repository = getattr(request.app.state, "operations_repository", None)
     if repository is None:
         raise AppError(503, "SERVICE_UNAVAILABLE", "运营数据服务尚未配置")

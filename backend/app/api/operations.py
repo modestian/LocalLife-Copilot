@@ -493,9 +493,7 @@ async def list_my_reviews(
     rows, total = await _repository(request).list_user_reviews(
         principal.user_id, limit=page_size, offset=(page - 1) * page_size
     )
-    replies_by_review = await _repository(request).get_replies_for_reviews(
-        [row.id for row in rows]
-    )
+    replies_by_review = await _repository(request).get_replies_for_reviews([row.id for row in rows])
     return success_response(
         request,
         {

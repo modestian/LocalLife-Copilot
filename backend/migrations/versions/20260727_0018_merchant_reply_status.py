@@ -18,9 +18,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "merchant_replies",
-        sa.Column(
-            "status", sa.String(16), nullable=False, server_default="PENDING"
-        ),
+        sa.Column("status", sa.String(16), nullable=False, server_default="PENDING"),
     )
     # Replies created before moderation existed stay visible
     op.execute("UPDATE merchant_replies SET status = 'PUBLISHED'")
@@ -34,7 +32,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_merchant_replies_status", table_name="merchant_replies")
-    op.drop_constraint(
-        "ck_merchant_replies_status", "merchant_replies", type_="check"
-    )
+    op.drop_constraint("ck_merchant_replies_status", "merchant_replies", type_="check")
     op.drop_column("merchant_replies", "status")

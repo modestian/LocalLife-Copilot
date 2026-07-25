@@ -51,17 +51,11 @@ def upgrade() -> None:
         sa.Column("merchant_id", sa.String(128), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("tone", sa.String(16), nullable=False),
-        sa.Column(
-            "source", sa.String(16), nullable=False, server_default="MANUAL"
-        ),
+        sa.Column("source", sa.String(16), nullable=False, server_default="MANUAL"),
         _uuid("created_by"),
         *_timestamps(),
-        sa.ForeignKeyConstraint(
-            ["created_by"], ["users.id"], name="fk_merchant_replies_creator"
-        ),
-        sa.CheckConstraint(
-            "source IN ('SUGGESTION','MANUAL')", name="ck_merchant_replies_source"
-        ),
+        sa.ForeignKeyConstraint(["created_by"], ["users.id"], name="fk_merchant_replies_creator"),
+        sa.CheckConstraint("source IN ('SUGGESTION','MANUAL')", name="ck_merchant_replies_source"),
         sa.PrimaryKeyConstraint("id"),
         **TABLE_ARGS,
     )

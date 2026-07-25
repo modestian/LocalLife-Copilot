@@ -947,7 +947,6 @@ class OperationsRepository:
             await session.flush()
             return analysis
 
-
     # ------------------------------------------------------------------
     # Merchant replies
     # ------------------------------------------------------------------
