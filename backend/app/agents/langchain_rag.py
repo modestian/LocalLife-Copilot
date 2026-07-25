@@ -15,7 +15,11 @@ from typing import Any
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+
+try:
+    from langchain_openai import ChatOpenAI
+except ImportError:  # pragma: no cover — only needed outside Docker
+    ChatOpenAI = None  # type: ignore[assignment]
 
 from app.agents.contracts import ModelAdapter, ModelInput, ModelPrediction
 from app.agents.types import RetrievedChunk, SourceCitation
@@ -74,6 +78,8 @@ class LangChainRAGAdapter(ModelAdapter):
                 self._max_tokens,
                 self._timeout,
             )
+            if chain is None:
+                raise RuntimeError("langchain-openai not available")
             text = chain.invoke({"query": item.prompt})
             return ModelPrediction(text=text, model_version=self.version)
         except Exception as exc:
@@ -110,7 +116,9 @@ _FALLBACK_PROMPT = """用户问题：{query}
 def _build_chain(
     api_key: str, api_base: str, model: str, temperature: float, max_tokens: int, timeout: float
 ):
-    """Build the LangChain RAG chain."""
+    """Build the LangChain RAG chain.  Returns None if langchain-openai is unavailable."""
+    if ChatOpenAI is None:
+        return None
     llm = ChatOpenAI(
         model=model,
         api_key=api_key,
@@ -336,16 +344,17 @@ class SimpleRAGGenerator:
 
         context = chunks_to_context(chunks)
 
-        try:
-            text = self._chain.invoke({"query": query, "context": context})
-            if text and text.strip():
-                return RAGGeneration(
-                    answer=text.strip(),
-                    sources=citations,
-                    model_version=self._model.version,
-                )
-        except Exception:
-            logger.warning("LLM generation failed, using local fallback", exc_info=True)
+        if self._chain is not None:
+            try:
+                text = self._chain.invoke({"query": query, "context": context})
+                if text and text.strip():
+                    return RAGGeneration(
+                        answer=text.strip(),
+                        sources=citations,
+                        model_version=self._model.version,
+                    )
+            except Exception:
+                logger.warning("LLM generation failed, using local fallback", exc_info=True)
 
         # LLM unavailable → show raw search results
         return RAGGeneration(

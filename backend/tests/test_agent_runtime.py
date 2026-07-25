@@ -4,8 +4,7 @@ from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 from app.agents.contracts import RetrievalScope
-from app.agents.generation import GroundedRAGGenerator
-from app.agents.local_model import ExtractiveModelAdapter
+from app.agents.langchain_rag import RAGGeneration, SimpleRAGGenerator
 from app.agents.memory import MemoryWindow
 from app.agents.runtime import ChatAgentRuntime
 from app.agents.types import RetrievedChunk
@@ -108,6 +107,28 @@ class RecordingModelRouter:
         return SimpleNamespace(model_version_id=self.model_version_id)
 
 
+class FakeSimpleRAGGenerator(SimpleRAGGenerator):
+    """Test double that returns chunk content without needing LangChain / Bailian."""
+
+    def __init__(self) -> None:
+        # Skip parent __init__ which requires LangChainRAGAdapter
+        pass
+
+    def generate(self, query: str, chunks: tuple[RetrievedChunk, ...]) -> RAGGeneration:
+        from app.agents.langchain_rag import NO_EVIDENCE_ANSWER, chunks_to_citations
+
+        citations = chunks_to_citations(chunks)
+        if not chunks:
+            return RAGGeneration(
+                answer=NO_EVIDENCE_ANSWER, sources=(), fallback_reason="no_evidence"
+            )
+        return RAGGeneration(
+            answer=chunks[0].content,
+            sources=citations,
+            model_version="test-stub",
+        )
+
+
 def _runtime(conversation: ConversationView):
     repository = RecordingRepository(conversation)
     memory = AsyncMock()
@@ -118,7 +139,7 @@ def _runtime(conversation: ConversationView):
         repository=repository,  # type: ignore[arg-type]
         memory=memory,
         retriever=retriever,
-        generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+        generator=FakeSimpleRAGGenerator(),
         model_router=model_router,  # type: ignore[arg-type]
     )
     return runtime, repository, memory, retriever, model_router
@@ -133,13 +154,14 @@ def _scope() -> RetrievalScope:
 
 
 async def test_runtime_asks_for_missing_conditions_and_persists_turn() -> None:
+    """A bare recommendation without any constraint still triggers clarification."""
     conversation = _conversation()
     runtime, repository, _memory, retriever, model_router = _runtime(conversation)
 
     result = await runtime.run(
         conversation_id=conversation.id,
         owner_user_id=conversation.owner_user_id,
-        query="推荐附近安静的川菜",
+        query="推荐一下",  # no concrete constraint → clarification needed
         retrieval_scope=_scope(),
         request_id="turn-1",
     )
@@ -264,7 +286,7 @@ async def test_runtime_persists_low_evidence_fallback_without_sources() -> None:
         repository=repository,  # type: ignore[arg-type]
         memory=memory,
         retriever=EmptyRetriever(),
-        generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+        generator=FakeSimpleRAGGenerator(),
     )
 
     result = await runtime.run(
@@ -288,7 +310,7 @@ async def test_blocked_input_is_not_persisted_and_safe_refusal_is_persisted() ->
         repository=repository,  # type: ignore[arg-type]
         memory=memory,
         retriever=EmptyRetriever(),
-        generator=GroundedRAGGenerator(ExtractiveModelAdapter()),
+        generator=FakeSimpleRAGGenerator(),
         safety=BlockingInputSafety(),  # type: ignore[arg-type]
     )
 
