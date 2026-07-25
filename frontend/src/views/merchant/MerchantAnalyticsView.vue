@@ -70,6 +70,29 @@ const accessMessage = computed(() => {
   return '当前账号没有任何商家资源授权，请联系管理员配置 MERCHANT 范围。'
 })
 
+const uidCopied = ref(false)
+
+async function copyMerchantUid(): Promise<void> {
+  if (!selectedMerchantId.value) return
+  try {
+    await navigator.clipboard.writeText(selectedMerchantId.value)
+    uidCopied.value = true
+    setTimeout(() => { uidCopied.value = false }, 2000)
+  } catch {
+    // fallback for older browsers
+    const textarea = document.createElement('textarea')
+    textarea.value = selectedMerchantId.value
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    uidCopied.value = true
+    setTimeout(() => { uidCopied.value = false }, 2000)
+  }
+}
+
 function goToUidPage(): void {
   void router.push({ name: 'merchant-uid' })
 }
@@ -155,7 +178,19 @@ watch(
       >
         <span>当前商家</span>
         <strong :title="selectedMerchantId">{{ merchantLabel(selectedMerchantId) }}</strong>
-        <small>来自登录时输入的商铺 UID，不可切换</small>
+        <div class="merchant-uid-display">
+          <label>商铺 UID</label>
+          <code class="merchant-uid-code" :title="selectedMerchantId">{{ selectedMerchantId }}</code>
+          <button
+            class="copy-uid-btn"
+            type="button"
+            title="复制 UID"
+            @click="copyMerchantUid"
+          >
+            {{ uidCopied ? '已复制' : '复制' }}
+          </button>
+        </div>
+        <small>请妥善保管您的商铺 UID，下次登录时需要输入</small>
         <button
           class="reenter-uid-btn"
           type="button"
@@ -213,6 +248,11 @@ watch(
 .merchant-switcher strong { overflow: hidden; color: #392d26; font-size: 1rem; text-overflow: ellipsis; }
 .merchant-switcher small { color: #88776c; font-size: .66rem; line-height: 1.5; }
 .reenter-uid-btn { border: 1px solid #d9ccc1; border-radius: 9px; padding: 6px 10px; background: transparent; color: #695b51; cursor: pointer; font-size: .72rem; font-weight: 700; transition: background .2s ease; }
+.merchant-uid-display { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #f9f4ef; border: 1px solid #e8ddd4; border-radius: 8px; }
+.merchant-uid-display label { color: #88776c; font-size: .66rem; font-weight: 700; white-space: nowrap; margin: 0; }
+.merchant-uid-code { flex: 1; font-family: 'Courier New', Courier, monospace; font-size: .72rem; color: #392d26; word-break: break-all; line-height: 1.4; }
+.copy-uid-btn { border: 1px solid #d9ccc1; border-radius: 6px; padding: 3px 8px; background: #fff; color: #695b51; cursor: pointer; font-size: .66rem; font-weight: 600; white-space: nowrap; transition: background .2s ease; }
+.copy-uid-btn:hover { background: #f5ede6; }
 .reenter-uid-btn:hover { background: #f5ede6; }
 .access-state { border: 1px dashed #dfb7af; border-radius: 16px; padding: 46px 24px; background: #fff6f3; color: #8e3328; text-align: center; }
 .access-state strong { font-size: 1.08rem; }
