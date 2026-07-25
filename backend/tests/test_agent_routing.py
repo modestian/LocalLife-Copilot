@@ -71,7 +71,12 @@ def test_follow_up_merges_retained_constraints_and_routes_to_retrieval() -> None
     assert route_after_constraints(follow_up_state) == "hybrid_retrieve"
 
 
-def test_constraint_extractor_ignores_constraints_from_assistant_history() -> None:
+def test_constraint_extractor_merges_existing_constraints_from_history() -> None:
+    """
+    Even when history_summary contains [探店条件] blocks, the extractor should
+    merge existing (retained) constraints first,then overlay history-extracted
+    constraints, and finally the current query's patch on top.
+    """
     constraints = ConstraintExtractor().extract(
         "清河面馆",
         existing=ChatConstraints(cuisines=("咖啡",), atmospheres=("安静",)),
@@ -91,6 +96,7 @@ def test_constraint_extractor_ignores_constraints_from_assistant_history() -> No
         party_size=2,
         open_now=True,
         cuisines=("面食",),
+        atmospheres=("安静",),
     )
 
 

@@ -18,6 +18,7 @@ class ChatState(TypedDict):
 
     conversation_id: str
     user_query: str
+    scene: NotRequired[str]
     history_summary: NotRequired[str]
     intent: NotRequired[ChatIntent]
     constraints: NotRequired[ChatConstraints]
@@ -31,6 +32,7 @@ class ChatState(TypedDict):
 class StateField(StrEnum):
     CONVERSATION_ID = "conversation_id"
     USER_QUERY = "user_query"
+    SCENE = "scene"
     HISTORY_SUMMARY = "history_summary"
     INTENT = "intent"
     CONSTRAINTS = "constraints"
