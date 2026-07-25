@@ -53,6 +53,12 @@ const rollback = reactive({
   environment: 'staging',
   reason: '',
 })
+const register = reactive({
+  code: '',
+  name: '',
+  version: '',
+  provider: 'local-lora',
+})
 const datasetDraft = reactive({
   name: 'sentiment-feedback-dataset',
   taskType: 'sentiment_classification',
@@ -198,15 +204,14 @@ async function createDataset(): Promise<void> {
   busy.value = true
   clearNotice()
   try {
-    const ratings = datasetDraft.rating === 'all'
-      ? undefined
-      : [datasetDraft.rating === 'positive' ? 1 : -1] as Array<-1 | 1>
+    const ratingValue = datasetDraft.rating === 'all' ? null
+      : (datasetDraft.rating === 'positive' ? 1 : -1) as 1 | -1 | null
     selectedDataset.value = await props.api.createDataset({
       name: datasetDraft.name.trim(),
       task_type: datasetDraft.taskType.trim(),
-      filters: {
-        ...(ratings ? { ratings } : {}),
-        reviewed_only: true,
+      filter: {
+        ...(ratingValue !== null ? { rating: ratingValue } : {}),
+        review_status: 'APPROVED',
       },
       split_config: {
         train_percent: datasetDraft.trainPercent,
@@ -305,10 +310,19 @@ async function evaluateJob(): Promise<void> {
 
 async function registerModel(): Promise<void> {
   if (!selectedJob.value || !canRegisterModel.value) return
+  if (!register.code.trim() || !register.name.trim() || !register.version.trim()) {
+    notify('请填写模型代号、名称和版本号。', 'warning')
+    return
+  }
   busy.value = true
   clearNotice()
   try {
-    const model = await props.api.registerModel(selectedJob.value.id)
+    const model = await props.api.registerModel(selectedJob.value.id, {
+      code: register.code.trim(),
+      name: register.name.trim(),
+      version: register.version.trim(),
+      provider: register.provider.trim() || 'local-lora',
+    })
     models.value = [...models.value.filter((item) => item.id !== model.id), model]
     selectedModelId.value = model.id
     notify('模型已登记；登记状态不等于审批通过，尚不可部署。', 'success')
@@ -660,6 +674,51 @@ function metricEntries(metrics?: Record<string, number | string | null> | null):
             >
             已核验基线/LoRA 同集指标、负面召回与人工抽检结论。
           </label>
+          <div
+            v-if="canRegisterModel"
+            class="model-lifecycle__register-form"
+          >
+            <label>
+              模型代号
+              <input
+                v-model="register.code"
+                type="text"
+                maxlength="64"
+                placeholder="例如 sentiment-v1"
+                :disabled="busy"
+              >
+            </label>
+            <label>
+              模型名称
+              <input
+                v-model="register.name"
+                type="text"
+                maxlength="128"
+                placeholder="例如 情感分类微调模型"
+                :disabled="busy"
+              >
+            </label>
+            <label>
+              版本号
+              <input
+                v-model="register.version"
+                type="text"
+                maxlength="64"
+                placeholder="例如 1.0.0"
+                :disabled="busy"
+              >
+            </label>
+            <label>
+              推理提供方
+              <input
+                v-model="register.provider"
+                type="text"
+                maxlength="64"
+                placeholder="local-lora"
+                :disabled="busy"
+              >
+            </label>
+          </div>
           <button
             type="button"
             :disabled="busy || !canRegisterModel"
