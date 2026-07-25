@@ -84,6 +84,7 @@ export const useAuthStore = defineStore('auth', () => {
     session.value = null
     currentUser.value = null
     initialized.value = true
+    localStorage.removeItem('local-life-copilot.merchant-uid')
   }
 
   return {

@@ -2,7 +2,7 @@ import type { RouteLocationRaw } from 'vue-router'
 
 import type { CurrentUser } from '@/types/auth'
 
-export type WorkbenchRouteName = 'user-home' | 'merchant-home' | 'admin-home'
+export type WorkbenchRouteName = 'user-home' | 'merchant-uid' | 'merchant-home' | 'admin-home'
 
 const adminRoles = new Set(['PLATFORM_ADMIN', 'KB_ADMIN', 'OPS_ADMIN', 'MODEL_ADMIN'])
 const merchantRoles = new Set(['MERCHANT_ADMIN', 'MERCHANT_OPERATOR'])
@@ -10,7 +10,7 @@ const merchantRoles = new Set(['MERCHANT_ADMIN', 'MERCHANT_OPERATOR'])
 export function resolveWorkbenchRouteName(user: CurrentUser): WorkbenchRouteName {
   const roles = new Set(user.roles.map((role) => role.code.trim().toUpperCase()))
   if ([...roles].some((role) => adminRoles.has(role))) return 'admin-home'
-  if ([...roles].some((role) => merchantRoles.has(role))) return 'merchant-home'
+  if ([...roles].some((role) => merchantRoles.has(role))) return 'merchant-uid'
   return 'user-home'
 }
 
