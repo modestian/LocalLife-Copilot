@@ -75,7 +75,7 @@ async function installAuthentication(page: Page, role: DemoRole): Promise<void> 
 
 const knowledgeBase = {
   id: knowledgeBaseId,
-  name: 'ST-702 探店演示知识库',
+  name: '探店知识库',
   description: '用于确定性验收的商家资料。',
   department_id: '70200000-0000-4000-8000-000000000001',
   department_name: 'ST-702 演示租户',
