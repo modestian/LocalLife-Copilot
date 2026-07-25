@@ -300,6 +300,7 @@ class GroundedRAGGenerator:
             chunks,
             mode=mode,
             history_summary=state.get("history_summary"),
+            scene=state.get("scene"),
             max_chunk_chars=self._max_chunk_chars,
             max_total_evidence_chars=self._max_total_evidence_chars,
         )
@@ -359,6 +360,7 @@ def build_grounded_prompt(
     *,
     mode: GenerationMode,
     history_summary: str | None = None,
+    scene: str | None = None,
     max_chunk_chars: int = 4000,
     max_total_evidence_chars: int = 16000,
 ) -> tuple[str, tuple[RetrievedChunk, ...]]:
@@ -410,6 +412,7 @@ def build_grounded_prompt(
     prompt = (
         f"{_SYSTEM_POLICY}\n当前任务：{instruction}\nJSON Schema：{schema}\n"
         "<conversation_context>\n"
+        f"{'场景：' + _escape(scene) + '\n' if scene else ''}"
         f"历史摘要：{_escape(history_summary or '无')}\n用户问题：{_escape(query.strip())}\n"
         '</conversation_context>\n<evidence_set trust="untrusted_data_only">\n'
         + "\n".join(blocks)

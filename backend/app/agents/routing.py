@@ -565,12 +565,14 @@ class ConstraintExtractor:
     ) -> ChatConstraints:
         user_history = _user_constraint_history(history_summary)
         result = ChatConstraints()
+        # Always merge retained constraints first so cross-turn
+        # accumulation (e.g. cuisines + later budget) works correctly.
+        if existing is not None:
+            result = merge_constraints(result, existing)
         if user_history:
             result = merge_constraints(result, _rule_based_constraints(user_history))
-        elif existing is not None:
-            result = merge_constraints(result, existing)
         patch = _rule_based_constraints(query)
-        if model_patch := self._predict(query, user_history):
+        if model_patch := self._predict(query, history_summary):
             patch = merge_constraints(patch, model_patch.to_constraints())
         return merge_constraints(result, patch)
 

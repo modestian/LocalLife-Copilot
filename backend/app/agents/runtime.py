@@ -217,6 +217,9 @@ class ChatAgentRuntime:
         constraints = _constraints_from_settings(window.conversation.settings)
         if constraints is not None:
             update["constraints"] = constraints
+        scenario = window.conversation.settings.get("scenario")
+        if isinstance(scenario, str) and scenario.strip():
+            update["scene"] = scenario.strip()
         return update
 
     def _route_intent(

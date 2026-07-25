@@ -139,13 +139,13 @@ describe('ConversationWorkspace', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(api.createConversation).toHaveBeenCalledWith(expect.objectContaining({
+    expect(api.createConversation).toHaveBeenCalledWith({
       scenario: 'study',
-      constraints: expect.objectContaining({ budget_yuan: 60, cuisine: '咖啡' }),
-    }))
+      title: '找一家适合学习办公、安静且方便久坐的店',
+    })
     expect(stream.send).toHaveBeenCalledWith(
       'conversation-new',
-      expect.stringContaining('场景：学习办公；预算：人均 60 元以内；菜系/品类：咖啡'),
+      '找一家适合学习办公、安静且方便久坐的店',
       ['kb-study'],
     )
     expect(wrapper.text()).toContain('适合学习办公')
@@ -205,12 +205,7 @@ describe('ConversationWorkspace', () => {
 
     expect(api.createConversation).toHaveBeenCalledOnce()
     expect(stream.send).toHaveBeenNthCalledWith(1, 'conversation-new', '你好', [])
-    expect(stream.send).toHaveBeenNthCalledWith(
-      2,
-      'conversation-new',
-      expect.stringContaining('清河面馆\n\n[探店条件] 场景：附近随便吃'),
-      [],
-    )
+    expect(stream.send).toHaveBeenNthCalledWith(2, 'conversation-new', '清河面馆', [])
     expect(stream.send).toHaveBeenNthCalledWith(3, 'conversation-new', '乃龙', [])
   })
 
