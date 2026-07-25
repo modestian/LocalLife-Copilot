@@ -238,6 +238,7 @@ class TestListMyReviews:
             ),
         ]
         repo.list_user_reviews.return_value = (fake_reviews, 2)
+        repo.get_replies_for_reviews.return_value = {}
         token = tokens.issue(principal.user_id).value
 
         with TestClient(app) as client:
