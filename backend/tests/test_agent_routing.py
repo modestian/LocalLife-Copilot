@@ -183,3 +183,25 @@ def test_conditional_intent_routes_match_graph_design() -> None:
     assert (
         route_after_intent({**base, "intent": ChatIntent.KNOWLEDGE_QUERY}) == "extract_constraints"
     )
+
+
+def test_beverage_intent_patterns_route_to_knowledge_query() -> None:
+    router = IntentRouter()
+
+    # Intent verbs: want-to-drink patterns
+    assert router.classify("\u6211\u60f3\u559d\u5976\u8336") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("\u60f3\u559d\u70b9\u4ec0\u4e48") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("\u60f3\u996e\u4e00\u676f\u5496\u5561") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("\u559d\u4ec0\u4e48\u6bd4\u8f83\u597d") is ChatIntent.KNOWLEDGE_QUERY
+
+    # Category nouns (bare entity fallback)
+    assert router.classify("\u996e\u54c1") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("\u996e\u6599") is ChatIntent.KNOWLEDGE_QUERY
+    assert (
+        router.classify("\u9644\u8fd1\u6709\u4ec0\u4e48\u996e\u54c1\u5e97")
+        is ChatIntent.KNOWLEDGE_QUERY
+    )
+
+    # Still general chat for unrelated input
+    assert router.classify("\u4f60\u597d") is ChatIntent.GENERAL_CHAT
+    assert router.classify("\u4eca\u5929\u5929\u6c14\u600e\u4e48\u6837") is ChatIntent.GENERAL_CHAT
