@@ -9,6 +9,7 @@ import type { AnalyticsReview } from '@/types/merchant-analytics'
 import type {
   BusinessSuggestionResult,
   MerchantComparisonResult,
+  MerchantReply,
   ReplySuggestionResult,
   ReplyTone,
 } from '@/types/merchant-insights'
@@ -42,7 +43,10 @@ const replySuggestion = ref<ReplySuggestionResult | null>(null)
 const editableReply = ref('')
 const replyLoading = ref(false)
 const replyError = ref('')
-const copyMessage = ref('')
+const replySubmitting = ref(false)
+const replySubmitMessage = ref('')
+const replySubmitError = ref('')
+const existingReplies = ref<MerchantReply[]>([])
 
 const suggestionStartDate = ref('')
 const suggestionEndDate = ref('')
@@ -184,7 +188,8 @@ async function loadReviews(): Promise<void> {
 
 async function generateReply(): Promise<void> {
   replyError.value = ''
-  copyMessage.value = ''
+  replySubmitMessage.value = ''
+  replySubmitError.value = ''
   if (!selectedReview.value) {
     replyError.value = '请先选择一条原点评。'
     return
@@ -204,15 +209,42 @@ async function generateReply(): Promise<void> {
   }
 }
 
-async function copyReply(): Promise<void> {
-  copyMessage.value = ''
-  if (!editableReply.value.trim()) return
+async function submitReply(): Promise<void> {
+  replySubmitMessage.value = ''
+  replySubmitError.value = ''
+  const content = editableReply.value.trim()
+  if (!content) {
+    replySubmitError.value = '回复内容不能为空。'
+    return
+  }
+  if (!selectedReview.value) {
+    replySubmitError.value = '请先选择一条原点评。'
+    return
+  }
+  replySubmitting.value = true
   try {
-    if (!navigator.clipboard) throw new Error('Clipboard unavailable')
-    await navigator.clipboard.writeText(editableReply.value)
-    copyMessage.value = '已复制回复草稿，请在发布前人工确认。'
+    const source = replySuggestion.value ? 'SUGGESTION' : 'MANUAL'
+    await merchantInsightsApi.submitReply(selectedReview.value.id, {
+      content,
+      tone: replyTone.value,
+      source,
+    })
+    replySubmitMessage.value = '回复已提交，审核通过后将对用户展示。'
+    await loadReplies()
+  } catch (error) {
+    replySubmitError.value = getUserFacingError(error, '回复提交失败，请稍后重试')
+  } finally {
+    replySubmitting.value = false
+  }
+}
+
+async function loadReplies(): Promise<void> {
+  if (!selectedReviewId.value) return
+  try {
+    const result = await merchantInsightsApi.getReplies(selectedReviewId.value)
+    existingReplies.value = result.items
   } catch {
-    copyMessage.value = '当前浏览器不支持复制，请手动复制草稿内容。'
+    existingReplies.value = []
   }
 }
 
@@ -251,7 +283,16 @@ watch(() => props.merchantId, () => {
   replySuggestion.value = null
   editableReply.value = ''
   businessSuggestions.value = null
+  existingReplies.value = []
   void loadReviews()
+})
+
+watch(selectedReviewId, () => {
+  replySuggestion.value = null
+  editableReply.value = ''
+  replySubmitMessage.value = ''
+  replySubmitError.value = ''
+  void loadReplies()
 })
 
 onMounted(() => {
@@ -388,11 +429,11 @@ onMounted(() => {
 
     <article class="insight-card reply-card">
       <header>
-        <div><span class="eyebrow">REPLY DRAFT</span><h2>回复建议</h2></div>
-        <small>草稿可编辑、可复制，不会自动发布</small>
+        <div><span class="eyebrow">REPLY</span><h2>回复建议</h2></div>
+        <small>使用AI建议或手动输入，提交后立即发布</small>
       </header>
       <p class="card-intro">
-        建议基于指定原点评和已识别特征生成；禁止承诺虚构补偿、联系方式或未完成整改。
+        建议基于指定原点评和已识别特征生成；禁止承诺虚构补偿、联系方式或未完成整改。可直接使用AI建议或手动输入后提交。
       </p>
       <div class="reply-controls">
         <label><span>选择原点评</span><select
@@ -441,20 +482,86 @@ onMounted(() => {
         /></label>
         <div class="draft-actions">
           <button
+            class="primary-button"
             type="button"
-            @click="copyReply"
+            :disabled="replySubmitting"
+            @click="submitReply"
           >
-            复制草稿
+            {{ replySubmitting ? '提交中…' : '提交回复' }}
           </button><small>模型 {{ replySuggestion.model_version }} · Prompt {{ replySuggestion.prompt_version }} · {{ formatDate(replySuggestion.generated_at) }}</small>
         </div>
         <p
-          v-if="copyMessage"
-          class="copy-message"
+          v-if="replySubmitMessage"
+          class="submit-message"
           role="status"
         >
-          {{ copyMessage }}
+          {{ replySubmitMessage }}
+        </p>
+        <p
+          v-if="replySubmitError"
+          class="state-message is-error"
+          role="alert"
+        >
+          {{ replySubmitError }}
         </p>
       </template>
+      <!-- Manual reply input (no AI suggestion needed) -->
+      <template v-else-if="selectedReview">
+        <label class="draft-editor"><span>自定义回复内容</span><textarea
+          v-model="editableReply"
+          rows="6"
+          placeholder="请输入回复内容，或先生成AI回复建议…"
+          data-testid="reply-draft"
+        /></label>
+        <div class="draft-actions">
+          <button
+            class="primary-button"
+            type="button"
+            :disabled="replySubmitting"
+            @click="submitReply"
+          >
+            {{ replySubmitting ? '提交中…' : '提交回复' }}
+          </button>
+        </div>
+        <p
+          v-if="replySubmitMessage"
+          class="submit-message"
+          role="status"
+        >
+          {{ replySubmitMessage }}
+        </p>
+        <p
+          v-if="replySubmitError"
+          class="state-message is-error"
+          role="alert"
+        >
+          {{ replySubmitError }}
+        </p>
+      </template>
+      <!-- Existing replies -->
+      <section
+        v-if="existingReplies.length"
+        class="existing-replies"
+      >
+        <h3>我的回复（{{ existingReplies.length }}）</h3>
+        <article
+          v-for="reply in existingReplies"
+          :key="reply.id"
+        >
+          <div class="reply-meta">
+            <span>{{ reply.tone === 'EMPATHETIC' ? '真诚共情' : reply.tone === 'PROFESSIONAL' ? '专业克制' : '简洁直接' }}</span>
+            <span>{{ reply.source === 'SUGGESTION' ? 'AI建议' : '手动输入' }}</span>
+            <el-tag
+              :type="reply.status === 'PUBLISHED' ? 'success' : reply.status === 'REJECTED' ? 'danger' : 'warning'"
+              size="small"
+            >
+              {{ reply.status === 'PUBLISHED' ? '已通过' : reply.status === 'REJECTED' ? '已拒绝' : '待审核' }}
+            </el-tag>
+            <time>{{ formatDate(reply.created_at) }}</time>
+          </div>
+          <p>{{ reply.content }}</p>
+        </article>
+      </section>
     </article>
 
     <article class="insight-card suggestion-card">
@@ -548,7 +655,7 @@ onMounted(() => {
 .compare-form label:first-child button, .draft-actions button { border: 1px solid #d9ccc1; border-radius: 9px; padding: 8px 11px; background: #fffdfa; color: #6c5042; cursor: pointer; font-weight: 800; }.primary-button { min-height: 39px; border: 1px solid var(--brand); border-radius: 9px; padding: 8px 13px; background: var(--brand); color: white; cursor: pointer; font-weight: 800; }.primary-button:disabled { cursor: wait; opacity: .58; }.compare-form > .primary-button { grid-column: 1 / -1; }
 .competitor-chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; min-height: 26px; color: #88776c; font-size: .72rem; }.competitor-chips button { border: 0; border-radius: 999px; padding: 5px 8px; background: #f1e6d8; color: #6c5042; cursor: pointer; font-size: .68rem; font-weight: 800; }.form-error, .state-message { margin: 0; border-radius: 9px; padding: 10px 12px; font-size: .75rem; }.form-error, .state-message.is-error { background: #fff0ed; color: #a4362b; }.state-message.is-warning { background: #fff8e6; color: #775f3d; }.compare-form .form-error { grid-column: 1 / -1; }
 .comparison-meta { display: flex; flex-wrap: wrap; gap: 6px 15px; margin: 16px 0 9px; color: #7a6a60; font-size: .67rem; }.comparison-table { overflow: auto; border: 1px solid #e0d4c9; border-radius: 10px; }.comparison-row { display: grid; grid-template-columns: minmax(110px, 1.2fr) 50px 60px minmax(180px, 2fr); gap: 10px; align-items: center; border-top: 1px solid #eadfd5; padding: 10px; color: #4b3b32; font-size: .7rem; }.comparison-row:first-child { border-top: 0; }.comparison-head { background: #f5eee6; color: #79695e; font-size: .64rem; font-weight: 800; }.comparison-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.comparison-row small { color: #8a786d; font-size: .64rem; }
-.reply-controls { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }.selected-review { margin: 15px 0; border-left: 3px solid #d98a4f; padding: 9px 12px; background: #fff9f3; }.selected-review span, .selected-review small { color: #806f64; font-size: .67rem; }.selected-review p { margin: 7px 0; color: #493a31; font-size: .78rem; line-height: 1.65; }.draft-actions { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-top: 10px; }.draft-actions small, .copy-message, .trace-meta { color: #7b6d63; font-size: .67rem; }.copy-message { margin: 9px 0 0; color: #2c704b; }
+.reply-controls { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }.selected-review { margin: 15px 0; border-left: 3px solid #d98a4f; padding: 9px 12px; background: #fff9f3; }.selected-review span, .selected-review small { color: #806f64; font-size: .67rem; }.selected-review p { margin: 7px 0; color: #493a31; font-size: .78rem; line-height: 1.65; }.draft-actions { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-top: 10px; }.draft-actions small, .copy-message, .trace-meta, .submit-message { color: #7b6d63; font-size: .67rem; }.copy-message, .submit-message { margin: 9px 0 0; color: #2c704b; }
 .suggestion-form { grid-template-columns: 1fr 1fr auto; align-items: end; }.suggestion-form .is-wide { grid-column: 1 / 3; }.suggestion-detail { margin-top: 12px; border: 1px solid #e0d4c9; border-radius: 11px; padding: 0 14px; background: #fffdfa; }.suggestion-detail summary { display: flex; justify-content: space-between; gap: 14px; padding: 14px 0; cursor: pointer; color: #493a31; font-size: .82rem; font-weight: 800; }.suggestion-detail summary small { color: #806226; font-size: .67rem; }.suggestion-detail > p { margin: 0 0 10px; color: #5e4d43; font-size: .78rem; line-height: 1.7; }.suggestion-period { color: #8a786d; font-size: .66rem; }.evidence-list { display: grid; gap: 8px; margin: 13px 0; border-top: 1px solid #eadfd5; padding-top: 12px; }.evidence-list > strong { color: #695b51; font-size: .72rem; }.evidence-list article { border-left: 2px solid #ddc4af; padding-left: 9px; }.evidence-list article span { color: #8a786d; font-size: .64rem; }.evidence-list article p { margin: 4px 0 0; color: #5a493e; font-size: .72rem; line-height: 1.55; }.trace-meta { display: block; margin-top: 12px; }
 .date-wrap { position: relative; display: block; }
 .date-wrap input[type="date"] { width: 100%; }
@@ -559,6 +666,7 @@ onMounted(() => {
 .date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-day-field,
 .date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-text { color: transparent !important; }
 .date-wrap.is-empty::after { content: '请用日历选择日期'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #999; pointer-events: none; font-size: .78rem; }
+.existing-replies { margin-top: 20px; border-top: 1px solid #eadfd5; padding-top: 16px; }.existing-replies h3 { margin: 0 0 12px; color: #493a31; font-size: .82rem; }.existing-replies article { margin-bottom: 12px; border: 1px solid #e0d4c9; border-radius: 10px; padding: 12px; background: #f9f5ef; }.reply-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; color: #8a786d; font-size: .64rem; }.reply-meta span:first-child { font-weight: 800; color: #695b51; }.existing-replies article p { margin: 0; color: #5a493e; font-size: .78rem; line-height: 1.6; }
 @media (max-width: 850px) { .insight-workbench { grid-template-columns: 1fr; }.suggestion-card { grid-column: auto; }.reply-controls, .suggestion-form { grid-template-columns: 1fr 1fr; }.reply-controls .primary-button, .suggestion-form .primary-button { grid-column: 1 / -1; }.suggestion-form .is-wide { grid-column: 1 / -1; } }
 @media (max-width: 520px) { .insight-card { padding: 17px; }.insight-card > header { align-items: flex-start; flex-direction: column; }.insight-card header small { text-align: left; }.compare-form, .reply-controls, .suggestion-form { grid-template-columns: 1fr; }.compare-form label:first-child { grid-template-columns: 1fr; }.compare-form .primary-button, .reply-controls .primary-button, .suggestion-form .primary-button, .suggestion-form .is-wide { grid-column: auto; }.comparison-row { grid-template-columns: 92px 42px 52px minmax(140px, 1fr); gap: 7px; padding: 9px 7px; }.draft-actions { align-items: flex-start; flex-direction: column; } }
 </style>

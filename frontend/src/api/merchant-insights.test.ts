@@ -53,4 +53,27 @@ describe('merchant insights API', () => {
       },
     })
   })
+
+  it('posts reply-submit and retrieves existing replies', async () => {
+    await merchantInsightsApi.submitReply('review/id', {
+      content: '感谢您的评价，我们会继续努力！',
+      tone: 'PROFESSIONAL',
+      source: 'MANUAL',
+    })
+    await merchantInsightsApi.getReplies('review/id')
+
+    expect(requestData).toHaveBeenNthCalledWith(1, {
+      method: 'POST',
+      url: '/api/v1/reviews/review%2Fid/replies',
+      data: {
+        content: '感谢您的评价，我们会继续努力！',
+        tone: 'PROFESSIONAL',
+        source: 'MANUAL',
+      },
+    })
+    expect(requestData).toHaveBeenNthCalledWith(2, {
+      method: 'GET',
+      url: '/api/v1/reviews/review%2Fid/replies',
+    })
+  })
 })

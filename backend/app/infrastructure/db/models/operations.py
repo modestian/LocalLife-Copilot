@@ -126,6 +126,51 @@ class Review(TimestampMixin, VersionMixin, Base):
     tags_json: Mapped[list[str] | None] = mapped_column(JSON_TYPE, nullable=True)
 
 
+class MerchantReply(TimestampMixin, Base):
+    """商家对点评的回复记录。"""
+
+    __tablename__ = "merchant_replies"
+    __table_args__ = (
+        CheckConstraint(
+            "source IN ('SUGGESTION', 'MANUAL')",
+            name="source",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING', 'PUBLISHED', 'REJECTED')",
+            name="status",
+        ),
+        Index("ix_merchant_replies_review", "review_id"),
+        Index("ix_merchant_replies_merchant", "merchant_id"),
+        Index("ix_merchant_replies_status", "status"),
+        MYSQL_TABLE_OPTIONS,
+    )
+
+    id: Mapped[UUID] = mapped_column(UUIDBinary(), primary_key=True, default=uuid7)
+    review_id: Mapped[UUID] = mapped_column(
+        UUIDBinary(),
+        nullable=False,
+        comment="Logical reference to reviews.id or review_analyses.id",
+    )
+    merchant_id: Mapped[str] = mapped_column(
+        String(128),
+        nullable=False,
+        comment="Matches ReviewAnalysis.merchant_id or merchants.id",
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    tone: Mapped[str] = mapped_column(String(16), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="MANUAL", server_default="MANUAL"
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="PENDING", server_default="PENDING"
+    )
+    created_by: Mapped[UUID] = mapped_column(
+        UUIDBinary(),
+        ForeignKey("users.id", name="fk_merchant_replies_creator"),
+        nullable=False,
+    )
+
+
 class FineTuningJob(TimestampMixin, Base):
     __tablename__ = "fine_tuning_jobs"
     __table_args__ = (

@@ -15,7 +15,13 @@ from app.infrastructure.db.base import utc_now
 from app.infrastructure.db.models.conversations import Conversation, Message, MessageSource
 from app.infrastructure.db.models.feedback import Dataset, Feedback
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion, KnowledgeBase
-from app.infrastructure.db.models.operations import DataSource, FineTuningJob, Merchant, Review
+from app.infrastructure.db.models.operations import (
+    DataSource,
+    FineTuningJob,
+    Merchant,
+    MerchantReply,
+    Review,
+)
 from app.infrastructure.db.models.sentiment import ReviewAnalysis
 from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
 
@@ -918,11 +924,16 @@ class OperationsRepository:
         aspect_labels: list[str],
         negative_reasons: list[str],
         review_date: datetime | None,
+        analysis_id: UUID | None = None,
     ) -> ReviewAnalysis:
-        """Persist sentiment analysis result for a user-submitted review."""
+        """Persist sentiment analysis result for a user-submitted review.
+
+        analysis_id lets callers reuse the original reviews.id so both tables
+        share the same identifier (merchant replies rely on this).
+        """
         async with self._session_factory() as session, session.begin():
             analysis = ReviewAnalysis(
-                id=uuid7(),
+                id=analysis_id or uuid7(),
                 merchant_id=merchant_id,
                 review_text=review_text,
                 sentiment=sentiment,
@@ -935,6 +946,176 @@ class OperationsRepository:
             session.add(analysis)
             await session.flush()
             return analysis
+
+
+    # ------------------------------------------------------------------
+    # Merchant replies
+    # ------------------------------------------------------------------
+
+    async def get_review(self, review_id: UUID) -> Review | None:
+        async with self._session_factory() as session:
+            review = await session.get(Review, review_id)
+            if review is not None:
+                return review
+            # Also check ReviewAnalysis for ETL-imported reviews
+            analysis = await session.get(ReviewAnalysis, review_id)
+            if analysis is None:
+                return None
+            # Build a synthetic Review-like object for ETL-sourced reviews
+            return Review(
+                id=review_id,
+                merchant_id=UUID(int=0),
+                content=analysis.review_text,
+                content_hash="etl",
+                reviewed_at=analysis.review_date or utc_now(),
+                source_type="ETL",
+                status="PUBLISHED",
+            )
+
+    async def resolve_merchant_id(self, review_id: UUID) -> str | None:
+        """Return the merchant_id string for a review, checking both tables."""
+        async with self._session_factory() as session:
+            review = await session.get(Review, review_id)
+            if review is not None:
+                return str(review.merchant_id)
+            analysis = await session.get(ReviewAnalysis, review_id)
+            if analysis is not None:
+                return analysis.merchant_id
+            return None
+
+    async def _canonical_review_id(self, session: AsyncSession, review_id: UUID) -> UUID:
+        """Map a review_analyses id to its matching reviews.id when possible.
+
+        User reviews get a second row in review_analyses (different id) after
+        moderation; replies must be keyed on the reviews.id so both the user
+        side and the merchant workbench resolve them consistently.
+        """
+        review = await session.get(Review, review_id)
+        if review is not None:
+            return review_id
+        analysis = await session.get(ReviewAnalysis, review_id)
+        if analysis is None or not analysis.merchant_id:
+            return review_id
+        try:
+            merchant_uuid = UUID(analysis.merchant_id)
+        except ValueError:
+            return review_id
+        match = await session.scalar(
+            select(Review.id)
+            .where(
+                Review.merchant_id == merchant_uuid,
+                Review.content == analysis.review_text,
+            )
+            .order_by(Review.created_at.asc())
+            .limit(1)
+        )
+        return match or review_id
+
+    async def create_reply(
+        self,
+        *,
+        review_id: UUID,
+        merchant_id: str,
+        content: str,
+        tone: str,
+        source: str,
+        created_by: UUID,
+    ) -> MerchantReply:
+        async with self._session_factory() as session, session.begin():
+            canonical_id = await self._canonical_review_id(session, review_id)
+            reply = MerchantReply(
+                id=uuid7(),
+                review_id=canonical_id,
+                merchant_id=merchant_id,
+                content=content,
+                tone=tone,
+                source=source,
+                created_by=created_by,
+            )
+            session.add(reply)
+            await session.flush()
+            return reply
+
+    async def get_replies_for_review(
+        self,
+        review_id: UUID,
+    ) -> list[MerchantReply]:
+        async with self._session_factory() as session:
+            canonical_id = await self._canonical_review_id(session, review_id)
+            target_ids = {review_id, canonical_id}
+            rows = (
+                await session.scalars(
+                    select(MerchantReply)
+                    .where(MerchantReply.review_id.in_(target_ids))
+                    .order_by(MerchantReply.created_at.desc())
+                )
+            ).all()
+            return list(rows)
+
+    async def get_replies_for_reviews(
+        self,
+        review_ids: list[UUID],
+    ) -> dict[UUID, list[MerchantReply]]:
+        """Batch-load published merchant replies for multiple reviews at once."""
+        if not review_ids:
+            return {}
+        async with self._session_factory() as session:
+            rows = (
+                await session.scalars(
+                    select(MerchantReply)
+                    .where(
+                        MerchantReply.review_id.in_(review_ids),
+                        MerchantReply.status == "PUBLISHED",
+                    )
+                    .order_by(MerchantReply.created_at.asc())
+                )
+            ).all()
+        grouped: dict[UUID, list[MerchantReply]] = {}
+        for row in rows:
+            grouped.setdefault(row.review_id, []).append(row)
+        return grouped
+
+    async def list_pending_replies(
+        self,
+        *,
+        status: str = "PENDING",
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[MerchantReply], int]:
+        """List merchant replies by status for admin moderation."""
+        async with self._session_factory() as session:
+            base = select(MerchantReply).where(MerchantReply.status == status)
+            total = int(
+                await session.scalar(select(func.count()).select_from(base.subquery())) or 0
+            )
+            rows = list(
+                (
+                    await session.scalars(
+                        base.order_by(MerchantReply.created_at.asc()).limit(limit).offset(offset)
+                    )
+                ).all()
+            )
+        return rows, total
+
+    async def moderate_merchant_reply(
+        self,
+        reply_id: UUID,
+        *,
+        decision: str,
+        reason: str,
+        moderator_id: UUID,
+    ) -> MerchantReply:
+        async with self._session_factory() as session, session.begin():
+            reply = await session.scalar(
+                select(MerchantReply).where(MerchantReply.id == reply_id).with_for_update()
+            )
+            if reply is None:
+                raise LookupError("reply not found")
+            if reply.status != "PENDING":
+                raise ValueError(f"reply is not pending, current status: {reply.status}")
+            reply.status = "PUBLISHED" if decision == "APPROVE" else "REJECTED"
+            await session.flush()
+            return reply
 
 
 def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

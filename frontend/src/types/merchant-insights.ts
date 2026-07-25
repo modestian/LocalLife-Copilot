@@ -69,3 +69,21 @@ export interface BusinessSuggestionResult {
   prompt_version: string
   generated_at: string
 }
+
+export interface ReplySubmitRequest {
+  content: string
+  tone: ReplyTone
+  source: 'SUGGESTION' | 'MANUAL'
+}
+
+export interface MerchantReply {
+  id: string
+  review_id: string
+  merchant_id: string
+  content: string
+  tone: ReplyTone
+  source: 'SUGGESTION' | 'MANUAL'
+  status: 'PENDING' | 'PUBLISHED' | 'REJECTED'
+  created_at: string
+  updated_at: string
+}

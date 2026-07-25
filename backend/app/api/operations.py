@@ -195,6 +195,8 @@ async def _analyze_approved_review(request: Request, review: object) -> None:
             aspect_labels=result.get("aspect_labels", []),
             negative_reasons=result.get("negative_reason", []),
             review_date=reviewed_at,
+            # Reuse reviews.id so merchant replies keyed on either table match
+            analysis_id=getattr(review, "id", None),
         )
         logger.info("Sentiment analysis completed for review %s", getattr(review, "id", ""))
     except Exception:
@@ -491,6 +493,9 @@ async def list_my_reviews(
     rows, total = await _repository(request).list_user_reviews(
         principal.user_id, limit=page_size, offset=(page - 1) * page_size
     )
+    replies_by_review = await _repository(request).get_replies_for_reviews(
+        [row.id for row in rows]
+    )
     return success_response(
         request,
         {
@@ -502,6 +507,14 @@ async def list_my_reviews(
                     "rating": float(row.rating) if row.rating is not None else None,
                     "status": row.status,
                     "created_at": row.created_at.isoformat(),
+                    "replies": [
+                        {
+                            "id": str(reply.id),
+                            "content": reply.content,
+                            "created_at": reply.created_at.isoformat(),
+                        }
+                        for reply in replies_by_review.get(row.id, [])
+                    ],
                 }
                 for row in rows
             ],
@@ -580,6 +593,77 @@ async def moderate_user_review(
         {
             "id": str(review.id),
             "status": review.status,
+            "moderated_by": str(principal.user_id),
+        },
+        message="审核完成",
+    )
+
+
+@router.get("/merchant-replies/pending")
+async def list_pending_merchant_replies(
+    request: Request,
+    principal: CurrentPrincipal,
+    status: Literal["PENDING", "PUBLISHED", "REJECTED"] = "PENDING",
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> dict[str, Any]:
+    """Admin: list merchant replies by status for moderation."""
+    _require_admin(principal)
+    rows, total = await _repository(request).list_pending_replies(
+        status=status,
+        limit=page_size,
+        offset=(page - 1) * page_size,
+    )
+    return success_response(
+        request,
+        {
+            "items": [
+                {
+                    "id": str(row.id),
+                    "review_id": str(row.review_id),
+                    "merchant_id": str(row.merchant_id),
+                    "content": row.content,
+                    "tone": row.tone,
+                    "source": row.source,
+                    "status": row.status,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in rows
+            ],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+        },
+    )
+
+
+@router.post("/merchant-replies/{reply_id}/moderate")
+async def moderate_merchant_reply(
+    request: Request,
+    reply_id: UUID,
+    body: ReviewModerateDTO,
+    principal: CurrentPrincipal,
+) -> dict[str, Any]:
+    _require_admin(principal)
+    reason = body.reason
+    if not reason:
+        reason = "审核通过" if body.decision == "APPROVE" else "不符合社区规范"
+    try:
+        reply = await _repository(request).moderate_merchant_reply(
+            reply_id,
+            decision=body.decision,
+            reason=reason,
+            moderator_id=principal.user_id,
+        )
+    except LookupError as exc:
+        raise AppError(404, "NOT_FOUND", "回复不存在") from exc
+    except ValueError as exc:
+        raise AppError(422, "INVALID_STATUS_TRANSITION", str(exc)) from exc
+    return success_response(
+        request,
+        {
+            "id": str(reply.id),
+            "status": reply.status,
             "moderated_by": str(principal.user_id),
         },
         message="审核完成",
