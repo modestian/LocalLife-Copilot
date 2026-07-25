@@ -556,6 +556,9 @@ class InMemoryAnalyticsRepository:
             }
         return stats
 
+    async def get_merchant_names(self, merchant_ids: list[str]) -> dict[str, str]:
+        return {mid: f"商家{mid}" for mid in merchant_ids}
+
     async def find_review_by_id(self, review_id: UUID) -> FakeReviewAnalysis | None:
         return next((r for r in self._records if r.id == review_id), None)
 

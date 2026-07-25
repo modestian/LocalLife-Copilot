@@ -108,7 +108,6 @@ class ComparisonMerchantMetric(BaseModel):
     merchant_name: str
     sample_count: int
     positive_rate: float
-    avg_rating: float | None = None
     aspect_counts: dict[str, int]
     negative_reason_counts: dict[str, int]
 

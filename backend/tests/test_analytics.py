@@ -102,6 +102,9 @@ class InMemoryAnalyticsRepository:
 
         return [{"reason": reason, "count": count} for reason, count in counter.most_common()]
 
+    async def get_merchant_names(self, merchant_ids: list[str]) -> dict[str, str]:
+        return {mid: f"商家{mid}" for mid in merchant_ids}
+
     async def find_review_by_id(self, review_id: UUID) -> FakeReviewAnalysis | None:
         return next((r for r in self._records if r.id == review_id), None)
 
@@ -747,15 +750,15 @@ class TestCompareMerchantsService:
         for m in result["merchants"]:
             assert isinstance(m["aspect_counts"], dict)
         m001 = next(m for m in result["merchants"] if m["merchant_id"] == "M001")
-        assert "taste" in m001["aspect_counts"]
-        assert "service" in m001["aspect_counts"]
+        assert "口味" in m001["aspect_counts"]
+        assert "service" in m001["aspect_counts"]  # unmapped code stays as-is
 
     @pytest.mark.asyncio
     async def test_compare_negative_reason_alignment(self, service: AnalyticsService) -> None:
         result = await service.compare_merchants(["M001", "M002"])
         # M001 has negative reviews, M002 does not
         m001 = next(m for m in result["merchants"] if m["merchant_id"] == "M001")
-        assert "slow_wait" in m001["negative_reason_counts"]
+        assert "等待过久" in m001["negative_reason_counts"]
         m002 = next(m for m in result["merchants"] if m["merchant_id"] == "M002")
         assert len(m002["negative_reason_counts"]) == 0
 

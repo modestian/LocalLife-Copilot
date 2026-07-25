@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { merchantAnalyticsApi } from '@/api/merchant-analytics'
 import { merchantInsightsApi } from '@/api/merchant-insights'
+import { reviewsApi } from '@/api/reviews'
 
 import MerchantInsightWorkbench from './MerchantInsightWorkbench.vue'
 
@@ -12,6 +13,11 @@ vi.mock('@/api/merchant-insights', () => ({
     compare: vi.fn(),
     getReplySuggestion: vi.fn(),
     getBusinessSuggestions: vi.fn(),
+  },
+}))
+vi.mock('@/api/reviews', () => ({
+  reviewsApi: {
+    getMerchantDirectory: vi.fn(),
   },
 }))
 
@@ -28,6 +34,12 @@ describe('MerchantInsightWorkbench', () => {
         review_date: '2026-07-16T12:00:00',
       },
     ])
+    vi.mocked(reviewsApi.getMerchantDirectory).mockReset().mockResolvedValue({
+      items: [
+        { id: 'competitor-a', name: '竞品 A', category: '面馆', address: '街道 10 号' },
+        { id: 'competitor-b', name: '竞品 B', category: '咖啡馆', address: '街道 20 号' },
+      ],
+    })
     vi.mocked(merchantInsightsApi.compare).mockReset().mockResolvedValue({
       period_start: '2026-07-01T00:00:00',
       period_end: '2026-08-01T00:00:00',
@@ -40,7 +52,6 @@ describe('MerchantInsightWorkbench', () => {
           merchant_name: '当前商家',
           sample_count: 32,
           positive_rate: 0.75,
-          avg_rating: 4.2,
           aspect_counts: { 服务: 32 },
           negative_reason_counts: { 等位时间长: 4 },
         },
@@ -84,10 +95,12 @@ describe('MerchantInsightWorkbench', () => {
   it('uses a two-to-four merchant comparison and renders the backend aggregates', async () => {
     const wrapper = mount(MerchantInsightWorkbench, { props: { merchantId: 'merchant-self' } })
     await flushPromises()
-    const competitorInput = wrapper.get('[placeholder="输入后添加"]')
 
-    await competitorInput.setValue('competitor-a')
-    await wrapper.find('.compare-form button[type="button"]').trigger('click')
+    // Select a competitor from the dropdown
+    const competitorSelect = wrapper.find('.compare-form select')
+    await competitorSelect.setValue('competitor-a')
+    await flushPromises()
+
     await wrapper.get('.compare-form').trigger('submit')
     await flushPromises()
 
@@ -95,8 +108,8 @@ describe('MerchantInsightWorkbench', () => {
       merchant_ids: ['merchant-self', 'competitor-a'],
     })
     expect(wrapper.text()).toContain('当前商家')
-    expect(wrapper.text()).toContain('服务 32')
-    expect(wrapper.text()).toContain('等位时间长 4')
+    expect(wrapper.text()).toContain('服务(32)')
+    expect(wrapper.text()).toContain('等位时间长(4)')
   })
 
   it('generates an editable reply draft and exposes no publishing control', async () => {

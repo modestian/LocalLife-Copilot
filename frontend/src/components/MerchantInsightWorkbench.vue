@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { getUserFacingError } from '@/api/errors'
 import { merchantAnalyticsApi } from '@/api/merchant-analytics'
 import { merchantInsightsApi } from '@/api/merchant-insights'
+import { reviewsApi } from '@/api/reviews'
 import type { AnalyticsReview } from '@/types/merchant-analytics'
 import type {
   BusinessSuggestionResult,
@@ -23,6 +24,7 @@ const toneLabels: Record<ReplyTone, string> = {
   CONCISE: '简洁直接',
 }
 
+const merchantDirectory = ref<{ id: string; name: string; category: string }[]>([])
 const competitorInput = ref('')
 const competitorIds = ref<string[]>([])
 const compareStartDate = ref('')
@@ -51,6 +53,16 @@ const suggestionsError = ref('')
 
 const selectedReview = computed(() => reviews.value.find((review) => review.id === selectedReviewId.value) ?? null)
 const comparisonSummaries = computed(() => comparison.value?.merchants ?? [])
+
+const availableCompetitors = computed(() =>
+  merchantDirectory.value.filter((merchant) => merchant.id !== props.merchantId
+  && !competitorIds.value.includes(merchant.id)
+  ),
+)
+
+function competitorName(merchantId: string): string {
+  return merchantDirectory.value.find((merchant) => merchant.id === merchantId)?.name ?? merchantId
+}
 
 function toStartDate(value: string): string | undefined {
   return value ? `${value}T00:00:00` : undefined
@@ -82,20 +94,20 @@ function topLabels(counts: Record<string, number>): string {
   const labels = Object.entries(counts)
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], 'zh-CN'))
     .slice(0, 3)
-    .map(([label, count]) => `${label} ${count}`)
-  return labels.join(' · ') || '暂无数据'
+    .map(([label, count]) => `${label}(${count})`)
+  return labels.join('、') || '暂无数据'
 }
 
 function topAspects(merchantId: string): string {
   return topLabels(
-    comparison.value?.merchants.find((merchant) => merchant.merchant_id === merchantId)
+    comparison.value?.merchants.find((m) => m.merchant_id === merchantId)
       ?.aspect_counts ?? {},
   )
 }
 
 function topNegativeReasons(merchantId: string): string {
   return topLabels(
-    comparison.value?.merchants.find((merchant) => merchant.merchant_id === merchantId)
+    comparison.value?.merchants.find((m) => m.merchant_id === merchantId)
       ?.negative_reason_counts ?? {},
   )
 }
@@ -106,7 +118,7 @@ function parseAspects(value: string): string[] {
 
 function addCompetitor(): void {
   comparisonFormError.value = ''
-  const candidate = competitorInput.value.trim()
+  const candidate = competitorInput.value
   if (!candidate) return
   if (candidate === props.merchantId) {
     comparisonFormError.value = '当前商家已作为基准，无需重复添加。'
@@ -224,6 +236,15 @@ async function generateBusinessSuggestions(): Promise<void> {
   }
 }
 
+async function loadMerchantDirectory(): Promise<void> {
+  try {
+    const result = await reviewsApi.getMerchantDirectory('', 50)
+    merchantDirectory.value = result.items
+  } catch {
+    merchantDirectory.value = []
+  }
+}
+
 watch(() => props.merchantId, () => {
   competitorIds.value = []
   comparison.value = null
@@ -233,7 +254,10 @@ watch(() => props.merchantId, () => {
   void loadReviews()
 })
 
-onMounted(() => void loadReviews())
+onMounted(() => {
+  void loadReviews()
+  void loadMerchantDirectory()
+})
 </script>
 
 <template>
@@ -249,98 +273,117 @@ onMounted(() => void loadReviews())
       <p class="card-intro">
         当前商家将作为基准；仅比较公开聚合数据，不展示竞品私有点评或经营数据。
       </p>
-      <form
-        class="compare-form"
-        @submit.prevent="compare"
-      >
-        <label><span>竞品商家 ID</span><input
-          v-model="competitorInput"
-          placeholder="输入后添加"
-        ><button
-          type="button"
-          @click="addCompetitor"
-        >添加</button></label>
-        <label><span>开始日期</span><span
-          class="date-wrap"
-          :class="{ 'is-empty': !compareStartDate }"
-        ><input
-          v-model="compareStartDate"
-          type="date"
-        ></span></label>
-        <label><span>结束日期</span><span
-          class="date-wrap"
-          :class="{ 'is-empty': !compareEndDate }"
-        ><input
-          v-model="compareEndDate"
-          type="date"
-        ></span></label>
-        <div
-          class="competitor-chips"
-          aria-label="已选竞品"
+      <template v-if="merchantDirectory.length && merchantDirectory.some((m) => m.id !== merchantId)">
+        <form
+          class="compare-form"
+          @submit.prevent="compare"
         >
-          <span v-if="!competitorIds.length">请选择 1～3 家竞品</span>
-          <button
-            v-for="competitorId in competitorIds"
-            :key="competitorId"
-            type="button"
-            @click="removeCompetitor(competitorId)"
+          <label><span>选择竞品商家</span><select
+            v-model="competitorInput"
+            @change="addCompetitor"
           >
-            {{ competitorId }} ×
+            <option
+              value=""
+              disabled
+            >
+              {{ merchantDirectory.length ? '请选择竞品商家' : '加载商家中…' }}
+            </option>
+            <option
+              v-for="merchant in availableCompetitors"
+              :key="merchant.id"
+              :value="merchant.id"
+            >
+              {{ merchant.name }}（{{ merchant.category }}）
+            </option>
+          </select></label>
+          <label><span>开始日期</span><span
+            class="date-wrap"
+            :class="{ 'is-empty': !compareStartDate }"
+          ><input
+            v-model="compareStartDate"
+            type="date"
+          ></span></label>
+          <label><span>结束日期</span><span
+            class="date-wrap"
+            :class="{ 'is-empty': !compareEndDate }"
+          ><input
+            v-model="compareEndDate"
+            type="date"
+          ></span></label>
+          <div
+            class="competitor-chips"
+            aria-label="已选竞品"
+          >
+            <span v-if="!competitorIds.length">请选择 1～3 家竞品</span>
+            <button
+              v-for="competitorId in competitorIds"
+              :key="competitorId"
+              type="button"
+              @click="removeCompetitor(competitorId)"
+            >
+              {{ competitorName(competitorId) }} ×
+            </button>
+          </div>
+          <p
+            v-if="comparisonFormError"
+            class="form-error"
+            role="alert"
+          >
+            {{ comparisonFormError }}
+          </p>
+          <button
+            class="primary-button"
+            type="submit"
+            :disabled="comparisonLoading"
+          >
+            {{ comparisonLoading ? '比较中…' : '开始比较' }}
           </button>
-        </div>
+        </form>
         <p
-          v-if="comparisonFormError"
-          class="form-error"
+          v-if="comparisonError"
+          class="state-message is-error"
           role="alert"
         >
-          {{ comparisonFormError }}
+          {{ comparisonError }}
         </p>
-        <button
-          class="primary-button"
-          type="submit"
-          :disabled="comparisonLoading"
-        >
-          {{ comparisonLoading ? '比较中…' : '开始比较' }}
-        </button>
-      </form>
-      <p
-        v-if="comparisonError"
-        class="state-message is-error"
-        role="alert"
-      >
-        {{ comparisonError }}
-      </p>
-      <template v-else-if="comparison">
-        <p
-          v-if="comparison.insufficient_data"
-          class="state-message is-warning"
-        >
-          样本量低于统一下限，当前不输出确定性排序或结论。
-        </p>
-        <div class="comparison-meta">
-          <span>统计周期：{{ formatDate(comparison.period_start) }}—{{ formatDate(comparison.period_end) }}</span><span>口径：{{ comparison.metric_definition }}</span>
-        </div>
-        <div
-          class="comparison-table"
-          role="table"
-          aria-label="竞品公开聚合比较"
-        >
-          <div
-            class="comparison-row comparison-head"
-            role="row"
+        <template v-else-if="comparison">
+          <p
+            v-if="comparison.insufficient_data"
+            class="state-message is-warning"
           >
-            <span>商家</span><span>样本</span><span>正面率</span><span>均分</span><span>主要特征 / 归因</span>
+            样本量低于统一下限，当前不输出确定性排序或结论。
+          </p>
+          <div class="comparison-meta">
+            <span>统计周期：{{ formatDate(comparison.period_start) }}—{{ formatDate(comparison.period_end) }}</span><span>口径：{{ comparison.metric_definition }}</span>
           </div>
           <div
-            v-for="merchant in comparisonSummaries"
-            :key="merchant.merchant_id"
-            class="comparison-row"
-            role="row"
+            class="comparison-table"
+            role="table"
+            aria-label="竞品公开聚合比较"
           >
-            <strong>{{ merchant.merchant_name || merchant.merchant_id }}</strong><span>{{ merchant.sample_count }}</span><span>{{ formatRate(merchant.positive_rate) }}</span><span>{{ merchant.avg_rating ?? '—' }}</span><span>{{ topAspects(merchant.merchant_id) }}<br><small>归因：{{ topNegativeReasons(merchant.merchant_id) }}</small></span>
+            <div
+              class="comparison-row comparison-head"
+              role="row"
+            >
+              <span>商家</span><span>样本</span><span>正面率</span><span>主要特征 / 归因</span>
+            </div>
+            <div
+              v-for="merchant in comparisonSummaries"
+              :key="merchant.merchant_id"
+              class="comparison-row"
+              role="row"
+            >
+              <strong>{{ merchant.merchant_name || merchant.merchant_id }}</strong><span>{{ merchant.sample_count }}</span><span>{{ formatRate(merchant.positive_rate) }}</span><span>{{ topAspects(merchant.merchant_id) }}<br><small>归因：{{ topNegativeReasons(merchant.merchant_id) }}</small></span>
+            </div>
           </div>
-        </div>
+        </template>
       </template>
+      <p
+        v-else
+        class="state-message"
+      >
+        没有竞品
+      </p>
     </article>
 
     <article class="insight-card reply-card">
@@ -504,7 +547,7 @@ onMounted(() => void loadReviews())
 .compare-form input, .compare-form select, .suggestion-form input, .reply-controls select, .draft-editor textarea { width: 100%; min-height: 39px; border: 1px solid #d9ccc1; border-radius: 9px; padding: 8px 10px; background: #fffdfa; color: #392d26; font: inherit; }.draft-editor textarea { min-height: 130px; resize: vertical; line-height: 1.6; }
 .compare-form label:first-child button, .draft-actions button { border: 1px solid #d9ccc1; border-radius: 9px; padding: 8px 11px; background: #fffdfa; color: #6c5042; cursor: pointer; font-weight: 800; }.primary-button { min-height: 39px; border: 1px solid var(--brand); border-radius: 9px; padding: 8px 13px; background: var(--brand); color: white; cursor: pointer; font-weight: 800; }.primary-button:disabled { cursor: wait; opacity: .58; }.compare-form > .primary-button { grid-column: 1 / -1; }
 .competitor-chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; min-height: 26px; color: #88776c; font-size: .72rem; }.competitor-chips button { border: 0; border-radius: 999px; padding: 5px 8px; background: #f1e6d8; color: #6c5042; cursor: pointer; font-size: .68rem; font-weight: 800; }.form-error, .state-message { margin: 0; border-radius: 9px; padding: 10px 12px; font-size: .75rem; }.form-error, .state-message.is-error { background: #fff0ed; color: #a4362b; }.state-message.is-warning { background: #fff8e6; color: #775f3d; }.compare-form .form-error { grid-column: 1 / -1; }
-.comparison-meta { display: flex; flex-wrap: wrap; gap: 6px 15px; margin: 16px 0 9px; color: #7a6a60; font-size: .67rem; }.comparison-table { overflow: auto; border: 1px solid #e0d4c9; border-radius: 10px; }.comparison-row { display: grid; grid-template-columns: minmax(110px, 1.1fr) 45px 58px 42px minmax(165px, 1.5fr); gap: 10px; align-items: center; border-top: 1px solid #eadfd5; padding: 10px; color: #4b3b32; font-size: .7rem; }.comparison-row:first-child { border-top: 0; }.comparison-head { background: #f5eee6; color: #79695e; font-size: .64rem; font-weight: 800; }.comparison-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.comparison-row small { color: #8a786d; font-size: .64rem; }
+.comparison-meta { display: flex; flex-wrap: wrap; gap: 6px 15px; margin: 16px 0 9px; color: #7a6a60; font-size: .67rem; }.comparison-table { overflow: auto; border: 1px solid #e0d4c9; border-radius: 10px; }.comparison-row { display: grid; grid-template-columns: minmax(110px, 1.2fr) 50px 60px minmax(180px, 2fr); gap: 10px; align-items: center; border-top: 1px solid #eadfd5; padding: 10px; color: #4b3b32; font-size: .7rem; }.comparison-row:first-child { border-top: 0; }.comparison-head { background: #f5eee6; color: #79695e; font-size: .64rem; font-weight: 800; }.comparison-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.comparison-row small { color: #8a786d; font-size: .64rem; }
 .reply-controls { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }.selected-review { margin: 15px 0; border-left: 3px solid #d98a4f; padding: 9px 12px; background: #fff9f3; }.selected-review span, .selected-review small { color: #806f64; font-size: .67rem; }.selected-review p { margin: 7px 0; color: #493a31; font-size: .78rem; line-height: 1.65; }.draft-actions { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-top: 10px; }.draft-actions small, .copy-message, .trace-meta { color: #7b6d63; font-size: .67rem; }.copy-message { margin: 9px 0 0; color: #2c704b; }
 .suggestion-form { grid-template-columns: 1fr 1fr auto; align-items: end; }.suggestion-form .is-wide { grid-column: 1 / 3; }.suggestion-detail { margin-top: 12px; border: 1px solid #e0d4c9; border-radius: 11px; padding: 0 14px; background: #fffdfa; }.suggestion-detail summary { display: flex; justify-content: space-between; gap: 14px; padding: 14px 0; cursor: pointer; color: #493a31; font-size: .82rem; font-weight: 800; }.suggestion-detail summary small { color: #806226; font-size: .67rem; }.suggestion-detail > p { margin: 0 0 10px; color: #5e4d43; font-size: .78rem; line-height: 1.7; }.suggestion-period { color: #8a786d; font-size: .66rem; }.evidence-list { display: grid; gap: 8px; margin: 13px 0; border-top: 1px solid #eadfd5; padding-top: 12px; }.evidence-list > strong { color: #695b51; font-size: .72rem; }.evidence-list article { border-left: 2px solid #ddc4af; padding-left: 9px; }.evidence-list article span { color: #8a786d; font-size: .64rem; }.evidence-list article p { margin: 4px 0 0; color: #5a493e; font-size: .72rem; line-height: 1.55; }.trace-meta { display: block; margin-top: 12px; }
 .date-wrap { position: relative; display: block; }
@@ -517,5 +560,5 @@ onMounted(() => void loadReviews())
 .date-wrap.is-empty input[type="date"]::-webkit-datetime-edit-text { color: transparent !important; }
 .date-wrap.is-empty::after { content: '请用日历选择日期'; position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #999; pointer-events: none; font-size: .78rem; }
 @media (max-width: 850px) { .insight-workbench { grid-template-columns: 1fr; }.suggestion-card { grid-column: auto; }.reply-controls, .suggestion-form { grid-template-columns: 1fr 1fr; }.reply-controls .primary-button, .suggestion-form .primary-button { grid-column: 1 / -1; }.suggestion-form .is-wide { grid-column: 1 / -1; } }
-@media (max-width: 520px) { .insight-card { padding: 17px; }.insight-card > header { align-items: flex-start; flex-direction: column; }.insight-card header small { text-align: left; }.compare-form, .reply-controls, .suggestion-form { grid-template-columns: 1fr; }.compare-form label:first-child { grid-template-columns: 1fr; }.compare-form .primary-button, .reply-controls .primary-button, .suggestion-form .primary-button, .suggestion-form .is-wide { grid-column: auto; }.comparison-row { grid-template-columns: 92px 38px 48px 36px minmax(130px, 1fr); gap: 7px; padding: 9px 7px; }.draft-actions { align-items: flex-start; flex-direction: column; } }
+@media (max-width: 520px) { .insight-card { padding: 17px; }.insight-card > header { align-items: flex-start; flex-direction: column; }.insight-card header small { text-align: left; }.compare-form, .reply-controls, .suggestion-form { grid-template-columns: 1fr; }.compare-form label:first-child { grid-template-columns: 1fr; }.compare-form .primary-button, .reply-controls .primary-button, .suggestion-form .primary-button, .suggestion-form .is-wide { grid-column: auto; }.comparison-row { grid-template-columns: 92px 42px 52px minmax(140px, 1fr); gap: 7px; padding: 9px 7px; }.draft-actions { align-items: flex-start; flex-direction: column; } }
 </style>
