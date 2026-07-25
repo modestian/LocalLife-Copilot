@@ -10,7 +10,6 @@ export interface ComparisonMerchantMetric {
   merchant_name: string
   sample_count: number
   positive_rate: number
-  avg_rating: number | null
   aspect_counts: Record<string, number>
   negative_reason_counts: Record<string, number>
 }

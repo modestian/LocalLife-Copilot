@@ -61,6 +61,28 @@ class SQLAlchemySentimentRepository:
         for merchant_id in merchant_ids:
             self._authorize_merchant(merchant_id, action)
 
+    def _authorize_merchants_for_comparison(self, merchant_ids: Sequence[str]) -> None:
+        """Permission-only check for cross-merchant comparison.
+
+        Unlike ``_authorize_merchants``, this does NOT enforce resource-scope
+        grants so that users can compare their own merchant against publicly
+        visible competitors."""
+        if self._principal is not None:
+            self._principal.require_permission("MERCHANT", "READ")
+
+    async def get_merchant_names(self, merchant_ids: list[str]) -> dict[str, str]:
+        """Batch-resolve merchant UUIDs → human-readable names."""
+        from app.infrastructure.db.models.operations import Merchant
+
+        if not merchant_ids:
+            return {}
+        async with self._session_factory() as session:
+            stmt = select(Merchant.id, Merchant.name).where(
+                Merchant.id.in_([UUID(mid) for mid in merchant_ids])
+            )
+            result = await session.execute(stmt)
+            return {str(row[0]): row[1] for row in result.fetchall()}
+
     async def batch_save(
         self,
         records: Sequence[SentimentAnalysisRecord],
@@ -365,7 +387,7 @@ class SQLAlchemySentimentRepository:
         """
         if not merchant_ids:
             return {}
-        self._authorize_merchants(merchant_ids)
+        self._authorize_merchants_for_comparison(merchant_ids)
 
         placeholders = ", ".join(f":mid{i}" for i in range(len(merchant_ids)))
         sql = text(
