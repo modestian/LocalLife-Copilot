@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from contextlib import AbstractContextManager
 from types import TracebackType
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 from app.etl.models import CleanStatus, DocumentRecord
@@ -78,10 +79,15 @@ def import_record() -> DocumentRecord:
 
 
 def test_repository_writes_domain_rows_and_enqueues_analysis() -> None:
+    """When inline analysis is unavailable, async tasks are enqueued."""
     session = FakeSession()
     importer = SQLAlchemyMerchantReviewImporter(session)  # type: ignore[arg-type]
 
-    result = importer.import_records(TENANT_ID, (import_record(),))
+    with patch(
+        "app.infrastructure.db.repositories.merchant_import.SQLAlchemyMerchantReviewImporter._create_inline_analyses",
+        return_value=False,
+    ):
+        result = importer.import_records(TENANT_ID, (import_record(),))
 
     assert result.merchant_count == 1
     assert result.review_count == 1
@@ -99,3 +105,19 @@ def test_repository_writes_domain_rows_and_enqueues_analysis() -> None:
     assert task.resource_id == merchant.id
     assert event.event_type == "merchant.analysis"
     assert event.aggregate_id == task.id
+
+
+def test_repository_creates_inline_analysis_when_model_available() -> None:
+    """When SentimentAnalyzer is available, ReviewAnalysis is created inline."""
+    session = FakeSession()
+    importer = SQLAlchemyMerchantReviewImporter(session)  # type: ignore[arg-type]
+
+    with patch(
+        "app.infrastructure.db.repositories.merchant_import.SQLAlchemyMerchantReviewImporter._create_inline_analyses",
+        return_value=True,
+    ):
+        result = importer.import_records(TENANT_ID, (import_record(),))
+
+    assert result.merchant_count == 1
+    assert result.review_count == 1
+    assert len(result.analysis_task_ids) == 0  # No async fallback

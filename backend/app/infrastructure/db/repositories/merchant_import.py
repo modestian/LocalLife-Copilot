@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import logging
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -20,7 +22,10 @@ from app.etl.models import DocumentRecord
 from app.infrastructure.db.base import utc_now
 from app.infrastructure.db.models.identity import ResourceGrant, User
 from app.infrastructure.db.models.operations import Merchant, Review
+from app.infrastructure.db.models.sentiment import ReviewAnalysis
 from app.infrastructure.db.models.tasks import AsyncTask, OutboxEvent
+
+logger = logging.getLogger(__name__)
 
 
 class SQLAlchemyMerchantReviewImporter:
@@ -42,14 +47,72 @@ class SQLAlchemyMerchantReviewImporter:
                 if row.owner_username is not None:
                     self._grant_read(session, owners[row.owner_username], row.merchant_id)
             session.flush()
-            for merchant_id in sorted({row.merchant_id for row in rows}):
-                analysis_task_ids.append(self._enqueue_analysis(session, merchant_id))
+
+            # --- Inline sentiment analysis: create ReviewAnalysis immediately ---
+            inline_ok = self._create_inline_analyses(session, rows)
+
+            # Enqueue async tasks only as fallback when inline analysis failed
+            if not inline_ok:
+                for merchant_id in sorted({row.merchant_id for row in rows}):
+                    analysis_task_ids.append(self._enqueue_analysis(session, merchant_id))
+
         return MerchantReviewImportResult(
             records=tuple(enrich_source_record(row) for row in rows),
             merchant_count=len({row.merchant_id for row in rows}),
             review_count=len(rows),
             analysis_task_ids=tuple(analysis_task_ids),
         )
+
+    @staticmethod
+    def _create_inline_analyses(session: Session, rows: Sequence[MerchantReviewRow]) -> bool:
+        """Run sentiment analysis synchronously and persist ReviewAnalysis records.
+
+        Returns True if analysis succeeded; False if the model is unavailable
+        and the caller should fall back to async tasks.
+        """
+        try:
+            from app.analytics.sentiment_classifier import SentimentAnalyzer
+        except ImportError:
+            logger.warning("SentimentAnalyzer unavailable; deferring to async tasks")
+            return False
+
+        try:
+            analyzer = SentimentAnalyzer()
+            texts = [row.review_content for row in rows]
+            results = analyzer.analyze_batch(texts)
+        except Exception:
+            logger.warning(
+                "Inline sentiment analysis failed; deferring to async tasks",
+                exc_info=True,
+            )
+            return False
+
+        for row, result in zip(rows, results, strict=True):
+            merchant_id_str = str(row.merchant_id)
+            # Skip if a ReviewAnalysis with same merchant + text already exists
+            existing = session.scalar(
+                select(ReviewAnalysis.id)
+                .where(
+                    ReviewAnalysis.merchant_id == merchant_id_str,
+                    ReviewAnalysis.review_text == row.review_content,
+                )
+                .limit(1)
+            )
+            if existing is not None:
+                continue
+            session.add(
+                ReviewAnalysis(
+                    merchant_id=merchant_id_str,
+                    review_text=row.review_content,
+                    sentiment=result.sentiment,
+                    confidence=result.confidence,
+                    model_version=result.model_version,
+                    aspect_labels=json.dumps(result.aspect_labels, ensure_ascii=False),
+                    negative_reasons=json.dumps(result.negative_reason, ensure_ascii=False),
+                    review_date=row.reviewed_at,
+                )
+            )
+        return True
 
     @staticmethod
     def _resolve_owners(
