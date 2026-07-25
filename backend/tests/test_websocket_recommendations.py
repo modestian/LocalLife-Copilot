@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 from app.agents.generation import GroundedGeneration, GroundedOutput
-from app.agents.types import SourceCitation
+from app.agents.types import ChatIntent, SourceCitation
 from app.api.websocket_chat import _recommendation_event
 
 
@@ -86,3 +86,21 @@ def test_recommendation_event_exposes_grounded_fallback() -> None:
         "recommendations": [],
         "fallback": {"triggered": True, "reason": "no_evidence"},
     }
+
+
+def test_recommendation_event_skips_general_chat_fallback() -> None:
+    """general_chat 不涉及商家推荐，即使 generation 标记为 fallback 也不应发送兜底事件。"""
+    result = SimpleNamespace(
+        state={"intent": ChatIntent.GENERAL_CHAT},
+        generation=GroundedGeneration(
+            answer="你好！今天想聊点什么？",
+            structured=None,
+            sources=(),
+            model_version="test-model",
+            fallback_reason="general_chat",
+        ),
+    )
+
+    event = _recommendation_event(result, "request-3")
+
+    assert event is None
