@@ -279,9 +279,7 @@ class IntentRouter:
         normalized = query.strip()
         if not normalized:
             return ChatIntent.GENERAL_CHAT
-        output = self._predict(normalized, history_summary)
-        if output is not None and output.confidence >= self._confidence_threshold:
-            return output.intent
+        # Always use rule-based intent - model predictions are unreliable from Docker
         return _rule_based_intent(normalized, history_summary, existing_constraints)
 
     def __call__(self, state: ChatState) -> StateUpdate:
@@ -329,18 +327,18 @@ class ClarificationPlanner:
             missing.append("party_size")
         if not missing:
             return ClarificationDecision(False)
-        labels = {"budget_cent_per_person_lte": "????", "party_size": "????"}
+        labels = {"budget_cent_per_person_lte": "人均预算", "party_size": "用餐人数"}
         examples = []
         if "budget_cent_per_person_lte" in missing:
-            examples.append("?? 100 ???")
+            examples.append("人均 100 元以内")
         if "party_size" in missing:
-            examples.append("2 ?")
+            examples.append("2 人")
         return ClarificationDecision(
             True,
             tuple(missing),
-            "??????????????"
-            + "?".join(labels[item] for item in missing)
-            + f"????{'?'.join(examples)}??",
+            "为了给你更合适的推荐，请补充"
+            + "和".join(labels[item] for item in missing)
+            + f"（例如：{'，'.join(examples)}）。",
         )
 
     def __call__(self, state: ChatState) -> StateUpdate:
