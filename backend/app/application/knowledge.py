@@ -53,9 +53,9 @@ class KnowledgeBaseView:
     tenant_id: UUID
     department_id: UUID | None = None
     description: str | None = None
-    embedding_model_version_id: UUID | None = None
     chunk_size: int = 0
     chunk_overlap: int = 0
+    embedding_model_version_id: UUID | None = None
     created_at: str | None = None
     updated_at: str | None = None
 

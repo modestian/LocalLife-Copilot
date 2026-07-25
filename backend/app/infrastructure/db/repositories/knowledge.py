@@ -345,7 +345,7 @@ class SQLAlchemyKnowledgeRepository:
             ).all()
             file_sizes = {r[0]: r[1] for r in version_rows}
 
-            # Fetch chunk counts from current versions
+            # Fetch chunk counts from current versions (exclude deleted chunks)
             chunk_rows = (
                 await session.execute(
                     select(
@@ -356,6 +356,7 @@ class SQLAlchemyKnowledgeRepository:
                     .where(
                         DocumentVersion.document_id.in_(doc_ids),
                         DocumentVersion.is_current.is_(True),
+                        Chunk.index_status != "DELETED",
                     )
                     .group_by(DocumentVersion.document_id)
                 )
@@ -406,7 +407,10 @@ class SQLAlchemyKnowledgeRepository:
                     await session.scalar(
                         select(func.count())
                         .select_from(Chunk)
-                        .where(Chunk.document_version_id == version_id)
+                        .where(
+                            Chunk.document_version_id == version_id,
+                            Chunk.index_status != "DELETED",
+                        )
                     )
                 ) or 0
             return _document_view(document, file_size=file_size, chunk_count=chunk_count)

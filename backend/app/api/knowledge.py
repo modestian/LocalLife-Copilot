@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, File, Form, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 from app.api.dependencies.authorization import CurrentPrincipal
 from app.application.authorization import (
@@ -32,6 +32,7 @@ from app.application.upload_security import UnsafeUploadError, validate_upload
 from app.core.api import success_response
 from app.core.errors import AppError
 from app.core.ids import uuid7
+from app.infrastructure.db.models.governance import ModelDefinition, ModelVersion
 from app.infrastructure.db.models.identity import Department, User
 from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion
 
@@ -160,13 +161,35 @@ async def _enrich_knowledge_base_data(request: Request, items: list[dict[str, An
             )
             dept_names = {d.id: d.name for d in rows.all()}
 
+        # Resolve embedding model names
+        embedding_model_ids = {
+            UUID(item["embedding_model_version_id"])
+            for item in items
+            if item.get("embedding_model_version_id")
+        }
+        model_names: dict[UUID, str] = {}
+        if embedding_model_ids:
+            model_rows = await session.execute(
+                select(ModelVersion.id, ModelDefinition.name)
+                .join(
+                    ModelDefinition,
+                    ModelVersion.model_definition_id == ModelDefinition.id,
+                )
+                .where(ModelVersion.id.in_(embedding_model_ids))
+            )
+            model_names = {r[0]: r[1] for r in model_rows.all()}
+
         # Compute document statistics per knowledge base
         stats_query = (
             select(
                 Document.knowledge_base_id,
                 func.count().label("document_count"),
-                func.sum(Document.status == "READY").label("ready_document_count"),
-                func.sum(Document.status == "FAILED").label("failed_document_count"),
+                func.sum(case((Document.status == "READY", 1), else_=0)).label(
+                    "ready_document_count"
+                ),
+                func.sum(case((Document.status == "FAILED", 1), else_=0)).label(
+                    "failed_document_count"
+                ),
                 func.max(Document.updated_at).label("latest_indexed_at"),
             )
             .where(
@@ -187,7 +210,11 @@ async def _enrich_knowledge_base_data(request: Request, items: list[dict[str, An
                 DocumentVersion,
                 (DocumentVersion.document_id == Document.id) & DocumentVersion.is_current.is_(True),
             )
-            .outerjoin(Chunk, Chunk.document_version_id == DocumentVersion.id)
+            .outerjoin(
+                Chunk,
+                (Chunk.document_version_id == DocumentVersion.id)
+                & (Chunk.index_status != "DELETED"),
+            )
             .where(
                 Document.knowledge_base_id.in_(kb_ids),
                 Document.deleted_at.is_(None),
@@ -205,8 +232,15 @@ async def _enrich_knowledge_base_data(request: Request, items: list[dict[str, An
 
         item["owner_name"] = user_names.get(owner_id, "") if owner_id else ""
         item["department_name"] = dept_names.get(dept_id) if dept_id else None
-        item["embedding_model_id"] = item.get("embedding_model_version_id") or ""
-        item["embedding_model_name"] = item.get("embedding_model_version_id") or ""
+        embedding_model_version_id = (
+            UUID(item["embedding_model_version_id"])
+            if item.get("embedding_model_version_id")
+            else None
+        )
+        item["embedding_model_id"] = (
+            str(embedding_model_version_id) if embedding_model_version_id else ""
+        )
+        item["embedding_model_name"] = model_names.get(embedding_model_version_id, "")
 
         stat = next((r for r in stats_rows if r[0] == kb_id), None)
         if stat:
