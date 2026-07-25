@@ -33,6 +33,14 @@ from app.agents.generation import (
     render_grounded_output,
 )
 from app.agents.graph import ChatGraphNodes, build_chat_graph
+from app.agents.langchain_rag import (
+    LangChainRAGAdapter,
+    RAGGeneration,
+    SimpleRAGGenerator,
+    chunks_to_citations,
+    chunks_to_context,
+    render_fallback,
+)
 from app.agents.local_model import ExtractiveModelAdapter
 from app.agents.memory import (
     SUMMARY_SETTINGS_KEY,
@@ -100,11 +108,13 @@ __all__ = [
     "HybridSearchRetrieverAdapter",
     "IntentOutput",
     "IntentRouter",
+    "LangChainRAGAdapter",
     "ModelAdapter",
     "ModelInput",
     "ModelPrediction",
     "MemoryWindow",
     "NodeContract",
+    "RAGGeneration",
     "RetrievedChunk",
     "RecommendationOutput",
     "ReviewSummaryItem",
@@ -114,6 +124,7 @@ __all__ = [
     "RetrievalScope",
     "SafetyDecision",
     "SafetyResult",
+    "SimpleRAGGenerator",
     "SourceCitation",
     "StateField",
     "StateUpdate",
@@ -128,6 +139,9 @@ __all__ = [
     "PROMPT_POLICY_VERSION",
     "build_chat_graph",
     "build_grounded_prompt",
+    "chunks_to_citations",
+    "chunks_to_context",
+    "render_fallback",
     "infer_generation_mode",
     "merge_constraints",
     "route_after_constraints",
