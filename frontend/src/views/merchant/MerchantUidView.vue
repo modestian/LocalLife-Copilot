@@ -164,7 +164,6 @@ async function logout(): Promise<void> {
           >
             <span class="merchant-ref-name">{{ merchant.name }}</span>
             <span class="merchant-ref-category">{{ merchant.category }}</span>
-            <code class="merchant-ref-uid">{{ merchant.id }}</code>
           </li>
         </ul>
       </div>
