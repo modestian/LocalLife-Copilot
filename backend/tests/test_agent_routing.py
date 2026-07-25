@@ -300,6 +300,25 @@ def test_empty_tuple_keeps_base_for_scenes_too() -> None:
     assert result.scenes == ("约会",)
 
 
+def test_vague_food_query_routes_to_knowledge_query() -> None:
+    """Vague / casual food queries like '我想随便吃点' must not fall into general_chat."""
+    router = IntentRouter()
+
+    # Marker-based matches
+    assert router.classify("我想随便吃点") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("随便吃点") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("随便喝点") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("来点吃的") is ChatIntent.KNOWLEDGE_QUERY
+
+    # Regex heuristic matches
+    assert router.classify("吃点东西") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("喝点什么") is ChatIntent.KNOWLEDGE_QUERY
+
+    # Still general chat for truly unrelated input
+    assert router.classify("你好") is ChatIntent.GENERAL_CHAT
+    assert router.classify("今天天气怎么样") is ChatIntent.GENERAL_CHAT
+
+
 def test_merchant_name_guard_skips_recommendation_queries() -> None:
     """_matches_merchant_name should skip when query contains recommendation keywords."""
     from app.agents.adapters import _matches_merchant_name
