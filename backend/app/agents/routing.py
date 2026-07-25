@@ -128,6 +128,11 @@ _KNOWLEDGE_MARKERS = (
     "订座",
     "包厢",
     "停车",
+    "随便吃",
+    "随便喝",
+    "吃点",
+    "喝点",
+    "来点",
 )
 _REVIEW_MARKERS = (
     "评价",
@@ -191,6 +196,11 @@ _RECOMMENDATION_MARKERS = (
     "订座",
     "包厢",
     "停车",
+    "随便吃",
+    "随便喝",
+    "吃点",
+    "喝点",
+    "来点",
 )
 _FOLLOW_UP_MARKERS = (
     "再来",
@@ -431,6 +441,9 @@ def _rule_based_intent(
     ):
         return ChatIntent.TOOL_USE
     if any(marker in lowered for marker in _KNOWLEDGE_MARKERS):
+        return ChatIntent.KNOWLEDGE_QUERY
+    # Heuristic: eating / drinking verb + object → knowledge query
+    if re.search(r"(?:想吃|想喝|想吃点|想喝点|来点|吃点|喝点)\S{0,10}", query):
         return ChatIntent.KNOWLEDGE_QUERY
     if _has_explicit_constraint(query):
         return ChatIntent.KNOWLEDGE_QUERY
