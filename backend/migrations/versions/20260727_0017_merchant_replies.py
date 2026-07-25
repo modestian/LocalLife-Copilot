@@ -1,7 +1,7 @@
 """Add merchant_replies table for store reply functionality.
 
 Revision ID: 20260727_0017
-Revises: 20260726_0016
+Revises: 20260726_0017
 """
 
 from collections.abc import Sequence
@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 revision: str = "20260727_0017"
-down_revision: str | None = "20260726_0016"
+down_revision: str | None = "20260726_0017"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
