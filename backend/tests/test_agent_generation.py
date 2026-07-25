@@ -285,3 +285,12 @@ def test_schemas_forbid_uncited_and_unstructured_claims() -> None:
                 "source_ids": [],
             }
         )
+
+
+def test_beverage_queries_infer_recommendation_mode() -> None:
+    """Beverage intent queries should be inferred as recommendation mode."""
+    from app.agents.generation import GenerationMode, infer_generation_mode
+
+    assert infer_generation_mode("想喝奶茶") is GenerationMode.RECOMMENDATION
+    assert infer_generation_mode("喝什么比较好") is GenerationMode.RECOMMENDATION
+    assert infer_generation_mode("推荐附近的饮品店") is GenerationMode.RECOMMENDATION
