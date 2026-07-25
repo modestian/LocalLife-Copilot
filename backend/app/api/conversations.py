@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from typing import Any
 from uuid import UUID
 
@@ -86,8 +85,11 @@ def _message_data(row) -> dict[str, Any]:
         "created_at": row.created_at.isoformat(),
         "sources": [
             {
-                **asdict(source),
                 "chunk_id": str(source.chunk_id),
+                "source_location": source.source_location_snapshot,
+                "source_url": "",
+                "content": source.content_snapshot,
+                "score": source.score,
             }
             for source in row.sources
         ],

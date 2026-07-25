@@ -86,6 +86,15 @@ function safeSourceUrl(sourceUrl: string): string | undefined {
   const trimmed = sourceUrl.trim()
   return /^https?:\/\//i.test(trimmed) ? trimmed : undefined
 }
+
+function formatSourceLocation(location: string): string {
+  const [path = '', fragment = ''] = location.split('#')
+  const rowMatch = fragment.match(/^row=(\d+)$/)
+  const suffix = rowMatch ? `第 ${rowMatch[1]} 条记录` : fragment
+  // 长哈希标识对用户无意义，压缩显示避免撑爆整行
+  const compact = /^[0-9a-f]{24,}$/i.test(path) ? `${path.slice(0, 8)}…${path.slice(-6)}` : path
+  return [compact, suffix].filter(Boolean).join(' · ')
+}
 </script>
 
 <template>
@@ -196,7 +205,7 @@ function safeSourceUrl(sourceUrl: string): string | undefined {
           v-for="source in sources.slice(0, 2)"
           :key="source.chunk_id"
         >
-          <strong>{{ source.source_location }}</strong>
+          <strong :title="source.source_location">{{ formatSourceLocation(source.source_location) }}</strong>
           <p>
             <HighlightedText
               :content="source.content"
@@ -258,8 +267,11 @@ function safeSourceUrl(sourceUrl: string): string | undefined {
                 <strong>引用 {{ index + 1 }}</strong>
                 <span>相关度 {{ Math.round(source.score * 100) }}%</span>
               </div>
-              <p class="source-item__location">
-                {{ source.source_location }}
+              <p
+                class="source-item__location"
+                :title="source.source_location"
+              >
+                {{ formatSourceLocation(source.source_location) }}
               </p>
               <blockquote>
                 <HighlightedText
@@ -273,10 +285,6 @@ function safeSourceUrl(sourceUrl: string): string | undefined {
                 target="_blank"
                 rel="noopener noreferrer"
               >打开原始来源</a>
-              <span
-                v-else
-                class="source-item__snapshot"
-              >当前仅提供生成时保存的来源快照</span>
             </article>
           </li>
         </ol>
@@ -326,13 +334,12 @@ function safeSourceUrl(sourceUrl: string): string | undefined {
 .source-drawer__heading { display: flex; justify-content: space-between; gap: 16px; }
 .source-drawer__heading h3 { margin: 4px 0 0; color: #2c211b; }
 .source-drawer__heading button { width: 34px; height: 34px; border: 0; border-radius: 50%; background: #f2e8de; color: #59483d; cursor: pointer; font-size: 1.3rem; }
-.source-drawer__notice { color: #7b6d63; font-size: .8rem; }
-.source-drawer ol { display: grid; gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
-.source-item { border: 1px solid #e7d9ce; border-radius: 12px; padding: 15px; }
+.source-drawer__notice { margin: 10px 0 0; color: #7b6d63; font-size: .78rem; }
+.source-drawer ol { display: grid; gap: 10px; margin: 14px 0 0; padding: 0; list-style: none; }
+.source-item { border: 1px solid #e7d9ce; border-radius: 12px; padding: 12px 14px; }
 .source-item__topline { color: #a54230; font-size: .74rem; }
-.source-item__location { color: #7b6d63; font-size: .74rem; }
-.source-item blockquote { margin: 10px 0; border-left: 3px solid #d26b57; padding-left: 12px; color: #493a31; font-size: .88rem; line-height: 1.7; }
-.source-item a { color: #9d3423; font-size: .78rem; font-weight: 800; text-underline-offset: 3px; }
-.source-item__snapshot { color: #88786d; font-size: .74rem; }
+.source-item__location { overflow: hidden; margin: 4px 0 0; color: #a1948a; font-size: .7rem; text-overflow: ellipsis; white-space: nowrap; }
+.source-item blockquote { margin: 8px 0 0; border-left: 3px solid #d26b57; padding-left: 12px; color: #493a31; font-size: .84rem; line-height: 1.6; }
+.source-item a { display: inline-block; margin-top: 8px; color: #9d3423; font-size: .78rem; font-weight: 800; text-underline-offset: 3px; }
 @media (max-width: 680px) { .recommendation-results { padding: 17px; } .recommendation-grid { grid-template-columns: 1fr; } .recommendation-card__reason { min-height: auto; } .source-drawer { padding: 18px; } }
 </style>

@@ -89,7 +89,7 @@ describe('RecommendationResults', () => {
 
     const dialog = wrapper.get('[role="dialog"]')
     expect(dialog.find('a').exists()).toBe(false)
-    expect(dialog.text()).toContain('当前仅提供生成时保存的来源快照')
+    expect(dialog.text()).toContain('以下为生成回答时保存的引用快照')
   })
 
   it('does not render the obsolete internal chunk route as a source link', async () => {
