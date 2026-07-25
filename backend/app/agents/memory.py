@@ -253,6 +253,31 @@ def _normalize_content(content: str) -> str:
     return re.sub(r"\s+", " ", content).strip()
 
 
+def recent_conversation_history(history: str, *, max_messages: int = 2) -> str:
+    """Return the newest role-delimited messages from flattened conversation memory."""
+    if max_messages <= 0:
+        raise ValueError("max_messages must be greater than zero")
+    markers = ("USER: ", "ASSISTANT: ", "SYSTEM: ", "TOOL: ")
+    positions = sorted(
+        position for marker in markers for position in _line_marker_positions(history, marker)
+    )
+    if not positions:
+        return history.strip()
+    return history[positions[-max_messages:][0] :].strip()
+
+
+def _line_marker_positions(value: str, marker: str) -> tuple[int, ...]:
+    positions: list[int] = []
+    start = 0
+    while True:
+        position = value.find(marker, start)
+        if position < 0:
+            return tuple(positions)
+        if position == 0 or value[position - 1] == "\n":
+            positions.append(position)
+        start = position + len(marker)
+
+
 def _looks_unresolved(content: str) -> bool:
     return content.endswith(("?", "？")) or any(
         marker in content for marker in ("请问", "请选择", "还需要", "能否")

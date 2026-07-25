@@ -143,6 +143,7 @@ class _FakeGenerator(SimpleRAGGenerator):
         # Skip parent __init__ which requires LangChainRAGAdapter
         self._model = type("_M", (), {"_api_key": "fake" if has_api_key else ""})()
         self._chain = None
+        self._general_chain = None
 
 
 def test_simple_rag_no_chunks_returns_no_evidence() -> None:
@@ -167,3 +168,37 @@ def test_rag_generation_dataclass() -> None:
     assert gen.answer == "hello"
     assert gen.fallback_reason == "no_evidence"
     assert gen.model_version is None
+
+
+class _RecordingChain:
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.payloads: list[dict[str, str]] = []
+
+    def invoke(self, payload: dict[str, str]) -> str:
+        self.payloads.append(payload)
+        return self.response
+
+
+def test_simple_rag_passes_bounded_history_to_model() -> None:
+    gen = _FakeGenerator(has_api_key=True)
+    gen._model.version = "test-model"
+    chain = _RecordingChain("结合上文回答")
+    gen._chain = chain
+
+    result = gen.generate("第二家呢？", (_chunk(),), "USER: 推荐海鲜\nASSISTANT: 第二家是鲜入围")
+
+    assert result.answer == "结合上文回答"
+    assert chain.payloads[0]["history"].endswith("ASSISTANT: 第二家是鲜入围")
+
+
+def test_general_chat_uses_history_and_falls_back_without_model() -> None:
+    gen = _FakeGenerator(has_api_key=True)
+    gen._model.version = "test-model"
+    chain = _RecordingChain("记得，你叫小林。")
+    gen._general_chain = chain
+
+    result = gen.generate_general("我叫什么？", "USER: 我叫小林")
+
+    assert result.answer == "记得，你叫小林。"
+    assert chain.payloads == [{"query": "我叫什么？", "history": "USER: 我叫小林"}]

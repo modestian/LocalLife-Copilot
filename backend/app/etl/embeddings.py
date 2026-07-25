@@ -3,7 +3,7 @@
 import json
 import math
 from collections.abc import Sequence
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Protocol
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -32,11 +32,21 @@ class HttpEmbeddingProvider:
         *,
         model: str,
         timeout_seconds: float,
+        max_attempts: int = 3,
+        retry_delay_seconds: float = 0.25,
         metrics_registry: MetricsRegistry | None = None,
     ) -> None:
+        if timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        if max_attempts <= 0:
+            raise ValueError("max_attempts must be positive")
+        if retry_delay_seconds < 0:
+            raise ValueError("retry_delay_seconds must not be negative")
         self._url = url
         self._model = model
         self._timeout_seconds = timeout_seconds
+        self._max_attempts = max_attempts
+        self._retry_delay_seconds = retry_delay_seconds
         self._metrics_registry = metrics_registry
 
     def embed(self, texts: Sequence[str]) -> Sequence[Sequence[float]]:
@@ -48,14 +58,24 @@ class HttpEmbeddingProvider:
             headers={"Content-Type": "application/json"},
             method="POST",
         )
-        try:
-            with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310
-                body = json.load(response)
-        except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
+        last_error: Exception | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+                    body = json.load(response)
+                break
+            except (HTTPError, URLError, TimeoutError, OSError, ValueError) as exc:
+                last_error = exc
+                if attempt < self._max_attempts:
+                    sleep(self._retry_delay_seconds * attempt)
+        else:
             self._observe("FAILED", started_at)
+            error_type = type(last_error).__name__ if last_error is not None else "unknown"
             raise EmbeddingError(
-                "EMBEDDING_GATEWAY_FAILED", "embedding gateway request failed"
-            ) from exc
+                "EMBEDDING_GATEWAY_FAILED",
+                f"embedding gateway request failed after {self._max_attempts} attempts "
+                f"({error_type})",
+            ) from last_error
 
         try:
             data = sorted(body["data"], key=lambda item: item["index"])

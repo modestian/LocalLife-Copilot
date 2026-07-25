@@ -160,7 +160,8 @@ def create_app(
         embedding_provider = HttpEmbeddingProvider(
             app_settings.model_gateway_embedding_url,
             model=app_settings.embedding_model,
-            timeout_seconds=app_settings.dependency_timeout_seconds,
+            timeout_seconds=app_settings.embedding_request_timeout_seconds,
+            max_attempts=app_settings.embedding_request_max_attempts,
             metrics_registry=app.state.metrics_registry,
         )
         embedder = BatchedEmbedder(

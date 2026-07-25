@@ -75,6 +75,18 @@ def test_settings_reject_blank_embedding_model() -> None:
         Settings(embedding_model=" ")
 
 
+@pytest.mark.parametrize("value", [0, 301])
+def test_settings_reject_invalid_embedding_request_timeout(value: float) -> None:
+    with pytest.raises(ValidationError, match="embedding_request_timeout_seconds"):
+        Settings(embedding_request_timeout_seconds=value)
+
+
+@pytest.mark.parametrize("value", [0, 11])
+def test_settings_reject_invalid_embedding_request_attempts(value: int) -> None:
+    with pytest.raises(ValidationError, match="embedding_request_max_attempts"):
+        Settings(embedding_request_max_attempts=value)
+
+
 @pytest.mark.parametrize("value", [1, 101])
 def test_settings_reject_invalid_login_rate_limit_attempts(value: int) -> None:
     with pytest.raises(ValidationError, match="login_rate_limit_attempts"):

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.application.tasks import (
@@ -54,16 +54,20 @@ class SQLAlchemyTaskRepository:
         event_type: str,
         payload: dict[str, object] | None = None,
         max_attempts: int = 3,
+        target_version_no: int | None = None,
     ) -> UUID:
         """Persist a task and its dispatch event in one MySQL transaction."""
         if max_attempts <= 0:
             raise ValueError("max_attempts must be positive")
+        if target_version_no is not None and target_version_no <= 0:
+            raise ValueError("target_version_no must be positive")
         async with self._session_factory() as session, session.begin():
             task = AsyncTask(
                 task_type=_required(task_type, "task_type"),
                 resource_type=_required(resource_type, "resource_type"),
                 resource_id=resource_id,
                 max_attempts=max_attempts,
+                target_version_no=target_version_no,
             )
             session.add(task)
             await session.flush()
@@ -78,6 +82,80 @@ class SQLAlchemyTaskRepository:
             )
             await session.flush()
             return task.id
+
+    async def recover_stale_knowledge_tasks(
+        self, *, stale_after_seconds: int = 90, limit: int = 100
+    ) -> int:
+        """Requeue knowledge tasks whose broker delivery or worker lease was lost."""
+        if stale_after_seconds <= 0:
+            raise ValueError("stale_after_seconds must be positive")
+        if not 1 <= limit <= 500:
+            raise ValueError("limit must be between 1 and 500")
+        now = utc_now()
+        stale_before = now - timedelta(seconds=stale_after_seconds)
+        event_types = {
+            "INGEST": "knowledge.ingest",
+            "REBUILD": "knowledge.rebuild",
+            "DELETE": "knowledge.delete",
+        }
+        recovered = 0
+        async with self._session_factory() as session, session.begin():
+            rows = (
+                await session.scalars(
+                    select(AsyncTask)
+                    .where(
+                        AsyncTask.resource_type == "DOCUMENT",
+                        AsyncTask.task_type.in_(event_types),
+                        or_(
+                            (
+                                (AsyncTask.status == TaskStatus.RUNNING.value)
+                                & (AsyncTask.locked_until.is_not(None))
+                                & (AsyncTask.locked_until <= now)
+                            ),
+                            (
+                                (AsyncTask.status == TaskStatus.PENDING.value)
+                                & (AsyncTask.updated_at <= stale_before)
+                            ),
+                        ),
+                    )
+                    .order_by(AsyncTask.updated_at, AsyncTask.id)
+                    .limit(limit)
+                    .with_for_update(skip_locked=True)
+                )
+            ).all()
+            for row in rows:
+                if row.attempt_count >= row.max_attempts:
+                    row.status = TaskStatus.FAILED.value
+                    row.error_code = "TASK_LEASE_EXPIRED"
+                    row.error_message = "worker lease expired after the maximum attempt count"
+                    _release_task(row)
+                    continue
+                unpublished = await session.scalar(
+                    select(OutboxEvent.event_id).where(
+                        OutboxEvent.aggregate_id == row.id,
+                        OutboxEvent.published_at.is_(None),
+                    )
+                )
+                if unpublished is not None:
+                    continue
+                row.status = TaskStatus.PENDING.value
+                row.stage = TaskStage.QUEUED.value
+                row.progress = 0
+                row.error_code = None
+                row.error_message = None
+                _release_task(row)
+                session.add(
+                    OutboxEvent(
+                        aggregate_type="ASYNC_TASK",
+                        aggregate_id=row.id,
+                        event_type=event_types[row.task_type],
+                        event_version=row.attempt_count + 2,
+                        payload_json={"task_id": str(row.id), "recovered": True},
+                    )
+                )
+                recovered += 1
+            await session.flush()
+        return recovered
 
     async def delete_document_with_outbox(self, document_id: UUID) -> UUID | None:
         """Hide a document and enqueue projection deletion atomically."""
@@ -299,7 +377,7 @@ class SQLAlchemyTaskRepository:
                 return False
             row.status = TaskStatus.FAILED.value
             row.error_code = _required(error_code, "error_code")
-            row.error_message = error_message
+            row.error_message = error_message[:4000]
             _release_task(row)
             return True
 

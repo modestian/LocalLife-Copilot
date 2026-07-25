@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Protocol
 from uuid import UUID, uuid4
@@ -13,7 +14,7 @@ from langgraph.runtime import Runtime
 from app.agents.contracts import RetrievalRequest, RetrievalScope, RetrieverAdapter
 from app.agents.generation import GroundedGeneration  # kept for _generate_general / _tool_guard
 from app.agents.graph import ChatGraphNodes, build_chat_graph
-from app.agents.memory import ConversationMemoryService
+from app.agents.memory import ConversationMemoryService, recent_conversation_history
 from app.agents.persistence import GroundedResponsePersister
 from app.agents.routing import ClarificationPlanner, ConstraintExtractor, IntentRouter
 from app.agents.state import ChatState
@@ -40,7 +41,6 @@ from app.application.conversations import (
     MessageView,
 )
 
-_GENERAL_ANSWER = "你好！我可以帮你按距离、预算、菜系、氛围和用餐场景寻找商家。"
 _TOOL_HANDOFF_ANSWER = "这个请求需要调用受控工具；请通过已注册并授权的工具入口继续。"
 _TOOL_EMPTY_ANSWER = "受控工具未在当前授权范围内找到可用结果。"
 _BLOCKED_INPUT_ANSWER = "抱歉，这条请求包含受限内容，无法继续处理。"
@@ -241,7 +241,9 @@ class ChatAgentRuntime:
         self, state: ChatState, runtime: Runtime[ChatRunContext]
     ) -> dict[str, object]:
         request = RetrievalRequest(
-            query=state["user_query"],
+            query=_contextualize_retrieval_query(
+                state["user_query"], state.get("history_summary", "")
+            ),
             scope=runtime.context.retrieval_scope,
             constraints=state.get("constraints", ChatConstraints()),
         )
@@ -252,19 +254,36 @@ class ChatAgentRuntime:
         self, state: ChatState, runtime: Runtime[ChatRunContext]
     ) -> dict[str, object]:
         chunks = state.get("retrieved_chunks", ())
-        gen = await to_thread.run_sync(self._generator.generate, state["user_query"], chunks)
+        contextual_query = _query_with_resolved_reference(
+            state["user_query"], state.get("history_summary", "")
+        )
+        gen = await to_thread.run_sync(
+            self._generator.generate,
+            contextual_query,
+            chunks,
+            state.get("history_summary", ""),
+        )
         runtime.context.generation = GroundedGeneration(
             gen.answer, None, gen.sources, gen.model_version, gen.fallback_reason
         )
         return {"answer": gen.answer, "sources": gen.sources}
 
-    def _generate_general(
-        self, _state: ChatState, runtime: Runtime[ChatRunContext]
+    async def _generate_general(
+        self, state: ChatState, runtime: Runtime[ChatRunContext]
     ) -> dict[str, object]:
-        runtime.context.generation = GroundedGeneration(
-            _GENERAL_ANSWER, None, (), None, "general_chat"
+        gen = await to_thread.run_sync(
+            self._generator.generate_general,
+            state["user_query"],
+            state.get("history_summary", ""),
         )
-        return {"answer": _GENERAL_ANSWER, "sources": ()}
+        runtime.context.generation = GroundedGeneration(
+            gen.answer,
+            None,
+            (),
+            gen.model_version,
+            gen.fallback_reason or "general_chat",
+        )
+        return {"answer": gen.answer, "sources": ()}
 
     async def _tool_guard(
         self, state: ChatState, runtime: Runtime[ChatRunContext]
@@ -450,3 +469,103 @@ def _string_tuple(value: object) -> tuple[str, ...]:
     if not isinstance(value, list | tuple):
         return ()
     return tuple(item for item in value if isinstance(item, str) and item.strip())
+
+
+_CONTEXTUAL_FOLLOW_UP_MARKERS = (
+    "这家",
+    "那家",
+    "它",
+    "他们",
+    "第一家",
+    "第二家",
+    "第三家",
+    "上一个",
+    "下一个",
+    "刚才",
+    "前面",
+    "上面",
+    "换一家",
+    "换一个",
+    "再来一家",
+    "还有吗",
+    "便宜点",
+    "贵一点",
+    "差评",
+    "人均多少",
+    "怎么样",
+)
+
+
+def _contextualize_retrieval_query(query: str, history: str) -> str:
+    """Expand context-dependent follow-ups while leaving standalone queries untouched."""
+    normalized_query = query.strip()
+    normalized_history = history.strip()
+    if not normalized_history or not _is_contextual_follow_up(normalized_query):
+        return normalized_query
+    recent_history = recent_conversation_history(normalized_history, max_messages=2)
+    contextual_query = _query_with_resolved_reference(normalized_query, normalized_history)
+    return (
+        "请根据以下同一会话语境检索当前追问涉及的商家和条件。\n"
+        f"最近一轮对话：{recent_history[-4000:]}\n"
+        f"当前追问：{contextual_query}"
+    )
+
+
+def _is_contextual_follow_up(query: str) -> bool:
+    return any(marker in query for marker in _CONTEXTUAL_FOLLOW_UP_MARKERS) or (
+        len(query) <= 16 and query.endswith(("呢", "吗", "？", "?"))
+    )
+
+
+_ORDINAL_INDICES = {
+    "第一家": 1,
+    "第二家": 2,
+    "第三家": 3,
+    "第四家": 4,
+    "第五家": 5,
+    "第一个": 1,
+    "第二个": 2,
+    "第三个": 3,
+    "第四个": 4,
+    "第五个": 5,
+}
+_NUMBERED_BOLD_ITEM = re.compile(r"(?m)^\s*(\d+)[.、]\s+\*\*([^*\n]{1,100})\*\*")
+_NUMBERED_PLAIN_ITEM = re.compile(r"(?m)^\s*(\d+)[.、]\s+([^：:\n（(]{1,100})")
+
+
+def _query_with_resolved_reference(query: str, history: str) -> str:
+    reference = _resolve_ordinal_reference(query, history)
+    if reference is None:
+        return query
+    marker, merchant_name = reference
+    return f"{query}\n[会话指代解析：{marker}明确指“{merchant_name}”，不得重新排列商家顺序]"
+
+
+def _resolve_ordinal_reference(query: str, history: str) -> tuple[str, str] | None:
+    requested = next(
+        ((marker, index) for marker, index in _ORDINAL_INDICES.items() if marker in query),
+        None,
+    )
+    if requested is None:
+        return None
+    marker, requested_index = requested
+    latest = recent_conversation_history(history, max_messages=1)
+    numbered = {int(number): name.strip() for number, name in _NUMBERED_BOLD_ITEM.findall(latest)}
+    if requested_index not in numbered:
+        numbered.update(
+            {
+                int(number): name.strip().strip("* ")
+                for number, name in _NUMBERED_PLAIN_ITEM.findall(latest)
+            }
+        )
+    merchant_name = numbered.get(requested_index)
+    if merchant_name:
+        return marker, merchant_name
+
+    inline = re.search(
+        rf"{re.escape(marker)}\s*(?:是|为|：|:)\s*(?:\*\*)?([^，。；\n*]{{1,100}})",
+        latest,
+    )
+    if inline is None:
+        return None
+    return marker, inline.group(1).strip()

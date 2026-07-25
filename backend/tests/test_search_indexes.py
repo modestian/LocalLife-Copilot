@@ -4,6 +4,7 @@ import pytest
 
 from app.infrastructure.search.indexes import (
     chunk_index_body,
+    create_chunk_index,
     ensure_chunk_index,
     switch_chunk_aliases,
 )
@@ -29,6 +30,7 @@ def test_chunk_index_mapping_is_strict_and_dimensioned() -> None:
     }
     assert properties["tenant_id"] == {"type": "keyword"}
     assert properties["knowledge_base_id"] == {"type": "keyword"}
+    assert properties["metadata"] == {"type": "object", "enabled": False}
 
 
 def test_ensure_chunk_index_creates_version_and_runtime_aliases() -> None:
@@ -63,6 +65,22 @@ def test_ensure_chunk_index_creates_version_and_runtime_aliases() -> None:
             }
         },
     ]
+
+
+def test_chunk_index_creation_falls_back_when_ik_plugin_is_unavailable() -> None:
+    client = MagicMock()
+    client.indices.create.side_effect = [RuntimeError("unknown ik_smart"), None]
+
+    create_chunk_index(client, index="chunks-v2", embedding_dimension=512)
+
+    calls = client.indices.create.call_args_list
+    assert len(calls) == 2
+    fallback = calls[1].kwargs["body"]
+    assert fallback["mappings"]["properties"]["content"] == {
+        "type": "text",
+        "analyzer": "zh_search",
+    }
+    assert fallback["settings"]["analysis"]["analyzer"]["zh_search"]["tokenizer"] == ("standard")
 
 
 def test_ensure_chunk_index_preserves_an_established_runtime_route() -> None:
