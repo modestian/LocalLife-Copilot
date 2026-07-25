@@ -4,23 +4,32 @@ export type ModelVersionStatus = 'REGISTERED' | 'EVALUATED' | 'APPROVED' | 'REJE
 export type FineTuningMethod = 'LORA' | 'QLORA'
 
 export interface DatasetFilter {
-  ratings?: Array<-1 | 1>
-  task_type?: string
-  reviewed_only?: boolean
-  created_from?: string
-  created_to?: string
+  rating?: -1 | 1 | null
+  task_type?: string | null
+  review_status?: string | null
+  start_date?: string | null
+  end_date?: string | null
 }
 
 export interface DatasetBuildRequest {
   name: string
   task_type: string
-  filters: DatasetFilter
+  filter: DatasetFilter
   split_config: {
     train_percent: number
     validation_percent: number
     test_percent: number
     isolation_key: 'CONVERSATION' | 'ENTITY'
   }
+}
+
+export interface RegisterModelRequest {
+  code: string
+  name: string
+  version: string
+  provider?: string
+  dimension?: number | null
+  labels?: string[] | null
 }
 
 export interface TrainingDataset {
@@ -151,7 +160,7 @@ export interface ModelLifecycleApi {
   getJob: (jobId: string) => Promise<FineTuningJob>
   cancelJob: (jobId: string) => Promise<FineTuningJob>
   evaluateJob: (jobId: string) => Promise<FineTuningJob>
-  registerModel: (jobId: string) => Promise<ModelVersion>
+  registerModel: (jobId: string, payload: RegisterModelRequest) => Promise<ModelVersion>
   listModels: () => Promise<ModelVersion[]>
   createModel: (payload: ModelRegistrationRequest) => Promise<ModelVersion>
   updateModelStatus: (modelId: string, payload: ModelStatusRequest) => Promise<ModelVersion>
