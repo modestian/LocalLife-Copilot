@@ -541,6 +541,11 @@ async def _seed_knowledge(session: AsyncSession, admin: User) -> None:
             updated_at=DEMO_TIME,
         ),
     )
+    # Ensure name is up-to-date even for databases seeded by older revisions.
+    existing_kb = await session.get(KnowledgeBase, KNOWLEDGE_BASE_ID)
+    if existing_kb and existing_kb.name != "探店知识库":
+        existing_kb.name = "探店知识库"
+        existing_kb.normalized_name = "探店知识库"
     await session.flush()
 
     document_content = (
