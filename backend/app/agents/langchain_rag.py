@@ -276,12 +276,18 @@ def _format_one(chunk: RetrievedChunk, index: int) -> str:
         ("名称", "merchant_name"),
         ("分类", "category"),
         ("评分", "rating"),
-        ("人均(分)", "avg_price_cent"),
         ("距离(米)", "distance_meter"),
     ):
         val = meta.get(key)
         if val is not None and val != "":
             parts.append(f"{label}: {val}")
+    price_cent = meta.get("avg_price_cent") or meta.get("price_cent")
+    if price_cent is not None and price_cent != "":
+        try:
+            yuan = int(price_cent) / 100
+            parts.append(f"人均(元): {yuan:g}")
+        except (TypeError, ValueError):
+            pass
     parts.append(f"内容: {chunk.content}")
     return " | ".join(parts)
 
