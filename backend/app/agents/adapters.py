@@ -15,21 +15,29 @@ class HybridSearchRetrieverAdapter:
 
     def retrieve(self, request: RetrievalRequest) -> Sequence[RetrievedChunk]:
         constraints = request.constraints
-        result = self._service.search(
-            request.query.strip(),
-            TrustedSearchScope(
-                tenant_id=request.scope.tenant_id,
-                knowledge_base_ids=request.scope.knowledge_base_ids,
-                resource_scopes=request.scope.resource_scopes,
-            ),
-            top_k=request.top_k,
-            filters=BusinessSearchFilters(
-                categories=constraints.cuisines,
-                price_cent_lte=constraints.budget_cent_per_person_lte,
-                distance_meter_lte=constraints.distance_meter_lte,
-                open_now=constraints.open_now,
-            ),
-        )
+
+        def _search(with_cuisine=True):
+            return self._service.search(
+                request.query.strip(),
+                TrustedSearchScope(
+                    tenant_id=request.scope.tenant_id,
+                    knowledge_base_ids=request.scope.knowledge_base_ids,
+                    resource_scopes=request.scope.resource_scopes,
+                ),
+                top_k=request.top_k,
+                filters=BusinessSearchFilters(
+                    categories=constraints.cuisines if with_cuisine else (),
+                    price_cent_lte=constraints.budget_cent_per_person_lte,
+                    distance_meter_lte=constraints.distance_meter_lte,
+                    open_now=constraints.open_now,
+                ),
+            )
+
+        # Try with cuisine filter first
+        result = _search(with_cuisine=True)
+        # If cuisine filter killed all results, retry without it
+        if constraints.cuisines and (result.fallback or not result.hits):
+            result = _search(with_cuisine=False)
         if result.fallback:
             return ()
         hits = result.hits

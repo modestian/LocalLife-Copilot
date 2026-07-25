@@ -20,7 +20,7 @@ from app.agents.contracts import ModelAdapter, ModelInput, ModelPrediction
 logger = logging.getLogger(__name__)
 
 _CLASSIFICATION_URL = "http://model-gateway:8001/v1/classify"
-_REQUEST_TIMEOUT = 60.0
+_REQUEST_TIMEOUT = 5.0
 
 # Bailian / DashScope defaults
 _BAILIAN_API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"

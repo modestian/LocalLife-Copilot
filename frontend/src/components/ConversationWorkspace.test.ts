@@ -145,7 +145,7 @@ describe('ConversationWorkspace', () => {
     }))
     expect(stream.send).toHaveBeenCalledWith(
       'conversation-new',
-      expect.stringContaining('场景：学习办公；距离：3 公里内；预算：人均 60 元以内；菜系/品类：咖啡'),
+      expect.stringContaining('场景：学习办公；预算：人均 60 元以内；菜系/品类：咖啡'),
       ['kb-study'],
     )
     expect(wrapper.text()).toContain('适合学习办公')

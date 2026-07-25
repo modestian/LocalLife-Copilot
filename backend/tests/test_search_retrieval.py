@@ -127,7 +127,17 @@ def test_business_filters_are_identical_on_both_recall_paths_and_cannot_replace_
     assert clauses[0] == mandatory_search_filter(trusted_scope(), now=NOW)
     assert {"terms": {"category_ids": ["cafe"]}} in clauses
     assert {"range": {"price_cent": {"lte": 6000}}} in clauses
-    assert {"range": {"metadata.distance_meter": {"lte": 3000}}} in clauses
+    # Distance filter now allows missing fields
+    distance_clause = {
+        "bool": {
+            "should": [
+                {"bool": {"must_not": [{"exists": {"field": "metadata.distance_meter"}}]}},
+                {"range": {"metadata.distance_meter": {"lte": 3000}}},
+            ],
+            "minimum_should_match": 1,
+        }
+    }
+    assert distance_clause in clauses
     assert {"terms": {"source_type": ["REVIEW", "review"]}} in clauses
 
 

@@ -149,7 +149,17 @@ def combined_search_filter(
     if filters.price_cent_lte is not None:
         clauses.append({"range": {"price_cent": {"lte": filters.price_cent_lte}}})
     if filters.distance_meter_lte is not None:
-        clauses.append({"range": {"metadata.distance_meter": {"lte": filters.distance_meter_lte}}})
+        clauses.append(
+            {
+                "bool": {
+                    "should": [
+                        {"bool": {"must_not": [{"exists": {"field": "metadata.distance_meter"}}]}},
+                        {"range": {"metadata.distance_meter": {"lte": filters.distance_meter_lte}}},
+                    ],
+                    "minimum_should_match": 1,
+                }
+            }
+        )
     # The lifecycle filter always excludes closed businesses. A request for
     # explicitly closed businesses therefore fails closed instead of weakening it.
     if filters.open_now is False:
