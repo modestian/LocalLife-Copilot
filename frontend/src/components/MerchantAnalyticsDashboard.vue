@@ -17,6 +17,7 @@ const props = defineProps<{
 
 interface CountedLabel {
   label: string
+  code: string
   count: number
 }
 
@@ -77,6 +78,9 @@ const ASPECT_CN: Record<string, string> = {
   set_meal: '套餐',
   equipment: '设施',
   overall: '整体体验',
+  delivery: '配送',
+  service: '服务',
+  environment: '环境',
 }
 
 const REASON_CN: Record<string, string> = {
@@ -102,11 +106,11 @@ const REASON_CN: Record<string, string> = {
 }
 
 function localizeAspect(code: string): string {
-  return ASPECT_CN[code] ?? code
+  return ASPECT_CN[code] ?? REASON_CN[code] ?? code
 }
 
 function localizeReason(code: string): string {
-  return REASON_CN[code] ?? code
+  return REASON_CN[code] ?? ASPECT_CN[code] ?? code
 }
 
 const sentimentCounts = computed<Record<Sentiment, number>>(() => ({
@@ -129,7 +133,7 @@ const aspectCounts = computed<CountedLabel[]>(() => {
     }
   }
   return [...counts.entries()]
-    .map(([label, count]) => ({ label: localizeAspect(label), count }))
+    .map(([code, count]) => ({ label: localizeAspect(code), code, count }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label, 'zh-CN'))
     .slice(0, 10)
 })
@@ -262,7 +266,7 @@ async function refresh(options: { allowAutoGranularity?: boolean } = {}): Promis
       trend.value = nextTrend
     }
 
-    negativeReasons.value = nextReasons.map((item) => ({ label: localizeReason(item.reason), count: item.count }))
+    negativeReasons.value = nextReasons.map((item) => ({ label: localizeReason(item.reason), code: item.reason, count: item.count }))
     analysisReviews.value = nextReviews
   } catch (error) {
     if (version !== requestVersion) return
@@ -328,20 +332,20 @@ function openTrend(point: SentimentTrendPoint, sentiment: Sentiment): void {
   )
 }
 
-function openAspect(label: string): void {
+function openAspect(label: string, code: string): void {
   drawerOpen.value = true
   drawerTitle.value = `特征「${label}」相关点评`
   drawerDescription.value = `从当前时间窗最近 ${ASPECT_SAMPLE_LIMIT} 条点评的 aspect_labels 中筛选`
   drawerError.value = ''
   drawerLoading.value = false
-  drawerReviews.value = analysisReviews.value.filter((review) => review.aspect_labels.includes(label))
+  drawerReviews.value = analysisReviews.value.filter((review) => review.aspect_labels.includes(code))
 }
 
-function openNegativeReason(reason: string): void {
+function openNegativeReason(reason: string, code: string): void {
   void openReviews(
     `差评归因「${reason}」`,
     '当前时间窗内包含该负面原因的原点评',
-    { ...appliedRange.value, sentiment: 'NEGATIVE', negative_reason: reason },
+    { ...appliedRange.value, sentiment: 'NEGATIVE', negative_reason: code },
   )
 }
 
@@ -567,7 +571,7 @@ onMounted(() => void refresh({ allowAutoGranularity: true }))
               v-for="item in aspectCounts"
               :key="item.label"
               type="button"
-              @click="openAspect(item.label)"
+              @click="openAspect(item.label, item.code)"
             >
               <span>{{ item.label }}</span>
               <i><b :style="{ width: percentage(item.count, maxAspectCount) }" /></i>
@@ -597,7 +601,7 @@ onMounted(() => void refresh({ allowAutoGranularity: true }))
               :key="item.label"
               type="button"
               :data-testid="`reason-${item.label}`"
-              @click="openNegativeReason(item.label)"
+              @click="openNegativeReason(item.label, item.code)"
             >
               <span>{{ item.label }}</span>
               <i><b :style="{ width: percentage(item.count, maxReasonCount) }" /></i>
@@ -670,15 +674,27 @@ onMounted(() => void refresh({ allowAutoGranularity: true }))
             </header>
             <p>{{ review.review_text }}</p>
             <footer>
-              <span
-                v-for="aspect in review.aspect_labels"
-                :key="`aspect-${aspect}`"
-              >特征 · {{ aspect }}</span>
-              <span
-                v-for="reason in review.negative_reasons"
-                :key="`reason-${reason}`"
-                class="is-reason"
-              >归因 · {{ reason }}</span>
+              <div
+                v-if="review.aspect_labels.length"
+                class="label-group"
+              >
+                <span class="label-group-title">特征</span>
+                <span
+                  v-for="aspect in review.aspect_labels"
+                  :key="`aspect-${aspect}`"
+                >{{ localizeAspect(aspect) }}</span>
+              </div>
+              <div
+                v-if="review.negative_reasons.length"
+                class="label-group is-reason-group"
+              >
+                <span class="label-group-title">归因</span>
+                <span
+                  v-for="reason in review.negative_reasons"
+                  :key="`reason-${reason}`"
+                  class="is-reason"
+                >{{ localizeReason(reason) }}</span>
+              </div>
             </footer>
           </li>
         </ul>
@@ -759,9 +775,13 @@ onMounted(() => void refresh({ allowAutoGranularity: true }))
 .review-list li > header { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; color: #806f64; font-size: .68rem; }
 .review-list time { margin-left: auto; }
 .review-list p { margin: 13px 0; color: #392d26; line-height: 1.7; white-space: pre-wrap; }
-.review-list footer { display: flex; flex-wrap: wrap; gap: 6px; }
-.review-list footer span, .sentiment-chip { border-radius: 999px; padding: 4px 7px; background: #eee5dc; color: #695b51; font-size: .64rem; font-weight: 800; }
-.review-list footer span.is-reason, .sentiment-chip.is-negative { background: #f4dfdb; color: #9e3c30; }
+.review-list footer { display: flex; flex-direction: column; gap: 8px; }
+.label-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border: 1px solid #e0d4c9; border-radius: 10px; padding: 8px 10px; background: #faf6f1; }
+.label-group.is-reason-group { border-color: #e8c4bd; background: #fdf5f3; }
+.label-group-title { font-size: .62rem; font-weight: 900; color: #88776c; letter-spacing: .04em; margin-right: 2px; }
+.label-group.is-reason-group .label-group-title { color: #9e3c30; }
+.label-group span:not(.label-group-title), .sentiment-chip { border-radius: 999px; padding: 4px 7px; background: #eee5dc; color: #695b51; font-size: .64rem; font-weight: 800; }
+.label-group span.is-reason, .sentiment-chip.is-negative { background: #f4dfdb; color: #9e3c30; }
 .sentiment-chip.is-positive { background: #e4f2e9; color: #2c704b; }
 .sentiment-chip.is-neutral { background: #f5ead2; color: #806226; }
 @media (max-width: 800px) {
