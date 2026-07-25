@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { documentApi } from '@/api/documents'
 import { ApiClientError } from '@/api/errors'
-import type { AcceptedTask } from '@/types/document'
+import type { UploadResult } from '@/types/document'
 
 import DocumentUploadPanel from './DocumentUploadPanel.vue'
 
@@ -11,11 +11,13 @@ vi.mock('@/api/documents', () => ({
   documentApi: { upload: vi.fn() },
 }))
 
-const accepted: AcceptedTask = {
+const accepted: UploadResult = {
   task_id: 'task-upload-1',
   status: 'PENDING',
   progress: 0,
   status_url: '/api/v1/tasks/task-upload-1',
+  task_ids: ['task-upload-1'],
+  files: [],
 }
 
 function mountPanel(disabled = false) {
