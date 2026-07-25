@@ -33,8 +33,11 @@ class HybridSearchRetrieverAdapter:
                 ),
             )
 
-        # Always skip category filter - OpenSearch terms query on category_ids is broken
-        result = _search(with_cuisine=False)
+        # Try with cuisine filter first
+        result = _search(with_cuisine=True)
+        # If cuisine filter killed all results, retry without it
+        if constraints.cuisines and (result.fallback or not result.hits):
+            result = _search(with_cuisine=False)
         if result.fallback:
             return ()
         hits = result.hits

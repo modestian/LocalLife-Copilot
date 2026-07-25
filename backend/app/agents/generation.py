@@ -298,8 +298,6 @@ class GroundedRAGGenerator:
             max_chunk_chars=self._max_chunk_chars,
             max_total_evidence_chars=self._max_total_evidence_chars,
         )
-        # SKIP MODEL: Bailian unreachable from Docker, use local fallback
-        return _simple_response(included, mode)
         if not included:
             return _fallback("no_usable_evidence")
         try:
