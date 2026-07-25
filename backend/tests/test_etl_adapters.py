@@ -150,3 +150,18 @@ def test_opensearch_projection_counts_and_deletes_one_document_version() -> None
             "refresh": True,
         }
     ]
+
+
+def test_haversine_distance_computes_correctly() -> None:
+    from app.etl.merchant_reviews import _haversine_distance
+
+    # 春熙路 → 天府广场 ≈ 1.2 km
+    d = _haversine_distance(104.08, 30.66, 104.066, 30.658)
+    assert 1000 < d < 2000
+
+    # Same point → 0
+    assert _haversine_distance(104.08, 30.66, 104.08, 30.66) == 0
+
+    # Beijing → Shanghai ≈ 1068 km
+    d2 = _haversine_distance(116.407, 39.904, 121.474, 31.23)
+    assert 1_000_000 < d2 < 1_100_000

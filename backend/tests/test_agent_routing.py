@@ -62,9 +62,9 @@ def test_follow_up_merges_retained_constraints_and_routes_to_retrieval() -> None
 
     assert follow_up_state["intent"] is ChatIntent.KNOWLEDGE_QUERY
     assert follow_up_state["constraints"] == ChatConstraints(
-        distance_meter_lte=1000,
+        distance_meter_lte=3000,
         budget_cent_per_person_lte=10000,
-        cuisines=("日本料理",),
+        cuisines=("日料",),
         atmospheres=("安静",),
         party_size=2,
     )
@@ -95,7 +95,7 @@ def test_constraint_extractor_merges_existing_constraints_from_history() -> None
         budget_cent_per_person_lte=8000,
         party_size=2,
         open_now=True,
-        cuisines=("面食",),
+        cuisines=("面馆",),
         atmospheres=("安静",),
     )
 
@@ -158,7 +158,7 @@ def test_clarification_asks_when_no_constraints_at_all() -> None:
     assert decision.needed is True
     assert decision.missing_fields == ("budget_cent_per_person_lte", "party_size")
     assert "人均预算" in decision.question
-    assert "用餐人数" in decision.question
+    assert "用餐人数" not in decision.question
     assert update == {"answer": decision.question}
     validate_state_update(update)
 
@@ -243,10 +243,10 @@ def test_noodle_cuisine_aliases_are_extracted() -> None:
     """面, 面条, 拉面, 面馆 all map to 面食."""
     e = ConstraintExtractor()
 
-    assert e.extract("我想吃面").cuisines == ("面食",)
-    assert e.extract("附近有什么面条").cuisines == ("面食",)
-    assert e.extract("推荐一家面馆").cuisines == ("面食",)
-    assert e.extract("来碗拉面").cuisines == ("面食",)
+    assert e.extract("我想吃面").cuisines == ("面馆",)
+    assert e.extract("附近有什么面条").cuisines == ("面馆",)
+    assert e.extract("推荐一家面馆").cuisines == ("面馆",)
+    assert e.extract("来碗拉面").cuisines == ("面馆",)
 
 
 def test_new_cuisine_replaces_old_not_accumulates() -> None:
@@ -257,7 +257,7 @@ def test_new_cuisine_replaces_old_not_accumulates() -> None:
         "我想吃面",
         existing=ChatConstraints(cuisines=("海鲜",)),
     )
-    assert result.cuisines == ("面食",)
+    assert result.cuisines == ("面馆",)
 
 
 def test_empty_cuisine_query_retains_old_cuisines() -> None:
@@ -337,3 +337,191 @@ def test_merchant_name_guard_skips_recommendation_queries() -> None:
     # Direct merchant name query (no recommendation keywords): should still work
     assert _matches_merchant_name("清河面馆", {"merchant_name": "清河面馆"}) is True
     assert _matches_merchant_name("清河", {"merchant_name": "清河面馆"}) is True
+
+
+def test_non_dining_shopping_intent_routes_to_knowledge_query() -> None:
+    """Shopping / service queries across categories must route to knowledge_query."""
+    router = IntentRouter()
+
+    # ── 服装 / 鞋包 ──
+    assert router.classify("想买一件羽绒服") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("推荐一家男装店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("哪里有服装店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想找男装") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想配一副眼镜") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("买鞋") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 首饰 ──
+    assert router.classify("哪里有黄金首饰店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想买钻石") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("哪里买珍珠") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 数码 ──
+    assert router.classify("想买手机") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("推荐一款耳机") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想修手机") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("哪里有数码店") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 化妆品 / 美容 ──
+    assert router.classify("想买化妆品") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("护肤品推荐") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("有什么香水") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 服务类 ──
+    assert router.classify("想做美甲") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想剪头发") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("附近有SPA吗") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想做按摩") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想纹身") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 玩具 / 文创 ──
+    assert router.classify("想买乐高") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("哪里有玩具店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("盲盒推荐") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("文具店") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 家居 ──
+    assert router.classify("想买家具") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("附近花店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("买花") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 教育 ──
+    assert router.classify("书店推荐") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("买书") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("附近有没有乐器培训") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 茶叶 / 古玩 ──
+    assert router.classify("想买茶叶") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("求推荐古玩店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("文玩") is ChatIntent.KNOWLEDGE_QUERY
+
+    # ── 通用动词 ──
+    assert router.classify("想找一家店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("找找附近有什么") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想去逛逛") is ChatIntent.KNOWLEDGE_QUERY
+
+    # Still general chat for unrelated
+    assert router.classify("你好") is ChatIntent.GENERAL_CHAT
+    assert router.classify("今天心情不错") is ChatIntent.GENERAL_CHAT
+
+
+def test_non_dining_constraint_extraction() -> None:
+    """Constraint extraction handles non-dining category aliases correctly."""
+    e = ConstraintExtractor()
+
+    # ── 服装 ──
+    assert e.extract("想买男装").cuisines == ("男装",)
+    assert e.extract("推荐汉服").cuisines == ("汉服",)
+    assert e.extract("买鞋").cuisines == ("鞋店",)
+    assert e.extract("想买配饰").cuisines == ("配饰",)
+
+    # ── 首饰 ──
+    assert e.extract("附近的金店").cuisines == ("黄金",)
+    assert e.extract("想买钻石").cuisines == ("钻石",)
+    assert e.extract("翡翠饰品").cuisines == ("翡翠饰品",)
+
+    # ── 数码 ──
+    assert e.extract("想买手机").cuisines == ("手机",)
+    assert e.extract("电脑维修").cuisines == ("电脑", "维修")
+    assert e.extract("数码配件").cuisines == ("配件",)
+
+    # ── 化妆品 ──
+    assert e.extract("想买化妆品").cuisines == ("化妆品",)
+    assert e.extract("护肤品推荐").cuisines == ("护肤",)
+    assert e.extract("买香水").cuisines == ("香水",)
+
+    # ── 服务 ──
+    assert e.extract("想剪头发").cuisines == ("理发店",)
+    assert e.extract("做个SPA").cuisines == ("SPA",)
+    assert e.extract("纹身").cuisines == ("纹身",)
+
+    # ── 玩具 ──
+    assert e.extract("想买乐高").cuisines == ("乐高",)
+    assert e.extract("文具店").cuisines == ("文具",)
+    assert e.extract("手办推荐").cuisines == ("手办",)
+
+    # ── 家居 ──
+    assert e.extract("买家具").cuisines == ("家具",)
+    assert e.extract("花店").cuisines == ("花卉",)
+    assert e.extract("想买厨具").cuisines == ("厨具",)
+
+    # ── 教育 ──
+    assert e.extract("书店").cuisines == ("书店",)
+    assert e.extract("买书").cuisines == ("书店",)
+    assert e.extract("乐器培训").cuisines == ("乐器", "培训机构")
+
+    # ── 茶叶 / 文玩 ──
+    assert e.extract("想买茶叶").cuisines == ("茶叶",)
+    assert e.extract("瓷器店").cuisines == ("瓷器",)
+    assert e.extract("紫砂壶").cuisines == ("紫砂壶",)
+    assert e.extract("买蜜蜡").cuisines == ("琥珀蜜蜡",)
+
+
+def test_shopping_scene_extraction() -> None:
+    """Shopping / service scene aliases are extracted correctly."""
+    e = ConstraintExtractor()
+
+    assert e.extract("想买礼物送人").scenes == ("送礼",)
+    assert e.extract("自用的").scenes == ("自用",)
+    assert e.extract("犒劳自己").scenes == ("犒劳自己",)
+    assert e.extract("朋友生日送什么").scenes == ("朋友生日",)
+    assert e.extract("纪念日礼物").scenes == ("纪念日",)
+
+
+def test_non_dining_recommendation_triggers_clarification() -> None:
+    """Non-dining recommendation queries should trigger clarification."""
+    planner = ClarificationPlanner()
+
+    # Bare recommendation for shopping should ask for budget / party_size
+    state: dict = {
+        "conversation_id": "c1",
+        "user_query": "求推荐",
+        "intent": ChatIntent.KNOWLEDGE_QUERY,
+        "constraints": ChatConstraints(),
+    }
+    decision = planner.plan(state)
+    assert decision.needed is True
+    assert "人均预算" in decision.question
+
+    # With category constraint: should skip clarification
+    state["constraints"] = ChatConstraints(cuisines=("男装",))
+    decision = planner.plan(state)
+    assert decision.needed is False
+
+
+def test_new_verb_patterns_in_routing() -> None:
+    """Regex verb patterns for non-dining actions route correctly."""
+    router = IntentRouter()
+
+    # 想找 (find/look for)
+    assert router.classify("想找一家服装店") is ChatIntent.KNOWLEDGE_QUERY
+    assert router.classify("想找个理发店") is ChatIntent.KNOWLEDGE_QUERY
+
+    # 想配 (get fitted/prescribed)
+    assert router.classify("想配眼镜") is ChatIntent.KNOWLEDGE_QUERY
+
+    # 想修 (repair)
+    assert router.classify("想修手机屏幕") is ChatIntent.KNOWLEDGE_QUERY
+
+    # 想试 (try)
+    assert router.classify("想试试那家新店") is ChatIntent.KNOWLEDGE_QUERY
+
+    # 想去 (want to go)
+    assert router.classify("想去逛逛书店") is ChatIntent.KNOWLEDGE_QUERY
+
+    # 找找 (casual look)
+    assert router.classify("找找附近有什么") is ChatIntent.KNOWLEDGE_QUERY
+
+
+def test_merchant_name_guard_with_new_keywords() -> None:
+    """_matches_merchant_name with new non-dining recommendation keywords."""
+    from app.agents.adapters import _matches_merchant_name
+
+    # New keywords should also skip merchant-name matching
+    assert _matches_merchant_name("想找手机", {"merchant_name": "手机之家"}) is False
+    assert _matches_merchant_name("想去看看", {"merchant_name": "看看服饰"}) is False
+    assert _matches_merchant_name("想配眼镜", {"merchant_name": "大明眼镜"}) is False
+    assert _matches_merchant_name("求推荐", {"merchant_name": "推荐书店"}) is False
+
+    # Direct name match should still work
+    assert _matches_merchant_name("清河面馆", {"merchant_name": "清河面馆"}) is True

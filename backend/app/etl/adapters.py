@@ -133,6 +133,7 @@ class OpenSearchProjection:
             "source_location",
             "category_ids",
             "price_cent",
+            "distance_meter",
         ):
             if (value := chunk.metadata.get(field)) is not None:
                 source[field] = value

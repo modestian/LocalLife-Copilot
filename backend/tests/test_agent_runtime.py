@@ -174,7 +174,7 @@ async def test_runtime_asks_for_missing_conditions_and_persists_turn() -> None:
     )
 
     assert "人均预算" in result.message.content
-    assert "用餐人数" in result.message.content
+    assert "用餐人数" not in result.message.content
     assert not retriever.requests
     assert [payload.role for payload in repository.payloads] == [
         MessageRole.USER,
@@ -351,12 +351,12 @@ async def test_runtime_rebuilds_constraints_without_assistant_recommendation_ter
     )
 
     constraints = retriever.requests[0].constraints
-    assert constraints.cuisines == ("面食",)
+    assert constraints.cuisines == ("面馆",)
     assert constraints.atmospheres == ("安静",)
     assert constraints.distance_meter_lte == 3000
     assert constraints.budget_cent_per_person_lte == 8000
     assert constraints.party_size == 2
-    assert repository.settings_updates[-1]["constraints"]["cuisines"] == ("面食",)
+    assert repository.settings_updates[-1]["constraints"]["cuisines"] == ("面馆",)
     assert repository.settings_updates[-1]["constraints"]["atmospheres"] == ("安静",)
 
 

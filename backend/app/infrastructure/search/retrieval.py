@@ -153,8 +153,8 @@ def combined_search_filter(
             {
                 "bool": {
                     "should": [
-                        {"bool": {"must_not": [{"exists": {"field": "metadata.distance_meter"}}]}},
-                        {"range": {"metadata.distance_meter": {"lte": filters.distance_meter_lte}}},
+                        {"bool": {"must_not": [{"exists": {"field": "distance_meter"}}]}},
+                        {"range": {"distance_meter": {"lte": filters.distance_meter_lte}}},
                     ],
                     "minimum_should_match": 1,
                 }

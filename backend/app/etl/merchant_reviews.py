@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
@@ -9,6 +10,10 @@ from typing import Protocol
 from uuid import UUID, uuid5
 
 from app.etl.models import DocumentRecord, JsonValue
+
+# Reference point for distance calculation (春熙路, Chengdu)
+_REF_LON: float = 104.08
+_REF_LAT: float = 30.66
 
 MERCHANT_IMPORT_NAMESPACE = UUID("70200000-0000-4000-8000-00000000a001")
 REQUIRED_COLUMNS = frozenset(
@@ -122,7 +127,9 @@ def enrich_source_record(row: MerchantReviewRow) -> DocumentRecord:
         "avg_price_cent": row.avg_price_cent,
         "price_cent": row.avg_price_cent,
         "rating": float(row.merchant_rating),
-        "distance_meter": 1000,
+        "distance_meter": _haversine_distance(
+            float(row.longitude), float(row.latitude), _REF_LON, _REF_LAT
+        ),
         "review_date": row.reviewed_at.isoformat(),
         "last_verified_at": row.reviewed_at.isoformat(),
         "tags": list(row.tags),
@@ -243,3 +250,15 @@ def _tags(value: object, record: DocumentRecord) -> tuple[str, ...]:
 
 def _blank(value: object) -> bool:
     return value is None or (isinstance(value, str) and not value.strip())
+
+
+def _haversine_distance(lon1: float, lat1: float, lon2: float, lat2: float) -> int:
+    """Compute distance in meters between two (lon, lat) pairs."""
+    r = 6_371_000  # Earth radius in meters
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+    )
+    return round(r * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))

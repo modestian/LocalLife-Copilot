@@ -62,6 +62,7 @@ def chunk_index_body(embedding_dimension: int) -> dict[str, Any]:
                 "source_location": {"type": "keyword", "index": False},
                 "category_ids": {"type": "keyword"},
                 "price_cent": {"type": "long"},
+                "distance_meter": {"type": "integer"},
                 "location": {"type": "geo_point"},
                 "business_status": {"type": "keyword"},
                 "valid_from": {"type": "date"},
