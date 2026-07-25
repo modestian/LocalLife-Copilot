@@ -4,6 +4,7 @@ import { defineStore } from 'pinia'
 import { knowledgeBaseApi } from '@/api/knowledge-bases'
 import { getUserFacingError } from '@/api/errors'
 import type {
+  CreateKnowledgeBasePayload,
   KnowledgeBaseDetail,
   KnowledgeBaseListParams,
   KnowledgeBaseSummary,
@@ -77,6 +78,40 @@ export const useKnowledgeBaseStore = defineStore('knowledge-base', () => {
     }
   }
 
+  async function createKnowledgeBase(
+    payload: CreateKnowledgeBasePayload,
+  ): Promise<KnowledgeBaseDetail> {
+    saving.value = true
+    errorMessage.value = ''
+    try {
+      const created = await knowledgeBaseApi.create(payload)
+      return created
+    } catch (error) {
+      errorMessage.value = getUserFacingError(error, '知识库创建失败，请稍后重试')
+      throw error
+    } finally {
+      saving.value = false
+    }
+  }
+
+  async function deleteKnowledgeBase(
+    id: string,
+    purge = false,
+  ): Promise<void> {
+    saving.value = true
+    errorMessage.value = ''
+    try {
+      await knowledgeBaseApi.delete(id, purge)
+      items.value = items.value.filter((item) => item.id !== id)
+      if (detail.value?.id === id) detail.value = null
+    } catch (error) {
+      errorMessage.value = getUserFacingError(error, '知识库删除失败，请稍后重试')
+      throw error
+    } finally {
+      saving.value = false
+    }
+  }
+
   return {
     items,
     detail,
@@ -89,5 +124,7 @@ export const useKnowledgeBaseStore = defineStore('knowledge-base', () => {
     loadList,
     loadDetail,
     updateDetail,
+    createKnowledgeBase,
+    deleteKnowledgeBase,
   }
 })

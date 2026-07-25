@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import KnowledgeDocumentWorkspace from '@/components/KnowledgeDocumentWorkspace.vue'
 import ProductTopBar from '@/components/ProductTopBar.vue'
@@ -8,11 +8,13 @@ import RetrievalDebugPanel from '@/components/RetrievalDebugPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base'
 import {
+  canDeleteKnowledgeBase,
   canUpdateKnowledgeBase,
   knowledgeBaseAccessLabel,
 } from '@/utils/knowledge-base-permissions'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const store = useKnowledgeBaseStore()
 const id = computed(() => String(route.params.id))
@@ -27,8 +29,36 @@ const form = reactive({
   embedding_model_id: '',
   chunk_size: 500,
   chunk_overlap: 80,
+  status: 'ACTIVE' as 'ACTIVE' | 'ARCHIVED',
 })
 const access = computed(() => canUpdateKnowledgeBase(authStore.currentUser, id.value))
+const deleteAccess = computed(() => canDeleteKnowledgeBase(authStore.currentUser, id.value))
+
+// Delete confirmation state
+const showDeleteConfirm = ref(false)
+const deleteError = ref('')
+
+function openDeleteConfirm(): void {
+  if (!deleteAccess.value.allowed) return
+  deleteError.value = ''
+  showDeleteConfirm.value = true
+}
+
+function cancelDelete(): void {
+  showDeleteConfirm.value = false
+  deleteError.value = ''
+}
+
+async function confirmDelete(): Promise<void> {
+  deleteError.value = ''
+  try {
+    await store.deleteKnowledgeBase(id.value)
+    showDeleteConfirm.value = false
+    router.push({ name: 'knowledge-bases' })
+  } catch {
+    deleteError.value = store.errorMessage
+  }
+}
 
 watch(
   () => store.detail,
@@ -41,6 +71,7 @@ watch(
     form.embedding_model_id = detail.embedding_model_id
     form.chunk_size = detail.chunk_size
     form.chunk_overlap = detail.chunk_overlap
+    form.status = (detail.status === 'ARCHIVED' ? 'ARCHIVED' : 'ACTIVE')
   },
   { immediate: true },
 )
@@ -71,6 +102,7 @@ function cancelEdit(): void {
     form.embedding_model_id = store.detail.embedding_model_id
     form.chunk_size = store.detail.chunk_size
     form.chunk_overlap = store.detail.chunk_overlap
+    form.status = (store.detail.status === 'ARCHIVED' ? 'ARCHIVED' : 'ACTIVE')
   }
   formError.value = ''
   editing.value = false
@@ -108,6 +140,7 @@ async function save(): Promise<void> {
       embedding_model_id: form.embedding_model_id.trim(),
       chunk_size: form.chunk_size,
       chunk_overlap: form.chunk_overlap,
+      status: form.status,
     })
     editing.value = false
     savedMessage.value = '知识库配置已保存。'
@@ -169,14 +202,24 @@ onMounted(() => store.loadDetail(id.value))
           <h1>{{ store.detail.name }}</h1>
           <p>{{ store.detail.description || '暂无知识库描述。' }}</p>
         </div>
-        <button
-          v-if="access.allowed && !editing"
-          class="button button--primary"
-          type="button"
-          @click="beginEdit"
-        >
-          编辑配置
-        </button>
+        <div class="detail-hero__actions">
+          <button
+            v-if="access.allowed && !editing"
+            class="button button--primary"
+            type="button"
+            @click="beginEdit"
+          >
+            编辑配置
+          </button>
+          <button
+            v-if="deleteAccess.allowed"
+            class="button button--danger"
+            type="button"
+            @click="openDeleteConfirm"
+          >
+            删除知识库
+          </button>
+        </div>
       </section>
 
       <section
@@ -276,6 +319,13 @@ onMounted(() => store.loadDetail(id.value))
               min="0"
             >
           </label>
+          <label>
+            <span>状态</span>
+            <select v-model="form.status">
+              <option value="ACTIVE">启用</option>
+              <option value="ARCHIVED">已归档</option>
+            </select>
+          </label>
           <p
             v-if="formError"
             class="form-message is-error"
@@ -341,6 +391,59 @@ onMounted(() => store.loadDetail(id.value))
         :knowledge-base-id="store.detail.id"
       />
     </template>
+
+    <!-- Delete Confirmation Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showDeleteConfirm"
+        class="modal-overlay"
+        role="dialog"
+        aria-modal="true"
+        aria-label="确认删除知识库"
+        @click.self="cancelDelete"
+      >
+        <div class="modal-confirm">
+          <header class="modal-confirm__header">
+            <span class="eyebrow">⚠ 危险操作</span>
+            <h2>确认删除知识库</h2>
+          </header>
+          <div class="modal-confirm__body">
+            <p>
+              你确定要删除知识库
+              <strong>"{{ store.detail?.name }}"</strong> 吗？
+            </p>
+            <p class="modal-confirm__warning">
+              此操作将删除该知识库及其所有关联的文档和 Chunk 数据，且不可恢复。
+            </p>
+            <p
+              v-if="deleteError"
+              class="form-message is-error"
+              role="alert"
+            >
+              {{ deleteError }}
+            </p>
+          </div>
+          <div class="modal-confirm__actions">
+            <button
+              class="button button--secondary"
+              type="button"
+              :disabled="store.saving"
+              @click="cancelDelete"
+            >
+              取消
+            </button>
+            <button
+              class="button button--danger"
+              type="button"
+              :disabled="store.saving"
+              @click="confirmDelete"
+            >
+              {{ store.saving ? '删除中…' : '确认删除' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </main>
 </template>
 
@@ -353,10 +456,12 @@ onMounted(() => store.loadDetail(id.value))
 .detail-hero h1 { margin: 14px 0; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; font-size: clamp(2.25rem, 5vw, 4rem); font-weight: 800; letter-spacing: -.065em; }
 .detail-hero p { max-width: 700px; margin: 0; color: var(--muted); line-height: 1.7; }
 .detail-hero__chips { display: flex; gap: 8px; }
+.detail-hero__actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
 .button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; border-radius: 9px; padding: 8px 14px; cursor: pointer; font-weight: 800; text-decoration: none; }
 .button:disabled { cursor: not-allowed; opacity: .48; }
 .button--primary { border: 1px solid var(--brand); background: linear-gradient(135deg, #ff7b43, #ec4b30); color: white; box-shadow: 0 7px 16px rgb(176 60 39 / 14%); }
 .button--secondary { border: 1px solid #d9ccc1; background: #fffdfa; color: #6c5042; }
+.button--danger { border: 1px solid #c44; background: linear-gradient(135deg, #e0554a, #b8382c); color: white; box-shadow: 0 7px 16px rgb(184 56 44 / 16%); }
 .status-chip, .permission-chip { display: inline-flex; border-radius: 999px; padding: 5px 9px; background: #eee5dc; color: #695b51; font-size: .7rem; font-weight: 900; }
 .status-chip.is-active, .permission-chip.is-allowed { background: #e4f2e9; color: #2c704b; }
 .status-chip.is-archived { background: #f1e8d9; color: #775f3d; }
@@ -373,7 +478,7 @@ onMounted(() => store.loadDetail(id.value))
 .section-title h2 { margin: 8px 0 0; color: #2c211b; font-size: 1.45rem; }
 .edit-panel form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .edit-panel label { display: grid; gap: 7px; color: #695b51; font-size: .8rem; font-weight: 800; }
-.edit-panel input, .edit-panel textarea { width: 100%; border: 1px solid #d9ccc1; border-radius: 9px; padding: 10px 11px; background: #fffdfa; color: #392d26; font: inherit; }
+.edit-panel input, .edit-panel textarea, .edit-panel select { width: 100%; border: 1px solid #d9ccc1; border-radius: 9px; padding: 10px 11px; background: #fffdfa; color: #392d26; font: inherit; }
 .edit-panel textarea { resize: vertical; }
 .is-wide { grid-column: 1 / -1; }
 .form-actions { display: flex; justify-content: flex-end; gap: 10px; }
@@ -388,9 +493,37 @@ onMounted(() => store.loadDetail(id.value))
 .state-panel p { margin: 8px 0 18px; }
 .state-panel--error { border-color: #e3b3aa; background: #fff4f1; color: #8e3328; }
 .state-panel__actions { display: flex; justify-content: center; gap: 10px; }
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgb(0 0 0 / 42%); backdrop-filter: blur(4px);
+}
+.modal-confirm {
+  width: min(480px, calc(100% - 32px)); border-radius: 16px; background: #fff;
+  box-shadow: 0 20px 50px rgb(0 0 0 / 18%); overflow: hidden;
+}
+.modal-confirm__header {
+  padding: 24px 24px 0;
+}
+.modal-confirm__header h2 { margin: 8px 0 0; color: #2c211b; font-size: 1.35rem; }
+.modal-confirm__body {
+  padding: 16px 24px 20px; color: #4e4139; line-height: 1.7;
+}
+.modal-confirm__body strong { color: #b5412b; }
+.modal-confirm__warning {
+  margin-top: 12px; padding: 12px 14px; border-radius: 10px;
+  background: #fff4f1; color: #9e3c30; font-size: .84rem; line-height: 1.6;
+}
+.modal-confirm__actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 24px 24px; border-top: 1px solid #f0ece8;
+}
 @media (max-width: 760px) {
   .kb-detail-page { width: min(100% - 28px, 600px); }
   .detail-header, .detail-hero { align-items: stretch; flex-direction: column; }
+  .detail-hero__actions { flex-wrap: wrap; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .edit-panel form, .metadata-panel dl { grid-template-columns: 1fr; }
   .metadata-panel dl div { grid-template-columns: 1fr; gap: 5px; }
