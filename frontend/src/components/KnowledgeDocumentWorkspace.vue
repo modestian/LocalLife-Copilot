@@ -39,6 +39,7 @@ const previewError = ref('')
 const selectedVersion = ref<number | null>(null)
 const previewTab = ref<'original' | 'chunks'>('original')
 const keyword = ref('')
+const previewChunkPage = ref(1)
 const mutating = ref(false)
 const mutationMessage = ref('')
 
@@ -57,7 +58,8 @@ const statusLabels: Record<DocumentStatus, string> = {
   DELETED: '已删除',
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string | null): string {
+  if (!value) return '—'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('zh-CN', { hour12: false })
 }
@@ -83,7 +85,7 @@ async function loadDocuments(resetPage = false): Promise<void> {
   }
 }
 
-async function loadPreview(): Promise<void> {
+async function loadPreview(chunkPage = 1): Promise<void> {
   if (!selected.value || !selectedVersion.value) return
   previewLoading.value = true
   previewError.value = ''
@@ -92,9 +94,10 @@ async function loadPreview(): Promise<void> {
     preview.value = await documentApi.preview(selected.value.id, {
       version_no: selectedVersion.value,
       keyword: keyword.value.trim() || undefined,
-      chunk_page: 1,
+      chunk_page: chunkPage,
       chunk_page_size: 50,
     })
+    previewChunkPage.value = preview.value.chunk_page
   } catch (error) {
     previewError.value = getUserFacingError(error, '文档预览加载失败，请稍后重试')
   } finally {
@@ -102,10 +105,20 @@ async function loadPreview(): Promise<void> {
   }
 }
 
+function changeChunkPage(next: number): void {
+  if (next < 1 || !preview.value || next > Math.ceil(preview.value.chunk_total / preview.value.chunk_page_size)) return
+  void loadPreview(next)
+}
+
+function submitPreviewSearch(): void {
+  void loadPreview(1)
+}
+
 async function openDocument(document: DocumentSummary, preserveMutation = false): Promise<void> {
   selected.value = null
   preview.value = null
   previewError.value = ''
+  previewChunkPage.value = 1
   if (!preserveMutation) mutationMessage.value = ''
   previewLoading.value = true
   try {
@@ -128,6 +141,7 @@ function closePreview(): void {
 
 async function changeVersion(): Promise<void> {
   mutationMessage.value = ''
+  previewChunkPage.value = 1
   await loadPreview()
 }
 
@@ -486,7 +500,7 @@ onMounted(() => loadDocuments())
                 Chunk（{{ preview?.chunk_total ?? 0 }}）
               </button>
             </div>
-            <form @submit.prevent="loadPreview">
+            <form @submit.prevent="submitPreviewSearch">
               <input
                 v-model="keyword"
                 placeholder="输入关键词高亮"
@@ -529,6 +543,27 @@ onMounted(() => loadDocuments())
               </p>
             </li>
           </ol>
+
+          <div
+            v-if="preview && preview.chunk_total > preview.chunk_page_size"
+            class="chunk-pagination"
+          >
+            <button
+              type="button"
+              :disabled="preview.chunk_page <= 1"
+              @click="changeChunkPage(preview.chunk_page - 1)"
+            >
+              上一页
+            </button>
+            <span>{{ preview.chunk_page }} / {{ Math.ceil(preview.chunk_total / preview.chunk_page_size) }}</span>
+            <button
+              type="button"
+              :disabled="preview.chunk_page >= Math.ceil(preview.chunk_total / preview.chunk_page_size)"
+              @click="changeChunkPage(preview.chunk_page + 1)"
+            >
+              下一页
+            </button>
+          </div>
 
           <footer v-if="canManage">
             <button
@@ -612,6 +647,8 @@ td:last-child button { border: 0; background: transparent; color: #9d3423; curso
 .preview-panel > footer { margin-top: 20px; border-top: 1px solid #e0d4c9; padding-top: 16px; text-align: right; }
 .danger-button { border: 1px solid #d9a59c; border-radius: 8px; padding: 8px 12px; background: #fff1ee; color: #a4362b; cursor: pointer; font-weight: 800; }
 .danger-button:disabled { cursor: not-allowed; opacity: .5; }
+.chunk-pagination { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 18px; font-size: .8rem; color: #695b51; }
+.chunk-pagination button { min-width: 80px; }
 @media (max-width: 760px) {
   .workspace-title, .document-list-heading, .task-tracker__heading, .preview-controls, .version-toolbar { align-items: stretch; flex-direction: column; }
   .document-metadata { grid-template-columns: 1fr; }

@@ -33,7 +33,7 @@ from app.core.api import success_response
 from app.core.errors import AppError
 from app.core.ids import uuid7
 from app.infrastructure.db.models.identity import Department, User
-from app.infrastructure.db.models.knowledge import Document
+from app.infrastructure.db.models.knowledge import Chunk, Document, DocumentVersion
 
 router = APIRouter(tags=["knowledge"])
 
@@ -180,8 +180,14 @@ async def _enrich_knowledge_base_data(request: Request, items: list[dict[str, An
         chunk_count_query = (
             select(
                 Document.knowledge_base_id,
-                func.coalesce(func.sum(Document.current_version_no), 0).label("chunk_count"),
+                func.coalesce(func.count(Chunk.id), 0).label("chunk_count"),
             )
+            .select_from(Document)
+            .outerjoin(
+                DocumentVersion,
+                (DocumentVersion.document_id == Document.id) & DocumentVersion.is_current.is_(True),
+            )
+            .outerjoin(Chunk, Chunk.document_version_id == DocumentVersion.id)
             .where(
                 Document.knowledge_base_id.in_(kb_ids),
                 Document.deleted_at.is_(None),
@@ -386,17 +392,26 @@ async def list_documents(
     principal: CurrentPrincipal,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    status: Annotated[str | None, Query()] = None,
 ) -> dict[str, Any]:
     _authorize_knowledge_base(principal, knowledge_base_id, "READ")
     try:
         rows = await _knowledge_service(request, principal).list_documents(
-            knowledge_base_id, limit=page_size, offset=(page - 1) * page_size
+            knowledge_base_id, status=status, limit=page_size, offset=(page - 1) * page_size
+        )
+        total = await _knowledge_service(request, principal).count_documents(
+            knowledge_base_id, status=status
         )
     except KnowledgeBaseNotFound as exc:
         raise AppError(404, "NOT_FOUND", "知识库不存在") from exc
     return success_response(
         request,
-        {"items": [_serialize(row) for row in rows], "page": page, "page_size": page_size},
+        {
+            "items": [_serialize(row) for row in rows],
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+        },
     )
 
 
