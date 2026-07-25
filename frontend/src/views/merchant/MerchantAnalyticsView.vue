@@ -9,6 +9,8 @@ import MerchantReviewsPanel from '@/components/MerchantReviewsPanel.vue'
 import ProductTopBar from '@/components/ProductTopBar.vue'
 import { useAuthStore } from '@/stores/auth'
 
+const MERCHANT_UID_KEY = 'local-life-copilot.merchant-uid'
+
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
@@ -28,9 +30,29 @@ const isPlatformAdmin = computed(() =>
   authStore.currentUser?.roles.some((role) => role.code.toUpperCase() === 'PLATFORM_ADMIN') ?? false,
 )
 
+const isMerchant = computed(() =>
+  !isPlatformAdmin.value
+  && ['MERCHANT_ADMIN', 'MERCHANT_OPERATOR'].some(
+    (role) => authStore.currentUser?.roles.some((r) => r.code.toUpperCase() === role) ?? false,
+  ),
+)
+
+const storedMerchantUid = ref(localStorage.getItem(MERCHANT_UID_KEY) ?? '')
+
 const routeMerchantId = computed(() => String(route.params.merchantId ?? '').trim())
+
+/**
+ * 商家用户：只能查看 localStorage 中存储的 UID 对应的商铺，且必须在授权范围内。
+ * 平台管理员：可按 route 参数查看任意商铺。
+ */
 const selectedMerchantId = computed(() => {
   if (isPlatformAdmin.value) return routeMerchantId.value
+  if (isMerchant.value) {
+    const uid = storedMerchantUid.value
+    if (uid && merchantIds.value.includes(uid)) return uid
+    return ''
+  }
+  // fallback: 使用 route 参数并校验授权
   if (routeMerchantId.value) {
     return merchantIds.value.includes(routeMerchantId.value) ? routeMerchantId.value : ''
   }
@@ -39,15 +61,17 @@ const selectedMerchantId = computed(() => {
 
 const accessMessage = computed(() => {
   if (isPlatformAdmin.value && !selectedMerchantId.value) return '请输入需要查看的商家 ID。'
+  if (isMerchant.value && !selectedMerchantId.value) {
+    return '请先输入商铺 UID 以查看经营数据。'
+  }
   if (routeMerchantId.value && !merchantIds.value.includes(routeMerchantId.value)) {
     return '当前账号未获得该商家的资源授权。'
   }
   return '当前账号没有任何商家资源授权，请联系管理员配置 MERCHANT 范围。'
 })
 
-function switchMerchant(event: Event): void {
-  const merchantId = (event.target as HTMLSelectElement).value
-  if (merchantId) void router.push({ name: 'merchant-home', params: { merchantId } })
+function goToUidPage(): void {
+  void router.push({ name: 'merchant-uid' })
 }
 
 function openAdminMerchant(): void {
@@ -85,6 +109,15 @@ watch(routeMerchantId, (value) => {
 watch(merchantIds, (ids) => {
   void loadMerchantNames(ids)
 }, { immediate: true })
+
+// 商家用户未输入 UID 时，自动跳转到 UID 验证页
+watch(
+  () => isMerchant.value && !selectedMerchantId.value,
+  (shouldRedirect) => {
+    if (shouldRedirect) void router.replace({ name: 'merchant-uid' })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -98,29 +131,8 @@ watch(merchantIds, (ids) => {
         <p>从情感走势、点评特征和差评原因定位经营变化，并下钻核对参与统计的原点评。</p>
       </div>
 
-      <aside
-        v-if="merchantIds.length > 1 && !isPlatformAdmin"
-        class="merchant-switcher"
-      >
-        <label for="merchant-scope">当前商家</label>
-        <select
-          id="merchant-scope"
-          :value="selectedMerchantId"
-          @change="switchMerchant"
-        >
-          <option
-            v-for="merchantId in merchantIds"
-            :key="merchantId"
-            :value="merchantId"
-          >
-            {{ merchantLabel(merchantId) }}
-          </option>
-        </select>
-        <small>显示商家名称与 ID 尾号，仅列出当前账号已授权的资源范围</small>
-      </aside>
-
       <form
-        v-else-if="isPlatformAdmin"
+        v-if="isPlatformAdmin"
         class="merchant-switcher"
         @submit.prevent="openAdminMerchant"
       >
@@ -138,12 +150,19 @@ watch(merchantIds, (ids) => {
       </form>
 
       <aside
-        v-else-if="selectedMerchantId"
+        v-else-if="isMerchant && selectedMerchantId"
         class="merchant-switcher"
       >
         <span>当前商家</span>
         <strong :title="selectedMerchantId">{{ merchantLabel(selectedMerchantId) }}</strong>
-        <small>来自账号 MERCHANT 资源授权</small>
+        <small>来自登录时输入的商铺 UID，不可切换</small>
+        <button
+          class="reenter-uid-btn"
+          type="button"
+          @click="goToUidPage"
+        >
+          重新输入 UID
+        </button>
       </aside>
     </section>
 
@@ -193,6 +212,8 @@ watch(merchantIds, (ids) => {
 .merchant-switcher button:hover { background: var(--brand-strong); transform: translateY(-1px); }
 .merchant-switcher strong { overflow: hidden; color: #392d26; font-size: 1rem; text-overflow: ellipsis; }
 .merchant-switcher small { color: #88776c; font-size: .66rem; line-height: 1.5; }
+.reenter-uid-btn { border: 1px solid #d9ccc1; border-radius: 9px; padding: 6px 10px; background: transparent; color: #695b51; cursor: pointer; font-size: .72rem; font-weight: 700; transition: background .2s ease; }
+.reenter-uid-btn:hover { background: #f5ede6; }
 .access-state { border: 1px dashed #dfb7af; border-radius: 16px; padding: 46px 24px; background: #fff6f3; color: #8e3328; text-align: center; }
 .access-state strong { font-size: 1.08rem; }
 .access-state p { margin: 8px 0 0; }

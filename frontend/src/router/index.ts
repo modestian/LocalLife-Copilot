@@ -39,6 +39,16 @@ const router = createRouter({
       meta: { requiresAuth: true, roles: ['USER'], title: '发表评价' },
     },
     {
+      path: '/merchant/verify-uid',
+      name: 'merchant-uid',
+      component: () => import('@/views/merchant/MerchantUidView.vue'),
+      meta: {
+        requiresAuth: true,
+        roles: ['MERCHANT_ADMIN', 'MERCHANT_OPERATOR'],
+        title: '商铺身份验证',
+      },
+    },
+    {
       path: '/merchant/:merchantId?',
       name: 'merchant-home',
       component: () => import('@/views/merchant/MerchantAnalyticsView.vue'),

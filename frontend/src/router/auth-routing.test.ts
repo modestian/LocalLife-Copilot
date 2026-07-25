@@ -25,7 +25,7 @@ function userWithRole(code: string): CurrentUser {
 describe('role routing', () => {
   it.each([
     ['USER', 'user-home'],
-    ['MERCHANT_ADMIN', 'merchant-home'],
+    ['MERCHANT_ADMIN', 'merchant-uid'],
     ['KB_ADMIN', 'admin-home'],
     ['PLATFORM_ADMIN', 'admin-home'],
   ] as const)('routes %s to %s', (role, routeName) => {
