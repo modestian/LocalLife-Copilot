@@ -118,7 +118,9 @@ class MessageSource(Base):
         primary_key=True,
     )
     chunk_id: Mapped[UUID] = mapped_column(
-        UUIDBinary(), ForeignKey("chunks.id", name="fk_message_sources_chunk"), primary_key=True
+        UUIDBinary(),
+        ForeignKey("chunks.id", name="fk_message_sources_chunk", ondelete="CASCADE"),
+        primary_key=True,
     )
     rank_no: Mapped[int] = mapped_column(UNSIGNED_SMALLINT, nullable=False)
     score: Mapped[Decimal | None] = mapped_column(Numeric(8, 7), nullable=True)
