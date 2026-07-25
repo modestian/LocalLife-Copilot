@@ -327,9 +327,12 @@ class GroundedRAGGenerator:
                 verification.sources,
                 prediction.model_version,
             )
-        except (GroundedGenerationError, RuntimeError, TypeError, ValueError):
+        except (RuntimeError, OSError):
+            # Network/model unavailable - use local fallback
             if chunks:
                 return _simple_response(chunks, mode)
+            return _fallback("model_unavailable")
+        except (GroundedGenerationError, TypeError, ValueError):
             return _fallback("invalid_model_output")
 
     def __call__(self, state: ChatState) -> StateUpdate:
