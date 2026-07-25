@@ -90,6 +90,7 @@ def test_constraint_extractor_ignores_constraints_from_assistant_history() -> No
         budget_cent_per_person_lte=8000,
         party_size=2,
         open_now=True,
+        cuisines=("面食",),
     )
 
 
@@ -205,3 +206,71 @@ def test_beverage_intent_patterns_route_to_knowledge_query() -> None:
     # Still general chat for unrelated input
     assert router.classify("\u4f60\u597d") is ChatIntent.GENERAL_CHAT
     assert router.classify("\u4eca\u5929\u5929\u6c14\u600e\u4e48\u6837") is ChatIntent.GENERAL_CHAT
+
+
+def test_noodle_cuisine_aliases_are_extracted() -> None:
+    """面, 面条, 拉面, 面馆 all map to 面食."""
+    e = ConstraintExtractor()
+
+    assert e.extract("我想吃面").cuisines == ("面食",)
+    assert e.extract("附近有什么面条").cuisines == ("面食",)
+    assert e.extract("推荐一家面馆").cuisines == ("面食",)
+    assert e.extract("来碗拉面").cuisines == ("面食",)
+
+
+def test_new_cuisine_replaces_old_not_accumulates() -> None:
+    """A new cuisine mention replaces previously persisted cuisines."""
+    e = ConstraintExtractor()
+
+    result = e.extract(
+        "我想吃面",
+        existing=ChatConstraints(cuisines=("海鲜",)),
+    )
+    assert result.cuisines == ("面食",)
+
+
+def test_empty_cuisine_query_retains_old_cuisines() -> None:
+    """Follow-up without cuisine mention keeps old cuisines."""
+    e = ConstraintExtractor()
+
+    result = e.extract(
+        "人均 50 元以内",
+        existing=ChatConstraints(cuisines=("海鲜",), atmospheres=("安静",)),
+    )
+    assert result.cuisines == ("海鲜",)
+    assert result.budget_cent_per_person_lte == 5000
+    assert result.atmospheres == ("安静",)
+
+
+def test_new_atmosphere_replaces_old() -> None:
+    """A new atmosphere mention replaces previously persisted atmospheres."""
+    e = ConstraintExtractor()
+
+    result = e.extract(
+        "找个热闹的地方",
+        existing=ChatConstraints(atmospheres=("安静",)),
+    )
+    assert result.atmospheres == ("热闹",)
+    # old atmosphere cleared, new one set
+
+
+def test_atmosphere_retained_when_query_has_none() -> None:
+    """Follow-up without atmosphere keeps old."""
+    e = ConstraintExtractor()
+
+    result = e.extract(
+        "人均 30 元",
+        existing=ChatConstraints(atmospheres=("浪漫",)),
+    )
+    assert result.atmospheres == ("浪漫",)
+
+
+def test_empty_tuple_keeps_base_for_scenes_too() -> None:
+    """The replace-not-union logic applies to scenes as well."""
+    e = ConstraintExtractor()
+
+    result = e.extract(
+        "适合约会",
+        existing=ChatConstraints(scenes=("聚会",)),
+    )
+    assert result.scenes == ("约会",)
