@@ -427,7 +427,10 @@ onMounted(load)
               ✕
             </button>
           </header>
-          <form class="modal-panel__form" @submit.prevent="submitCreate">
+          <form
+            class="modal-panel__form"
+            @submit.prevent="submitCreate"
+          >
             <label>
               <span>知识库名称 *</span>
               <input
