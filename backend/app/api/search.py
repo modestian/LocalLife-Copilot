@@ -95,7 +95,7 @@ async def hybrid_search(
         bm25_weight=body.keyword_weight,
         vector_weight=body.vector_weight,
         minimum_score=request.app.state.settings.search_minimum_score,
-        minimum_evidence=min(2, body.top_k),
+        minimum_evidence=1,
     )
 
     started = time.perf_counter()
