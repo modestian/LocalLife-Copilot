@@ -1,4 +1,4 @@
-import type { FeedbackApi, FeedbackEntry, FeedbackQueryParams } from '@/types/feedback'
+import type { FeedbackApi, FeedbackEntry } from '@/types/feedback'
 
 import { requestData } from './client'
 
