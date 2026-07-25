@@ -182,19 +182,89 @@ async def _serve_request(
         scope = await _shared_retrieval_scope(
             websocket.app, principal, event.options.knowledge_base_ids
         )
-        result = await runtime.run(
-            conversation_id=event.conversation_id,
-            owner_user_id=principal.user_id,
-            query=event.content,
-            retrieval_scope=scope,
-            request_id=event.request_id,
-            principal=principal,
-        )
-        intent = result.state.get("intent")
-        if intent is not None:
-            await emit({"type": "chat.route", "request_id": event.request_id, "route": str(intent)})
-        for part in _text_chunks(result.message.content):
-            await emit({"type": "chat.delta", "request_id": event.request_id, "delta": part})
+
+        # --- True streaming: intercept generation tokens via a queue ---
+        from app.agents.langchain_rag import SimpleRAGGenerator
+
+        generator = getattr(runtime, "_generator", None)
+        can_stream = isinstance(generator, SimpleRAGGenerator)
+
+        if can_stream:
+            token_queue: asyncio.Queue[str | None] = asyncio.Queue()
+            loop = asyncio.get_running_loop()
+            original_generator = generator
+
+            class _StreamingProxy:
+                """Wraps the real generator to push tokens into an asyncio queue."""
+
+                def generate(self, query, chunks, history=""):
+                    result = None
+                    for tok, final in original_generator.stream_generate(query, chunks, history):
+                        if tok:
+                            loop.call_soon_threadsafe(token_queue.put_nowait, tok)
+                        if final is not None:
+                            result = final
+                    loop.call_soon_threadsafe(token_queue.put_nowait, None)
+                    return result
+
+                def generate_general(self, query, history=""):
+                    result = None
+                    for tok, final in original_generator.stream_generate_general(query, history):
+                        if tok:
+                            loop.call_soon_threadsafe(token_queue.put_nowait, tok)
+                        if final is not None:
+                            result = final
+                    loop.call_soon_threadsafe(token_queue.put_nowait, None)
+                    return result
+
+            runtime._generator = _StreamingProxy()
+            try:
+                run_task = asyncio.create_task(
+                    runtime.run(
+                        conversation_id=event.conversation_id,
+                        owner_user_id=principal.user_id,
+                        query=event.content,
+                        retrieval_scope=scope,
+                        request_id=event.request_id,
+                        principal=principal,
+                    )
+                )
+                # Stream tokens to the client as they arrive
+                while True:
+                    token = await token_queue.get()
+                    if token is None:
+                        break
+                    await emit(
+                        {"type": "chat.delta", "request_id": event.request_id, "delta": token}
+                    )
+
+                result = await run_task
+            finally:
+                runtime._generator = original_generator
+        else:
+            # Fallback: non-streaming path (mock runtimes or legacy generators)
+            result = await runtime.run(
+                conversation_id=event.conversation_id,
+                owner_user_id=principal.user_id,
+                query=event.content,
+                retrieval_scope=scope,
+                request_id=event.request_id,
+                principal=principal,
+            )
+            intent = result.state.get("intent")
+            if intent is not None:
+                await emit(
+                    {"type": "chat.route", "request_id": event.request_id, "route": str(intent)}
+                )
+            for part in _text_chunks(result.message.content):
+                await emit({"type": "chat.delta", "request_id": event.request_id, "delta": part})
+
+        if can_stream:
+            intent = result.state.get("intent")
+            if intent is not None:
+                await emit(
+                    {"type": "chat.route", "request_id": event.request_id, "route": str(intent)}
+                )
         recommendation_event = _recommendation_event(result, event.request_id)
         if recommendation_event is not None:
             await emit(recommendation_event)

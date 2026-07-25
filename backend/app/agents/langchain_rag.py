@@ -460,6 +460,117 @@ class SimpleRAGGenerator:
             fallback_reason="llm_unavailable",
         )
 
+    # ------------------------------------------------------------------
+    # Streaming generation (true token-by-token output)
+    # ------------------------------------------------------------------
+
+    def stream_generate(
+        self,
+        query: str,
+        chunks: Sequence[RetrievedChunk],
+        history: str = "",
+    ):
+        """Yield (token, RAGGeneration | None) tuples. Final item has the complete result."""
+        citations = chunks_to_citations(chunks)
+
+        if not chunks:
+            yield (
+                "",
+                RAGGeneration(answer=NO_EVIDENCE_ANSWER, sources=(), fallback_reason="no_evidence"),
+            )
+            return
+
+        if not self._model._api_key:
+            answer = render_fallback(chunks)
+            yield (
+                answer,
+                RAGGeneration(
+                    answer=answer,
+                    sources=citations,
+                    model_version="local-fallback",
+                    fallback_reason="no_api_key",
+                ),
+            )
+            return
+
+        context = chunks_to_context(chunks)
+        if self._chain is not None:
+            try:
+                collected = ""
+                for token in self._chain.stream(
+                    {"query": query, "context": context, "history": _bounded_history(history)}
+                ):
+                    collected += token
+                    yield token, None
+                if collected.strip():
+                    yield (
+                        "",
+                        RAGGeneration(
+                            answer=collected.strip(),
+                            sources=citations,
+                            model_version=self._model.version,
+                        ),
+                    )
+                    return
+            except Exception:
+                logger.warning("LLM stream generation failed, using fallback", exc_info=True)
+
+        answer = render_fallback(chunks)
+        yield (
+            answer,
+            RAGGeneration(
+                answer=answer,
+                sources=citations,
+                model_version="local-fallback",
+                fallback_reason="llm_unavailable",
+            ),
+        )
+
+    def stream_generate_general(self, query: str, history: str = ""):
+        """Yield (token, RAGGeneration | None) tuples for general chat."""
+        if not self._model._api_key:
+            yield (
+                GENERAL_FALLBACK_ANSWER,
+                RAGGeneration(
+                    answer=GENERAL_FALLBACK_ANSWER,
+                    sources=(),
+                    model_version="local-fallback",
+                    fallback_reason="no_api_key",
+                ),
+            )
+            return
+
+        if self._general_chain is not None:
+            try:
+                collected = ""
+                for token in self._general_chain.stream(
+                    {"query": query, "history": _bounded_history(history)}
+                ):
+                    collected += token
+                    yield token, None
+                if collected.strip():
+                    yield (
+                        "",
+                        RAGGeneration(
+                            answer=collected.strip(),
+                            sources=(),
+                            model_version=self._model.version,
+                        ),
+                    )
+                    return
+            except Exception:
+                logger.warning("General stream generation failed, using fallback", exc_info=True)
+
+        yield (
+            GENERAL_FALLBACK_ANSWER,
+            RAGGeneration(
+                answer=GENERAL_FALLBACK_ANSWER,
+                sources=(),
+                model_version="local-fallback",
+                fallback_reason="llm_unavailable",
+            ),
+        )
+
 
 def _bounded_history(history: str) -> str:
     normalized = history.strip()
