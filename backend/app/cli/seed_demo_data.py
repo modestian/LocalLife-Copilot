@@ -986,7 +986,8 @@ def sync_demo_search_index(settings: Settings | None = None) -> int:
             HttpEmbeddingProvider(
                 selected_settings.model_gateway_embedding_url,
                 model=selected_settings.embedding_model,
-                timeout_seconds=selected_settings.dependency_timeout_seconds,
+                timeout_seconds=selected_settings.embedding_request_timeout_seconds,
+                max_attempts=selected_settings.embedding_request_max_attempts,
             ),
             dimension=selected_settings.embedding_dimension,
             batch_size=selected_settings.embedding_batch_size,

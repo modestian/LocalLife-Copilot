@@ -36,8 +36,19 @@ class AsyncTask(TimestampMixin, VersionMixin, Base):
         CheckConstraint("status <> 'SUCCEEDED' OR progress = 100", name="success_progress"),
         CheckConstraint("max_attempts > 0", name="max_attempts"),
         CheckConstraint("attempt_count <= max_attempts", name="attempt_count"),
+        CheckConstraint(
+            "target_version_no IS NULL OR target_version_no > 0", name="target_version_no"
+        ),
         Index("ix_async_tasks_status_type_created", "status", "task_type", "created_at"),
         Index("ix_async_tasks_locked_until", "locked_until"),
+        Index(
+            "ix_async_tasks_resource_target",
+            "resource_type",
+            "resource_id",
+            "task_type",
+            "target_version_no",
+            "status",
+        ),
         MYSQL_TABLE_OPTIONS,
     )
 
@@ -45,6 +56,7 @@ class AsyncTask(TimestampMixin, VersionMixin, Base):
     task_type: Mapped[str] = mapped_column(String(64), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(64), nullable=False)
     resource_id: Mapped[UUID] = mapped_column(UUIDBinary(), nullable=False)
+    target_version_no: Mapped[int | None] = mapped_column(UNSIGNED_INTEGER, nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="PENDING", server_default="PENDING"
     )

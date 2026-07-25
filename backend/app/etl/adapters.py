@@ -103,6 +103,11 @@ class OpenSearchProjection:
     def _source(
         document_version_id: UUID, chunk: ChunkRecord, vector: Sequence[float]
     ) -> dict[str, JsonValue]:
+        # Sanitize metadata for OpenSearch: remove "location" to avoid dynamic
+        # mapping conflicts (string filename vs geo object from merchant reviews).
+        # The validated geo point is projected to the top-level "location" field
+        # and the filename is preserved in "source_key".
+        safe_metadata = {k: v for k, v in chunk.metadata.items() if k != "location"}
         source: dict[str, JsonValue] = {
             "document_version_id": str(document_version_id),
             "chunk_no": chunk.chunk_no,
@@ -110,7 +115,7 @@ class OpenSearchProjection:
             "content_hash": chunk.content_hash,
             "token_count": chunk.token_count,
             "page_number": chunk.page_number,
-            "metadata": chunk.metadata,
+            "metadata": safe_metadata,
             "source_key": chunk.metadata.get("source_key"),
             "content_vector": list(vector),
         }

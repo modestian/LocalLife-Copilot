@@ -124,7 +124,7 @@ class MemoryRepository:
     def mark_document_ready(self, document_id, document_version_id, chunk_count):
         pass
 
-    def mark_document_failed(self, document_id, error_code):
+    def mark_document_failed(self, document_id, document_version_id, error_code):
         pass
 
     def complete_task(self, task_id, result):

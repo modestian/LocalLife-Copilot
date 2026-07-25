@@ -13,6 +13,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.agents.generation import GenerationMode
+from app.agents.types import ChatIntent
 from app.api.openai import _shared_retrieval_scope, _source_data, _text_chunks, _usage_data
 from app.application.authorization import AuthorizationPrincipal
 from app.application.conversations import ConversationNotFound
@@ -264,6 +265,10 @@ async def _serve_request(
 def _recommendation_event(result, request_id: str) -> dict[str, Any] | None:
     generation = getattr(result, "generation", None)
     if generation is None:
+        return None
+    # general_chat 是纯对话，不涉及商家推荐，不应展示"没有足够证据"兜底
+    state = getattr(result, "state", None) or {}
+    if state.get("intent") == ChatIntent.GENERAL_CHAT:
         return None
     structured = generation.structured
     if structured is not None and structured.response_type is GenerationMode.RECOMMENDATION:

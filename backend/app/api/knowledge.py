@@ -534,7 +534,7 @@ async def upload_documents(
                     ),
                 }
             )
-        await _knowledge_service(request, principal).create_document_version_idempotent(
+        version = await _knowledge_service(request, principal).create_document_version_idempotent(
             DocumentVersionInput(
                 document_id=document.id,
                 file_uri=str(target),
@@ -555,6 +555,7 @@ async def upload_documents(
             resource_type="DOCUMENT",
             resource_id=document.id,
             event_type="knowledge.ingest",
+            target_version_no=version.version_no,
         )
         task_ids.append(task_id)
         file_results.append(

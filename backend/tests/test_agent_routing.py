@@ -119,6 +119,13 @@ def test_unrelated_input_does_not_inherit_previous_search_intent() -> None:
     )
 
 
+def test_general_memory_question_is_not_misrouted_by_temporal_reference() -> None:
+    router = IntentRouter()
+    history = "USER: 我叫小林，你好\nASSISTANT: 你好，小林！我可以帮你推荐本地美食和咖啡馆。"
+
+    assert router.classify("我刚才说我叫什么？", history_summary=history) is ChatIntent.GENERAL_CHAT
+
+
 def test_clarification_skips_when_constraints_already_present() -> None:
     """Queries that already supply a concrete constraint (cuisine, atmosphere, etc.)
     should proceed to retrieval instead of being blocked on budget / party_size."""

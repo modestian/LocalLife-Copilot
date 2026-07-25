@@ -1,6 +1,7 @@
 import json
 from collections.abc import Sequence
 from io import BytesIO
+from urllib.error import URLError
 
 import pytest
 
@@ -80,6 +81,52 @@ def test_http_embedding_provider_records_production_model_metrics(monkeypatch) -
     output = registry.render_prometheus()
     assert 'model="embedding-v1",result="SUCCEEDED"} 1' in output
     assert 'model="embedding-v1",type="prompt"} 7' in output
+
+
+def test_http_embedding_provider_retries_transient_gateway_failures(monkeypatch) -> None:
+    calls = 0
+
+    def fake_urlopen(request, timeout):
+        nonlocal calls
+        del request, timeout
+        calls += 1
+        if calls < 3:
+            raise URLError("gateway warming up")
+        return BytesIO(json.dumps({"data": [{"index": 0, "embedding": [1.0]}]}).encode())
+
+    monkeypatch.setattr("app.etl.embeddings.urlopen", fake_urlopen)
+    monkeypatch.setattr("app.etl.embeddings.sleep", lambda _: None)
+    provider = HttpEmbeddingProvider(
+        "http://gateway/v1/embeddings",
+        model="embedding-v1",
+        timeout_seconds=30,
+        max_attempts=3,
+    )
+
+    assert provider.embed(["hello"]) == [[1.0]]
+    assert calls == 3
+
+
+def test_http_embedding_provider_reports_attempt_count_after_retry_exhaustion(monkeypatch) -> None:
+    def timeout(*_args, **_kwargs):
+        raise TimeoutError
+
+    monkeypatch.setattr(
+        "app.etl.embeddings.urlopen",
+        timeout,
+    )
+    monkeypatch.setattr("app.etl.embeddings.sleep", lambda _: None)
+    provider = HttpEmbeddingProvider(
+        "http://gateway/v1/embeddings",
+        model="embedding-v1",
+        timeout_seconds=30,
+        max_attempts=2,
+    )
+
+    with pytest.raises(EmbeddingError, match="after 2 attempts") as captured:
+        provider.embed(["hello"])
+
+    assert captured.value.code == "EMBEDDING_GATEWAY_FAILED"
 
 
 def test_batched_embedder_rejects_wrong_dimension() -> None:

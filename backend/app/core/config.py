@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     embedding_batch_size: int = 32
     embedding_model: str = "local-deterministic-v1"
     embedding_model_name: str = "BAAI/bge-small-zh-v1.5"
+    embedding_request_timeout_seconds: float = 30.0
+    embedding_request_max_attempts: int = 3
     generation_model_name: str = "Qwen/Qwen2.5-0.5B-Instruct"
     knowledge_data_root: str = "/data/knowledge"
     training_artifact_root: str = "/data/training/artifacts"
@@ -150,6 +152,20 @@ class Settings(BaseSettings):
         if not (normalized := value.strip()):
             raise ValueError("embedding_model must not be blank")
         return normalized
+
+    @field_validator("embedding_request_timeout_seconds")
+    @classmethod
+    def validate_embedding_request_timeout(cls, value: float) -> float:
+        if not 1 <= value <= 300:
+            raise ValueError("embedding_request_timeout_seconds must be between 1 and 300")
+        return value
+
+    @field_validator("embedding_request_max_attempts")
+    @classmethod
+    def validate_embedding_request_attempts(cls, value: int) -> int:
+        if not 1 <= value <= 10:
+            raise ValueError("embedding_request_max_attempts must be between 1 and 10")
+        return value
 
     @field_validator("search_minimum_score")
     @classmethod

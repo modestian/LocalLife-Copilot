@@ -31,7 +31,8 @@ def _adapters(settings: Settings):
         HttpEmbeddingProvider(
             settings.model_gateway_embedding_url,
             model=settings.embedding_model,
-            timeout_seconds=settings.dependency_timeout_seconds,
+            timeout_seconds=settings.embedding_request_timeout_seconds,
+            max_attempts=settings.embedding_request_max_attempts,
         ),
         dimension=settings.embedding_dimension,
         batch_size=settings.embedding_batch_size,

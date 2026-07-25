@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from app.agents.contracts import RetrievalScope
 from app.agents.langchain_rag import RAGGeneration, SimpleRAGGenerator
 from app.agents.memory import MemoryWindow
-from app.agents.runtime import ChatAgentRuntime
+from app.agents.runtime import ChatAgentRuntime, _contextualize_retrieval_query
 from app.agents.types import RetrievedChunk
 from app.application.content_safety import ContentCheckResult, ContentDirection
 from app.application.conversations import (
@@ -112,11 +112,14 @@ class FakeSimpleRAGGenerator(SimpleRAGGenerator):
 
     def __init__(self) -> None:
         # Skip parent __init__ which requires LangChainRAGAdapter
-        pass
+        self.calls: list[tuple[str, str, str]] = []
 
-    def generate(self, query: str, chunks: tuple[RetrievedChunk, ...]) -> RAGGeneration:
+    def generate(
+        self, query: str, chunks: tuple[RetrievedChunk, ...], history: str = ""
+    ) -> RAGGeneration:
         from app.agents.langchain_rag import NO_EVIDENCE_ANSWER, chunks_to_citations
 
+        self.calls.append(("grounded", query, history))
         citations = chunks_to_citations(chunks)
         if not chunks:
             return RAGGeneration(
@@ -127,6 +130,10 @@ class FakeSimpleRAGGenerator(SimpleRAGGenerator):
             sources=citations,
             model_version="test-stub",
         )
+
+    def generate_general(self, query: str, history: str = "") -> RAGGeneration:
+        self.calls.append(("general", query, history))
+        return RAGGeneration(answer=f"contextual:{query}", sources=(), model_version="test-stub")
 
 
 def _runtime(conversation: ConversationView):
@@ -203,6 +210,101 @@ async def test_runtime_restores_constraints_then_retrieves_generates_and_cites()
     assert retriever.requests[0].constraints.party_size == 2
     assert retriever.requests[0].constraints.budget_cent_per_person_lte == 10000
     assert repository.settings_updates[-1]["constraints"]["party_size"] == 2
+
+
+async def test_runtime_uses_history_for_follow_up_retrieval_and_generation() -> None:
+    conversation = _conversation(
+        settings={
+            "constraints": {
+                "budget_cent_per_person_lte": 20000,
+                "cuisines": ["海鲜"],
+                "party_size": 2,
+            }
+        }
+    )
+    runtime, _repository, memory, retriever, _model_router = _runtime(conversation)
+    memory.restore.return_value = MemoryWindow(
+        conversation,
+        (
+            _message(conversation.id, MessageRole.USER, "想吃海鲜，预算200"),
+            _message(
+                conversation.id,
+                MessageRole.ASSISTANT,
+                "第一家是深蓝渔港，第二家是鲜入围海鲜大排档。",
+            ),
+        ),
+        "",
+        None,
+        60,
+    )
+
+    await runtime.run(
+        conversation_id=conversation.id,
+        owner_user_id=conversation.owner_user_id,
+        query="第二家人均多少？",
+        retrieval_scope=_scope(),
+        request_id="follow-up",
+    )
+
+    assert "鲜入围海鲜大排档" in retriever.requests[0].query
+    assert "当前追问：第二家人均多少？" in retriever.requests[0].query
+    assert "第二家明确指“鲜入围海鲜大排档”" in retriever.requests[0].query
+    generator = runtime._generator  # type: ignore[attr-defined]
+    assert isinstance(generator, FakeSimpleRAGGenerator)
+    assert "第二家明确指“鲜入围海鲜大排档”" in generator.calls[-1][1]
+    assert "ASSISTANT: 第一家是深蓝渔港" in generator.calls[-1][2]
+
+
+async def test_runtime_general_chat_uses_conversation_history() -> None:
+    conversation = _conversation()
+    runtime, _repository, memory, _retriever, _model_router = _runtime(conversation)
+    memory.restore.return_value = MemoryWindow(
+        conversation,
+        (_message(conversation.id, MessageRole.USER, "我叫小林"),),
+        "",
+        None,
+        10,
+    )
+
+    result = await runtime.run(
+        conversation_id=conversation.id,
+        owner_user_id=conversation.owner_user_id,
+        query="你好",
+        retrieval_scope=_scope(),
+        request_id="general-follow-up",
+    )
+
+    assert result.message.content == "contextual:你好"
+    generator = runtime._generator  # type: ignore[attr-defined]
+    assert isinstance(generator, FakeSimpleRAGGenerator)
+    assert "USER: 我叫小林" in generator.calls[-1][2]
+
+
+def test_follow_up_retrieval_prioritizes_latest_turn_over_older_merchants() -> None:
+    history = (
+        "USER: 推荐三家海鲜\n"
+        "ASSISTANT: 第二家是海味坊海鲜酒楼。\n"
+        "USER: 换一家更便宜的\n"
+        "ASSISTANT: 推荐蚝英雄生蚝专门店，人均108元。"
+    )
+
+    query = _contextualize_retrieval_query("它有什么差评？", history)
+
+    assert "蚝英雄生蚝专门店" in query
+    assert "海味坊海鲜酒楼" not in query
+
+
+def test_ordinal_follow_up_resolves_numbered_markdown_from_latest_answer() -> None:
+    history = (
+        "USER: 推荐三家海鲜\n"
+        "ASSISTANT: 1. **鲜入围海鲜大排档**  \n人均115元\n\n"
+        "2. **海味坊海鲜酒楼**  \n人均128元\n\n"
+        "3. **蚝英雄生蚝专门店**  \n人均108元"
+    )
+
+    query = _contextualize_retrieval_query("第二家人均多少？", history)
+
+    assert "第二家明确指“海味坊海鲜酒楼”" in query
 
 
 async def test_runtime_rebuilds_constraints_without_assistant_recommendation_terms() -> None:

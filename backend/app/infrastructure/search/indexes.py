@@ -71,7 +71,9 @@ def chunk_index_body(embedding_dimension: int) -> dict[str, Any]:
                 "content_hash": {"type": "keyword"},
                 "token_count": {"type": "integer"},
                 "page_number": {"type": "integer"},
-                "metadata": {"type": "object", "dynamic": True},
+                # Metadata is retained for citations but never queried directly. Disabling
+                # indexing prevents arbitrary CSV fields from creating conflicting mappings.
+                "metadata": {"type": "object", "enabled": False},
                 "updated_at": {"type": "date"},
             },
         },
@@ -88,24 +90,7 @@ def ensure_chunk_index(
 ) -> None:
     """Create the initial index without replacing an established runtime route."""
     if not client.indices.exists(index=index):
-        body = chunk_index_body(embedding_dimension)
-        try:
-            client.indices.create(index=index, body=body)
-        except Exception:
-            # Fall back to standard analyzer if ik plugin is unavailable
-            body["settings"]["analysis"]["analyzer"]["zh_search"] = {
-                "type": "custom",
-                "tokenizer": "standard",
-                "filter": ["lowercase"],
-            }
-            body["settings"]["analysis"]["analyzer"]["zh_index"] = body["settings"]["analysis"][
-                "analyzer"
-            ]["zh_search"]
-            body["mappings"]["properties"]["content"] = {
-                "type": "text",
-                "analyzer": "zh_search",
-            }
-            client.indices.create(index=index, body=body)
+        create_chunk_index(client, index=index, embedding_dimension=embedding_dimension)
 
     read_indexes = _alias_indexes(client, read_alias)
     write_indexes = _alias_indexes(client, write_alias)
@@ -119,6 +104,27 @@ def ensure_chunk_index(
         return
     if read_indexes != write_indexes:
         raise RuntimeError("OpenSearch read/write aliases point to different indexes")
+
+
+def create_chunk_index(client: OpenSearch, *, index: str, embedding_dimension: int) -> None:
+    """Create a chunk index and fall back when the optional IK plugin is absent."""
+    body = chunk_index_body(embedding_dimension)
+    try:
+        client.indices.create(index=index, body=body)
+    except Exception:
+        body["settings"]["analysis"]["analyzer"]["zh_search"] = {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["lowercase"],
+        }
+        body["settings"]["analysis"]["analyzer"]["zh_index"] = body["settings"]["analysis"][
+            "analyzer"
+        ]["zh_search"]
+        body["mappings"]["properties"]["content"] = {
+            "type": "text",
+            "analyzer": "zh_search",
+        }
+        client.indices.create(index=index, body=body)
 
 
 def switch_chunk_aliases(

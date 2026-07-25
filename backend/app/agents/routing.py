@@ -214,8 +214,6 @@ _FOLLOW_UP_MARKERS = (
     "这家",
     "那家",
     "它",
-    "刚才",
-    "前面",
 )
 _EXPLORATION_CONTEXT_MARKER = "[探店条件]"
 
