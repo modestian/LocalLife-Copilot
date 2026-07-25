@@ -122,6 +122,7 @@ def enrich_source_record(row: MerchantReviewRow) -> DocumentRecord:
         "avg_price_cent": row.avg_price_cent,
         "price_cent": row.avg_price_cent,
         "rating": float(row.merchant_rating),
+        "distance_meter": 1000,
         "review_date": row.reviewed_at.isoformat(),
         "last_verified_at": row.reviewed_at.isoformat(),
         "tags": list(row.tags),

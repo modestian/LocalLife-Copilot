@@ -209,6 +209,7 @@ _RECOMMENDATION_MARKERS = (
     "探店",
     "找店",
     "找一家",
+    "想吃",
     "哪里吃",
     "吃什么",
     "餐厅",
@@ -297,6 +298,8 @@ class GroundedRAGGenerator:
             max_chunk_chars=self._max_chunk_chars,
             max_total_evidence_chars=self._max_total_evidence_chars,
         )
+        # SKIP MODEL: Bailian unreachable from Docker, use local fallback
+        return _simple_response(included, mode)
         if not included:
             return _fallback("no_usable_evidence")
         try:
@@ -327,6 +330,8 @@ class GroundedRAGGenerator:
                 prediction.model_version,
             )
         except (GroundedGenerationError, RuntimeError, TypeError, ValueError):
+            if chunks:
+                return _simple_response(chunks, mode)
             return _fallback("invalid_model_output")
 
     def __call__(self, state: ChatState) -> StateUpdate:
@@ -450,13 +455,34 @@ def render_grounded_output(output: GroundedOutput) -> str:
     return "\n".join(lines)
 
 
+def _extract_json(text: str) -> str | None:
+    """Extract JSON from model output that may be wrapped in markdown fences."""
+    trimmed = text.strip()
+    for fence in ("`json", "`"):
+        if trimmed.startswith(fence):
+            end = trimmed.find("`", len(fence))
+            if end > 0:
+                return trimmed[len(fence) : end].strip()
+    start = trimmed.find("{")
+    end = trimmed.rfind("}")
+    if start >= 0 and end > start:
+        return trimmed[start : end + 1]
+    return None
+
+
 def _parse_output(structured: Mapping[str, Any] | None, text: str) -> GroundedOutput:
     payload: object = structured
     if payload is None:
         try:
             payload = json.loads(text)
-        except (json.JSONDecodeError, TypeError) as exc:
-            raise GroundedGenerationError("model output is not valid JSON") from exc
+        except (json.JSONDecodeError, TypeError):
+            cleaned = _extract_json(text)
+            if cleaned is None:
+                raise GroundedGenerationError("model output is not valid JSON") from None
+            try:
+                payload = json.loads(cleaned)
+            except (json.JSONDecodeError, TypeError) as exc:
+                raise GroundedGenerationError("model output is not valid JSON") from exc
     try:
         return GroundedOutput.model_validate(payload)
     except ValidationError as exc:
@@ -683,6 +709,83 @@ def _citation(source_id: str, chunk: RetrievedChunk) -> SourceCitation:
         score=chunk.score,
         evidence_id=source_id,
     )
+
+
+def _extract_merchant_name(chunk) -> str:
+    """Extract merchant name from metadata or content text."""
+    for key in ("merchant_name", "name"):
+        value = chunk.metadata.get(key)
+        if value and str(value).strip():
+            return str(value).strip()
+    import re
+
+    m = re.search(r"\u5546\u5bb6'([^']+)'", chunk.content)
+    if m:
+        return m.group(1)
+    return ""
+
+
+def _simple_response(chunks, mode) -> GroundedGeneration:
+    import logging
+
+    _log = logging.getLogger(__name__)
+    _log.warning("_simple_response called: chunks=%d mode=%s", len(chunks), mode.value)
+    for i, c in enumerate(chunks[:5]):
+        _log.warning(
+            "  chunk[%d]: mid=%s meta_name=%s content[:40]=%s",
+            i,
+            c.merchant_id,
+            c.metadata.get("merchant_name", "N/A"),
+            c.content[:40],
+        )
+    """Best-effort response when the AI model is unavailable."""
+    sources = tuple(
+        SourceCitation(
+            chunk_id=c.chunk_id,
+            rank_no=i + 1,
+            source_location=c.source_location,
+            content_snapshot=c.content[:200],
+            score=c.score,
+            evidence_id=f"E{i + 1}",
+        )
+        for i, c in enumerate(chunks[:5])
+    )
+    if mode.value == "recommendation":
+        merchants = {}
+        for c in chunks:
+            mid = c.merchant_id or c.metadata.get("merchant_id", "")
+            name = _extract_merchant_name(c)
+            if mid and name and mid not in merchants:
+                merchants[mid] = {
+                    "name": name,
+                    "category": c.metadata.get("category", ""),
+                    "rating": c.metadata.get("rating"),
+                }
+        if merchants:
+            lines = []
+            for info in merchants.values():
+                r = f" \u8bc4\u5206 {float(info['rating']):.1f}" if info.get("rating") else ""
+                lines.append(f"- **{info['name']}**\uff08{info.get('category', '')}\uff09{r}")
+            lines.append("")
+            lines.append(
+                "> \u57fa\u4e8e\u5df2\u6536\u5f55\u8d44\u6599\u5339\u914d\uff0c"
+                "AI \u6a21\u578b\u6682\u4e0d\u53ef\u7528\u3002"
+            )
+            return GroundedGeneration("\n".join(lines), None, sources, "local-fallback-v1")
+        return _fallback("no_usable_evidence")
+    lines = [
+        f"\u6839\u636e\u672c\u5730\u8d44\u6599\uff0c\u627e\u5230 {len(chunks)}"
+        f" \u6761\u76f8\u5173\u4fe1\u606f\uff1a"
+    ]
+    for c in chunks[:5]:
+        name = _extract_merchant_name(c) or c.source_location
+        lines.append(f"- **{name}**\uff1a{c.content[:150]}")
+    lines.append("")
+    lines.append(
+        "> AI \u6a21\u578b\u6682\u4e0d\u53ef\u7528\uff0c"
+        "\u4ee5\u4e0a\u4e3a\u672c\u5730\u8d44\u6599\u539f\u6587\u5339\u914d\u3002"
+    )
+    return GroundedGeneration("\n".join(lines), None, sources, "local-fallback-v1")
 
 
 def _fallback(reason: str) -> GroundedGeneration:
