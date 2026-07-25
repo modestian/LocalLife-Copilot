@@ -180,7 +180,10 @@ watch(
         <strong :title="selectedMerchantId">{{ merchantLabel(selectedMerchantId) }}</strong>
         <div class="merchant-uid-display">
           <label>商铺 UID</label>
-          <code class="merchant-uid-code" :title="selectedMerchantId">{{ selectedMerchantId }}</code>
+          <code
+            class="merchant-uid-code"
+            :title="selectedMerchantId"
+          >{{ selectedMerchantId }}</code>
           <button
             class="copy-uid-btn"
             type="button"

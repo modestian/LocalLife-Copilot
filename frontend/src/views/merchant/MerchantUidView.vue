@@ -139,15 +139,24 @@ async function logout(): Promise<void> {
           <small>请找到您的商铺并复制 UID 填入上方输入框</small>
         </div>
 
-        <div v-if="loadingMerchants" class="merchant-ref-loading">
+        <div
+          v-if="loadingMerchants"
+          class="merchant-ref-loading"
+        >
           加载中…
         </div>
 
-        <div v-else-if="authorizedMerchants.length === 0" class="merchant-ref-empty">
+        <div
+          v-else-if="authorizedMerchants.length === 0"
+          class="merchant-ref-empty"
+        >
           当前账号没有关联的商铺，请联系管理员。
         </div>
 
-        <ul v-else class="merchant-ref-list">
+        <ul
+          v-else
+          class="merchant-ref-list"
+        >
           <li
             v-for="merchant in authorizedMerchants"
             :key="merchant.id"
