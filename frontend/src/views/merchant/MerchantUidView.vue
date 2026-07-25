@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 
+import { merchantDirectoryApi, type MerchantDirectoryEntry } from '@/api/merchants'
 import { useAuthStore } from '@/stores/auth'
 
 const MERCHANT_UID_KEY = 'local-life-copilot.merchant-uid'
@@ -14,6 +15,9 @@ const submitting = ref(false)
 const errorMessage = ref('')
 const form = reactive({ uid: '' })
 
+const allMerchants = ref<MerchantDirectoryEntry[]>([])
+const loadingMerchants = ref(false)
+
 const merchantScopes = computed(() =>
   (authStore.currentUser?.resource_scopes ?? [])
     .filter((scope) => scope.resource_type === 'MERCHANT')
@@ -21,11 +25,29 @@ const merchantScopes = computed(() =>
     .filter(Boolean),
 )
 
+/** 当前用户有权访问的商户列表（仅供展示） */
+const authorizedMerchants = computed(() => {
+  const scopeSet = new Set(merchantScopes.value)
+  return allMerchants.value.filter((m) => scopeSet.has(m.id))
+})
+
 const rules: FormRules = {
   uid: [
     { required: true, message: '请输入商铺 UID', trigger: 'blur' },
   ],
 }
+
+onMounted(async () => {
+  loadingMerchants.value = true
+  try {
+    const result = await merchantDirectoryApi.listMerchants()
+    allMerchants.value = result.items
+  } catch {
+    // 加载失败时不影响手动输入
+  } finally {
+    loadingMerchants.value = false
+  }
+})
 
 async function submit(): Promise<void> {
   errorMessage.value = ''
@@ -110,6 +132,43 @@ async function logout(): Promise<void> {
         </el-button>
       </el-form>
 
+      <!-- 商户列表（仅供查看 UID，不可点击） -->
+      <div class="merchant-ref-section">
+        <div class="merchant-ref-header">
+          <span>我的商铺列表</span>
+          <small>请找到您的商铺并复制 UID 填入上方输入框</small>
+        </div>
+
+        <div
+          v-if="loadingMerchants"
+          class="merchant-ref-loading"
+        >
+          加载中…
+        </div>
+
+        <div
+          v-else-if="authorizedMerchants.length === 0"
+          class="merchant-ref-empty"
+        >
+          当前账号没有关联的商铺，请联系管理员。
+        </div>
+
+        <ul
+          v-else
+          class="merchant-ref-list"
+        >
+          <li
+            v-for="merchant in authorizedMerchants"
+            :key="merchant.id"
+            class="merchant-ref-item"
+          >
+            <span class="merchant-ref-name">{{ merchant.name }}</span>
+            <span class="merchant-ref-category">{{ merchant.category }}</span>
+            <code class="merchant-ref-uid">{{ merchant.id }}</code>
+          </li>
+        </ul>
+      </div>
+
       <div class="uid-actions">
         <el-button
           text
@@ -126,4 +185,79 @@ async function logout(): Promise<void> {
 <style scoped>
 .uid-error { margin-bottom: 16px; }
 .uid-actions { margin-top: 16px; text-align: center; }
+
+.merchant-ref-section {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid #e8ddd4;
+}
+.merchant-ref-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.merchant-ref-header span {
+  color: #392d26;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.merchant-ref-header small {
+  color: #88776c;
+  font-size: 0.72rem;
+}
+.merchant-ref-loading,
+.merchant-ref-empty {
+  color: #88776c;
+  font-size: 0.82rem;
+  text-align: center;
+  padding: 12px 0;
+}
+.merchant-ref-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.merchant-ref-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: #faf6f2;
+  border: 1px solid #ede5dc;
+  border-radius: 8px;
+  cursor: default;
+  user-select: text;
+}
+.merchant-ref-name {
+  color: #392d26;
+  font-size: 0.84rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.merchant-ref-category {
+  padding: 2px 6px;
+  background: #f0e8e0;
+  border-radius: 4px;
+  color: #7b6d63;
+  font-size: 0.68rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.merchant-ref-uid {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.68rem;
+  color: #695b51;
+  word-break: break-all;
+  text-align: right;
+  min-width: 0;
+}
 </style>
