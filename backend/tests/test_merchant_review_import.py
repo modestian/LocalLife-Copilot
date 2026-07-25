@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hashlib
 from datetime import datetime
+from pathlib import Path
 from uuid import UUID
 
 import pytest
 
+from app.cli.seed_demo_data import DEMO_USERS
+from app.etl.loaders import loader_for
 from app.etl.merchant_reviews import (
     MerchantReviewImportError,
     enrich_source_record,
@@ -65,6 +68,20 @@ def test_contract_parses_rows_and_enriches_retrieval_metadata() -> None:
     assert enriched.metadata["last_verified_at"] == "2026-07-20T04:30:00"
     assert enriched.metadata["tags"] == list(rows[0].tags)
     assert enriched.metadata["location"] == {"lat": 30.6571, "lon": 104.0801}
+
+
+def test_demo_xlsx_references_an_existing_demo_owner() -> None:
+    path = Path(__file__).parents[1] / "demo_data" / "merchant_knowledge_excel.xlsx"
+    with path.open("rb") as source:
+        records = tuple(loader_for(path.name).load(source, source_key=path.name))
+
+    rows = parse_merchant_review_rows(TENANT_ID, records)
+    owners = {row.owner_username for row in rows if row.owner_username is not None}
+    seeded_usernames = {user.username for user in DEMO_USERS}
+
+    assert len(rows) == 9
+    assert owners == {"demo-merchant"}
+    assert owners <= seeded_usernames
 
 
 def test_contract_rejects_missing_required_columns() -> None:
