@@ -137,6 +137,7 @@ async function save(): Promise<void> {
       name: form.name.trim(),
       description: form.description.trim() || null,
       owner_id: form.owner_id.trim(),
+      department_id: form.department_id.trim() || null,
       embedding_model_id: form.embedding_model_id.trim(),
       chunk_size: form.chunk_size,
       chunk_overlap: form.chunk_overlap,

@@ -239,6 +239,8 @@ class SQLAlchemyKnowledgeRepository:
                 row.description = patch.description
             if patch.owner_id is not None:
                 row.owner_id = patch.owner_id
+            if patch.department_id is not None:
+                row.department_id = patch.department_id
             if patch.embedding_model_id is not None:
                 row.embedding_model_version_id = patch.embedding_model_id
             if patch.chunk_size is not None:

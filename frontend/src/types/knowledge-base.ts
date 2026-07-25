@@ -44,6 +44,7 @@ export interface UpdateKnowledgeBasePayload {
   name?: string
   description?: string | null
   owner_id?: string
+  department_id?: string | null
   embedding_model_id?: string
   chunk_size?: number
   chunk_overlap?: number
