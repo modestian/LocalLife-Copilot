@@ -25,6 +25,7 @@ _REQUEST_TIMEOUT = 5.0
 # Bailian / DashScope defaults
 _BAILIAN_API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 _BAILIAN_MODEL = "qwen-plus"
+_BAILIAN_TIMEOUT = 60.0  # LLM generation can take 10-30+ seconds
 
 
 class TransformersModelAdapter(ModelAdapter):
@@ -45,6 +46,7 @@ class TransformersModelAdapter(ModelAdapter):
         bailian_model: str = _BAILIAN_MODEL,
         bailian_api_key: str | None = None,
         timeout: float = _REQUEST_TIMEOUT,
+        bailian_timeout: float = _BAILIAN_TIMEOUT,
     ) -> None:
         self._classification_url = classification_url
         self._bailian_api_base = bailian_api_base
@@ -53,6 +55,7 @@ class TransformersModelAdapter(ModelAdapter):
             os.getenv("BAILIAN_API_KEY", "") if bailian_api_key is None else bailian_api_key
         )
         self._timeout = timeout
+        self._bailian_timeout = bailian_timeout
         if not self._bailian_api_key:
             logger.warning(
                 "BAILIAN_API_KEY not set; generation calls to Bailian will fail. "
@@ -77,6 +80,11 @@ class TransformersModelAdapter(ModelAdapter):
 
             # rag_* tasks -> Bailian
             text = self._call_bailian(item.task, item.prompt)
+        except OSError:
+            if item.task.startswith("rag_"):
+                raise  # let generation.py fall back to local _simple_response
+            logger.warning("Model gateway unavailable for task=%s", item.task)
+            return ModelPrediction(text="", structured=None, model_version=self.version)
         except Exception as exc:
             logger.warning("Prediction failed for task=%s: %s", item.task, exc)
             return ModelPrediction(text="", structured=None, model_version=self.version)
@@ -158,7 +166,7 @@ class TransformersModelAdapter(ModelAdapter):
         ).encode("utf-8")
 
         request = urllib.request.Request(url, data=body, headers=headers, method="POST")
-        with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=self._bailian_timeout) as response:  # noqa: S310
             result = json.load(response)
 
         if not isinstance(result, dict):
