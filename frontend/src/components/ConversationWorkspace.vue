@@ -7,7 +7,6 @@ import {
   type ConversationApi,
   type ConversationScenario,
   type ConversationSummary,
-  type ExploreConstraints,
 } from '@/api/conversations'
 import {
   useWebSocketChat,
@@ -79,8 +78,6 @@ const scenes: SceneOption[] = [
   },
 ]
 
-const standaloneGreetingPattern = /^(?:你好|您好|嗨|哈喽|哈啰|在吗|hello|hi|hey)[!！?？.。,\s，]*$/i
-const explorationQueryPattern = /(?:推荐|找|搜|附近|哪里|哪家|吃|餐|饭|菜|火锅|烧烤|面馆|咖啡|甜品|商家|店|馆|人均|预算|公里|营业|约会|聚会|午餐|晚餐|早餐|夜宵|办公|学习)/i
 
 const conversations = ref<ConversationSummary[]>([...props.initialConversations])
 const activeConversationId = ref<string | null>(null)
@@ -103,13 +100,9 @@ const noticeMessage = ref('')
 const messageList = ref<HTMLElement | null>(null)
 const streamingMessageId = ref<string | null>(null)
 const pendingSummaryTitle = ref('')
-const explorationContextRequested = ref(false)
 
 const activeConversation = computed(() => (
   conversations.value.find((conversation) => conversation.id === activeConversationId.value) ?? null
-))
-const selectedScene = computed(() => (
-  scenes.find((scene) => scene.id === selectedScenario.value) ?? scenes[0]
 ))
 const canSend = computed(() => !props.readOnly && query.value.trim().length > 0 && !isSending.value)
 const streamIsActive = computed(() => (
@@ -169,7 +162,6 @@ async function loadConversations(): Promise<void> {
 function chooseScene(scene: SceneOption): void {
   selectedScenario.value = scene.id
   query.value = scene.prompt
-  explorationContextRequested.value = true
 }
 
 function startNewConversation(): void {
@@ -180,7 +172,6 @@ function startNewConversation(): void {
   query.value = ''
   errorMessage.value = ''
   noticeMessage.value = ''
-  explorationContextRequested.value = false
 }
 
 async function selectConversation(conversation: ConversationSummary): Promise<void> {
@@ -188,7 +179,6 @@ async function selectConversation(conversation: ConversationSummary): Promise<vo
   resetActiveStream()
   activeConversationId.value = conversation.id
   selectedScenario.value = conversation.scenario ?? 'nearby'
-  explorationContextRequested.value = false
   errorMessage.value = ''
   noticeMessage.value = ''
 
@@ -230,7 +220,6 @@ async function deleteConversation(conversation: ConversationSummary): Promise<vo
       activeConversationId.value = null
       messages.value = []
       query.value = ''
-      explorationContextRequested.value = false
       resetActiveStream()
     }
     noticeMessage.value = `已删除探店记录“${conversation.title}”。`
@@ -241,48 +230,12 @@ async function deleteConversation(conversation: ConversationSummary): Promise<vo
   }
 }
 
-function currentConstraints(): ExploreConstraints {
-  return {
-    ...(distanceKm.value ? { distance_km: distanceKm.value } : {}),
-    ...(budgetYuan.value ? { budget_yuan: budgetYuan.value } : {}),
-    ...(cuisine.value.trim() ? { cuisine: cuisine.value.trim() } : {}),
-    ...(partySize.value ? { party_size: partySize.value } : {}),
-    open_now: openNow.value,
-  }
-}
 
-function composeMessage(content: string, constraints: ExploreConstraints): string {
-  const details = [
-    `场景：${selectedScene.value.title}`,
-    constraints.distance_km ? `距离：${constraints.distance_km} 公里内` : '',
-    constraints.budget_yuan ? `预算：人均 ${constraints.budget_yuan} 元以内` : '',
-    constraints.cuisine ? `菜系/品类：${constraints.cuisine}` : '',
-    constraints.party_size ? `人数：${constraints.party_size} 人` : '',
-    constraints.open_now ? '营业状态：当前营业' : '',
-  ].filter(Boolean)
-  return `${content}\n\n[探店条件] ${details.join('；')}`
-}
-
-function shouldUseExplorationContext(content: string): boolean {
-  if (standaloneGreetingPattern.test(content)) return false
-  const isSelectedScenePrompt = explorationContextRequested.value
-    && content === selectedScene.value.prompt
-  return isSelectedScenePrompt || explorationQueryPattern.test(content)
-}
-
-function requestExplorationContext(): void {
-  explorationContextRequested.value = true
-}
 
 async function sendMessage(): Promise<void> {
   if (props.readOnly || !canSend.value) return
 
   const content = query.value.trim()
-  const useExplorationContext = shouldUseExplorationContext(content)
-  const constraints = currentConstraints()
-  const composedContent = useExplorationContext
-    ? composeMessage(content, constraints)
-    : content
   isSending.value = true
   errorMessage.value = ''
 
@@ -292,7 +245,6 @@ async function sendMessage(): Promise<void> {
       const conversation = await props.api.createConversation({
         title: content.slice(0, 30),
         scenario: selectedScenario.value,
-        ...(useExplorationContext ? { constraints } : {}),
       })
       conversations.value.unshift(conversation)
       activeConversationId.value = conversation.id
@@ -324,8 +276,7 @@ async function sendMessage(): Promise<void> {
     query.value = ''
     await scrollToLatest()
 
-    await stream.send(conversationId, composedContent, props.knowledgeBaseIds)
-    if (useExplorationContext) explorationContextRequested.value = false
+    await stream.send(conversationId, content, props.knowledgeBaseIds)
   } catch (error: unknown) {
     query.value = content
     if (streamingMessageId.value) {
@@ -489,7 +440,7 @@ function formatTime(value: string): string {
         v-if="messages.length === 0 && !isLoadingMessages"
         class="scene-entry"
       >
-        <p>选择一个场景，我们会把距离、预算、菜系和人数一起带入对话。</p>
+        <p>选择一个场景开始探店</p>
         <div class="scene-grid">
           <button
             v-for="scene in scenes"
@@ -619,7 +570,6 @@ function formatTime(value: string): string {
             <span>距离</span>
             <select
               v-model.number="distanceKm"
-              @change="requestExplorationContext"
             >
               <option :value="1">1 公里内</option>
               <option :value="3">3 公里内</option>
@@ -634,7 +584,6 @@ function formatTime(value: string): string {
               min="1"
               type="number"
               placeholder="元/人"
-              @change="requestExplorationContext"
             >
           </label>
           <label>
@@ -643,7 +592,6 @@ function formatTime(value: string): string {
               v-model="cuisine"
               type="text"
               placeholder="川菜、咖啡…"
-              @change="requestExplorationContext"
             >
           </label>
           <label>
@@ -652,14 +600,12 @@ function formatTime(value: string): string {
               v-model.number="partySize"
               min="1"
               type="number"
-              @change="requestExplorationContext"
             >
           </label>
           <label class="open-now-option">
             <input
               v-model="openNow"
               type="checkbox"
-              @change="requestExplorationContext"
             >
             <span>仅看当前营业</span>
           </label>

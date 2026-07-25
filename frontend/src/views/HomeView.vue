@@ -1,18 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref } from 'vue'
 
 import ConversationWorkspace from '@/components/ConversationWorkspace.vue'
 import ProductTopBar from '@/components/ProductTopBar.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const authStore = useAuthStore()
-const knowledgeBaseIds = computed(() => (
-  authStore.currentUser?.resource_scopes
-    .filter((scope) => (
-      scope.resource_type === 'KNOWLEDGE_BASE' && scope.actions.includes('READ')
-    ))
-    .map((scope) => scope.resource_id) ?? []
-))
+// Public chat always uses the server-resolved shared corpus (all USER+READ knowledge bases).
+// Passing specific IDs from user resource_scopes would risk stale / deleted grants.
+const knowledgeBaseIds = ref<string[]>([])
 
 </script>
 
