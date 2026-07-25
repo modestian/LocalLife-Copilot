@@ -42,6 +42,20 @@ _CSV_MIME_TYPES = frozenset(
     {"text/csv", "application/csv", "text/plain", "application/vnd.ms-excel"}
 )
 
+# Docker slim images lack shared-mime-info; register common office/document types
+# so that mimetypes.guess_type() works reliably inside containers.
+_EXTRA_MIME_TYPES = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".pdf": "application/pdf",
+    ".md": "text/markdown",
+    ".csv": "text/csv",
+    ".txt": "text/plain",
+}
+for _ext, _mime in _EXTRA_MIME_TYPES.items():
+    mimetypes.add_type(_mime, _ext)
+
 
 def _mime_matches(expected: str, detected: str | None) -> bool:
     return expected == detected or (expected in _CSV_MIME_TYPES and detected in _CSV_MIME_TYPES)
