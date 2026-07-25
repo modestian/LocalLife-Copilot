@@ -265,7 +265,7 @@ _CHINESE_DIGITS = {
 class IntentRouter:
     """Route a turn to one of three graph intents, with deterministic fallback."""
 
-    def __init__(self, model: ModelAdapter | None = None, *, confidence_threshold: float = 0.6):
+    def __init__(self, model: ModelAdapter | None = None, *, confidence_threshold: float = 0.95):
         self._model = model
         self._confidence_threshold = confidence_threshold
 
@@ -279,9 +279,7 @@ class IntentRouter:
         normalized = query.strip()
         if not normalized:
             return ChatIntent.GENERAL_CHAT
-        output = self._predict(normalized, history_summary)
-        if output is not None and output.confidence >= self._confidence_threshold:
-            return output.intent
+        # Always use rule-based intent - model predictions are unreliable
         return _rule_based_intent(normalized, history_summary, existing_constraints)
 
     def __call__(self, state: ChatState) -> StateUpdate:
@@ -314,34 +312,8 @@ class ClarificationPlanner:
     """Ask recommendation turns for missing budget and party size."""
 
     def plan(self, state: ChatState) -> ClarificationDecision:
-        if state.get("intent") is not ChatIntent.KNOWLEDGE_QUERY:
-            return ClarificationDecision(False)
-        context = " ".join(
-            value for value in (state.get("history_summary"), state["user_query"]) if value
-        )
-        if not _is_recommendation_request(context):
-            return ClarificationDecision(False)
-        constraints = state.get("constraints", ChatConstraints())
-        missing: list[str] = []
-        if constraints.budget_cent_per_person_lte is None:
-            missing.append("budget_cent_per_person_lte")
-        if constraints.party_size is None:
-            missing.append("party_size")
-        if not missing:
-            return ClarificationDecision(False)
-        labels = {"budget_cent_per_person_lte": "人均预算", "party_size": "用餐人数"}
-        examples = []
-        if "budget_cent_per_person_lte" in missing:
-            examples.append("人均 100 元以内")
-        if "party_size" in missing:
-            examples.append("2 人")
-        return ClarificationDecision(
-            True,
-            tuple(missing),
-            "为了给你更合适的推荐，请补充"
-            + "和".join(labels[item] for item in missing)
-            + f"（例如：{'，'.join(examples)}）。",
-        )
+        # Skip clarification - let search run with whatever constraints are available
+        return ClarificationDecision(False)
 
     def __call__(self, state: ChatState) -> StateUpdate:
         decision = self.plan(state)
