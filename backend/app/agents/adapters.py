@@ -56,16 +56,29 @@ def _matches_merchant_name(query: str, source: Mapping[str, Any]) -> bool:
     # Skip strict merchant-name matching for recommendation / general-search queries
     _recommendation_keywords = (
         "推荐",
+        "求推荐",
         "探店",
         "找店",
         "想吃",
         "想喝",
+        "想买",
+        "想找",
+        "想逛",
+        "想配",
+        "想修",
+        "想试",
+        "想去",
+        "逛街",
+        "购物",
         "搜",
         "附近",
         "周边",
         "人均",
         "预算",
         "评价",
+        "哪里有",
+        "哪里买",
+        "哪家好",
     )
     if any(kw in merchant_query for kw in _recommendation_keywords):
         return False
