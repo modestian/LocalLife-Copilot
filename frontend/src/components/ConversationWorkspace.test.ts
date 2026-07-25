@@ -447,6 +447,6 @@ describe('ConversationWorkspace', () => {
     await wrapper.get('.recommendation-card__sources').trigger('click')
     expect(wrapper.get('[role="dialog"] mark').text()).toBe('靠窗位置安静')
     expect(wrapper.get('[role="dialog"]').find('a').exists()).toBe(false)
-    expect(wrapper.get('[role="dialog"]').text()).toContain('当前仅提供生成时保存的来源快照')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('以下为生成回答时保存的引用快照')
   })
 })
