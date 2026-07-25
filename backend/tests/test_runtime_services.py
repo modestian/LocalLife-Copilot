@@ -25,6 +25,16 @@ except ImportError:
     SentenceTransformer = None
 
 
+def _stub_langchain_adapter_init(self, **kw: object) -> None:
+    """Stub __init__ for LangChainRAGAdapter that sets required attributes."""
+    self._api_key = kw.get("api_key", "")
+    self._api_base = kw.get("api_base", "")
+    self._model_name = kw.get("model", "")
+    self._temperature = kw.get("temperature", 0.3)
+    self._max_tokens = kw.get("max_tokens", 2048)
+    self._timeout = kw.get("timeout", 60.0)
+
+
 def test_model_gateway_liveness() -> None:
     with TestClient(model_gateway_app) as client:
         response = client.get("/health/live")
@@ -122,14 +132,7 @@ def test_api_lifespan_wires_authentication_and_authorization_services(monkeypatc
     )
     monkeypatch.setattr(
         "app.agents.langchain_rag.LangChainRAGAdapter.__init__",
-        lambda self, **kw: (
-            setattr(self, "_api_key", kw.get("api_key", "")),
-            setattr(self, "_api_base", kw.get("api_base", "")),
-            setattr(self, "_model_name", kw.get("model", "")),
-            setattr(self, "_temperature", kw.get("temperature", 0.3)),
-            setattr(self, "_max_tokens", kw.get("max_tokens", 2048)),
-            setattr(self, "_timeout", kw.get("timeout", 60.0)),
-        ),
+        _stub_langchain_adapter_init,
     )
 
     app = create_app(settings=Settings())
