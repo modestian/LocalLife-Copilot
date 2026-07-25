@@ -4,19 +4,22 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import asdict, dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import UUID, uuid4
 
 from anyio import to_thread
 from langgraph.runtime import Runtime
 
 from app.agents.contracts import RetrievalRequest, RetrievalScope, RetrieverAdapter
-from app.agents.generation import GroundedGeneration, GroundedRAGGenerator
+from app.agents.generation import GroundedGeneration  # kept for _generate_general / _tool_guard
 from app.agents.graph import ChatGraphNodes, build_chat_graph
 from app.agents.memory import ConversationMemoryService
 from app.agents.persistence import GroundedResponsePersister
 from app.agents.routing import ClarificationPlanner, ConstraintExtractor, IntentRouter
 from app.agents.state import ChatState
+
+if TYPE_CHECKING:
+    from app.agents.langchain_rag import SimpleRAGGenerator
 from app.agents.tools import (
     KnowledgeSearchResult,
     RegisteredToolPlanner,
@@ -83,7 +86,7 @@ class ChatAgentRuntime:
         repository: ConversationRepository,
         memory: ConversationMemoryService,
         retriever: RetrieverAdapter,
-        generator: GroundedRAGGenerator,
+        generator: SimpleRAGGenerator,
         safety: ContentSafetyService | None = None,
         router: IntentRouter | None = None,
         extractor: ConstraintExtractor | None = None,
@@ -245,9 +248,12 @@ class ChatAgentRuntime:
     async def _generate_grounded(
         self, state: ChatState, runtime: Runtime[ChatRunContext]
     ) -> dict[str, object]:
-        generation = await to_thread.run_sync(self._generator.generate, state)
-        runtime.context.generation = generation
-        return {"answer": generation.answer, "sources": generation.sources}
+        chunks = state.get("retrieved_chunks", ())
+        gen = await to_thread.run_sync(self._generator.generate, state["user_query"], chunks)
+        runtime.context.generation = GroundedGeneration(
+            gen.answer, None, gen.sources, gen.model_version, gen.fallback_reason
+        )
+        return {"answer": gen.answer, "sources": gen.sources}
 
     def _generate_general(
         self, _state: ChatState, runtime: Runtime[ChatRunContext]

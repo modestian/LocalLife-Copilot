@@ -59,7 +59,7 @@ def test_bailian_request_enables_json_response_format(monkeypatch) -> None:
         return _json_response({"choices": [{"message": {"content": '{"answer":"ok"}'}}]})
 
     monkeypatch.setattr("app.agents.transformers_model.urllib.request.urlopen", fake_urlopen)
-    adapter = TransformersModelAdapter(bailian_api_key="test-key", timeout=3.0)
+    adapter = TransformersModelAdapter(bailian_api_key="test-key", bailian_timeout=3.0)
 
     text = adapter._call_bailian("rag_grounded_answer", "prompt")
 

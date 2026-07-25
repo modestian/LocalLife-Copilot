@@ -113,12 +113,30 @@ def test_unrelated_input_does_not_inherit_previous_search_intent() -> None:
     )
 
 
-def test_clarification_asks_for_all_missing_key_fields_once() -> None:
+def test_clarification_skips_when_constraints_already_present() -> None:
+    """Queries that already supply a concrete constraint (cuisine, atmosphere, etc.)
+    should proceed to retrieval instead of being blocked on budget / party_size."""
     state = {
         "conversation_id": "conversation-1",
         "user_query": "推荐一家浪漫的西餐厅",
         "intent": ChatIntent.KNOWLEDGE_QUERY,
         "constraints": ChatConstraints(cuisines=("西餐",), atmospheres=("浪漫",)),
+    }
+
+    decision = ClarificationPlanner().plan(state)
+
+    assert decision.needed is False
+    assert route_after_constraints(state) == "hybrid_retrieve"
+
+
+def test_clarification_asks_when_no_constraints_at_all() -> None:
+    """A bare recommendation query without any constraint should still trigger
+    clarification for budget and party_size."""
+    state = {
+        "conversation_id": "conversation-1",
+        "user_query": "推荐一下",
+        "intent": ChatIntent.KNOWLEDGE_QUERY,
+        "constraints": ChatConstraints(),
     }
 
     decision = ClarificationPlanner().plan(state)

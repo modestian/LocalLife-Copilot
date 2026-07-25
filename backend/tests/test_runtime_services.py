@@ -25,6 +25,16 @@ except ImportError:
     SentenceTransformer = None
 
 
+def _stub_langchain_adapter_init(self, **kw: object) -> None:
+    """Stub __init__ for LangChainRAGAdapter that sets required attributes."""
+    self._api_key = kw.get("api_key", "")
+    self._api_base = kw.get("api_base", "")
+    self._model_name = kw.get("model", "")
+    self._temperature = kw.get("temperature", 0.3)
+    self._max_tokens = kw.get("max_tokens", 2048)
+    self._timeout = kw.get("timeout", 60.0)
+
+
 def test_model_gateway_liveness() -> None:
     with TestClient(model_gateway_app) as client:
         response = client.get("/health/live")
@@ -115,6 +125,15 @@ def test_api_lifespan_wires_authentication_and_authorization_services(monkeypatc
     monkeypatch.setattr("app.main.Redis.from_url", MagicMock(return_value=redis_client))
     monkeypatch.setattr("app.main.OpenSearch", MagicMock(return_value=opensearch_client))
     monkeypatch.setattr("app.main.build_readiness_checks", MagicMock(return_value={}))
+    # langchain-openai is only installed inside Docker — provide a stub for local tests
+    monkeypatch.setattr(
+        "app.agents.langchain_rag._build_chain",
+        lambda *a, **kw: MagicMock(),
+    )
+    monkeypatch.setattr(
+        "app.agents.langchain_rag.LangChainRAGAdapter.__init__",
+        _stub_langchain_adapter_init,
+    )
 
     app = create_app(settings=Settings())
     with TestClient(app):
