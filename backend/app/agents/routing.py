@@ -68,6 +68,8 @@ _KNOWLEDGE_MARKERS = (
     "探店",
     "找店",
     "找一家",
+    "想吃",
+    "想吃",
     "搜一下",
     "哪里吃",
     "吃什么",
@@ -140,6 +142,8 @@ _RECOMMENDATION_MARKERS = (
     "探店",
     "找店",
     "找一家",
+    "想吃",
+    "想吃",
     "搜一下",
     "哪里吃",
     "吃什么",
@@ -279,7 +283,9 @@ class IntentRouter:
         normalized = query.strip()
         if not normalized:
             return ChatIntent.GENERAL_CHAT
-        # Always use rule-based intent - model predictions are unreliable from Docker
+        output = self._predict(normalized, history_summary)
+        if output is not None and output.confidence >= self._confidence_threshold:
+            return output.intent
         return _rule_based_intent(normalized, history_summary, existing_constraints)
 
     def __call__(self, state: ChatState) -> StateUpdate:
