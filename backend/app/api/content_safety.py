@@ -99,6 +99,20 @@ async def create_sensitive_word(
     return success_response(request, _rule_data(row), message="created")
 
 
+@router.delete("/sensitive-words/{rule_id}")
+async def delete_sensitive_word(
+    request: Request,
+    rule_id: UUID,
+    principal: CurrentPrincipal,
+    service: ContentSafetyDependency,
+) -> dict[str, Any]:
+    _require_platform_admin(principal)
+    row = await service.disable_rule(rule_id=rule_id)
+    if row is None:
+        raise AppError(404, "SENSITIVE_RULE_NOT_FOUND", "违禁词规则不存在")
+    return success_response(request, _rule_data(row), message="deleted")
+
+
 @router.post("/content-safety/check")
 async def check_content(
     request: Request,

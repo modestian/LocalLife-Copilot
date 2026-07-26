@@ -224,12 +224,16 @@ async function submitReply(): Promise<void> {
   replySubmitting.value = true
   try {
     const source = replySuggestion.value ? 'SUGGESTION' : 'MANUAL'
-    await merchantInsightsApi.submitReply(selectedReview.value.id, {
+    const created = await merchantInsightsApi.submitReply(selectedReview.value.id, {
       content,
       tone: replyTone.value,
       source,
     })
-    replySubmitMessage.value = '回复已提交，审核通过后将对用户展示。'
+    if (created?.status === 'REJECTED') {
+      replySubmitError.value = '回复包含违禁内容，已自动审核不通过'
+    } else {
+      replySubmitMessage.value = '回复已提交，审核通过后将对用户展示。'
+    }
     await loadReplies()
   } catch (error) {
     replySubmitError.value = getUserFacingError(error, '回复提交失败，请稍后重试')

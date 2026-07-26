@@ -65,6 +65,15 @@ class SQLAlchemyContentSafetyRepository:
                 statement = statement.where(SensitiveWordRule.enabled.is_(True))
             return [_to_record(row) for row in (await session.scalars(statement)).all()]
 
+    async def disable_rule(self, *, rule_id: UUID) -> SensitiveRuleRecord | None:
+        async with self._session_factory() as session, session.begin():
+            row = await session.get(SensitiveWordRule, rule_id, with_for_update=True)
+            if row is None:
+                return None
+            row.enabled = False
+            await session.flush()
+            return _to_record(row)
+
     async def append_rejection_audit(
         self,
         *,

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 
+import { toApiClientError } from '@/api/errors'
 import { reviewsApi, type MerchantDirectoryItem, type ReviewItem } from '@/api/reviews'
 
 const merchants = ref<MerchantDirectoryItem[]>([])
@@ -62,22 +64,27 @@ async function submitReview(): Promise<void> {
 
   submitting.value = true
   try {
-    await reviewsApi.submitReview(selectedMerchantId.value, {
+    const created = await reviewsApi.submitReview(selectedMerchantId.value, {
       content: content.value.trim(),
       rating: rating.value,
     })
-    submitMessage.value = '评论已提交，等待审核'
+    if (created.status === 'REJECTED') {
+      submitError.value = '评论包含违禁内容，已自动审核不通过'
+      ElMessage.error({
+        message: '评论包含违禁内容，已自动审核不通过',
+        showClose: true,
+        duration: 5000,
+      })
+    } else {
+      submitMessage.value = '评论已提交，等待审核'
+    }
     content.value = ''
     rating.value = 0
     selectedMerchantId.value = ''
     await loadMyReviews()
   } catch (error: unknown) {
-    const err = error as { response?: { data?: { code?: string; message?: string } } }
-    if (err.response?.data?.code === 'SENSITIVE_CONTENT_REJECTED') {
-      submitError.value = '评论包含受限内容，已拒绝提交'
-    } else {
-      submitError.value = err.response?.data?.message ?? '提交失败，请稍后重试'
-    }
+    const apiError = toApiClientError(error)
+    submitError.value = apiError.message || '提交失败，请稍后重试'
   } finally {
     submitting.value = false
   }

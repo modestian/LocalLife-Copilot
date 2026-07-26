@@ -150,7 +150,7 @@ class TestSubmitUserReview:
 
         assert response.status_code == 404
 
-    def test_submit_review_sensitive_content_rejected(self) -> None:
+    def test_submit_review_sensitive_content_auto_rejected(self) -> None:
         merchant_id = uuid7()
         principal = _user_principal(merchant_id)
         app, tokens, repo = _build_app([principal])
@@ -164,6 +164,15 @@ class TestSubmitUserReview:
             decision="BLOCK_INPUT",
         )
         app.state.content_safety_service = safety
+        repo.create_user_review.return_value = FakeReview(
+            id=uuid7(),
+            merchant_id=merchant_id,
+            user_id=principal.user_id,
+            content="违禁内容",
+            rating=Decimal("1.0"),
+            status="REJECTED",
+            created_at=None,
+        )
         token = tokens.issue(principal.user_id).value
 
         with TestClient(app) as client:
@@ -173,8 +182,11 @@ class TestSubmitUserReview:
                 headers={"Authorization": f"Bearer {token}"},
             )
 
-        assert response.status_code == 422
-        assert "SENSITIVE_CONTENT_REJECTED" in response.json()["code"]
+        assert response.status_code == 201
+        payload = response.json()
+        assert payload["data"]["status"] == "REJECTED"
+        assert "自动审核不通过" in payload["message"]
+        assert repo.create_user_review.await_args.kwargs["status"] == "REJECTED"
 
     def test_submit_review_requires_auth(self) -> None:
         merchant_id = uuid7()
