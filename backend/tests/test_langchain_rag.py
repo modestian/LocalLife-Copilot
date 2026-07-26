@@ -4,8 +4,12 @@ from app.agents.langchain_rag import (
     NO_EVIDENCE_ANSWER,
     RAGGeneration,
     SimpleRAGGenerator,
+    _bounded_history,
+    _safe_float,
+    _safe_int,
     chunks_to_citations,
     chunks_to_context,
+    chunks_to_documents,
     render_fallback,
 )
 from app.agents.types import RetrievedChunk
@@ -202,3 +206,189 @@ def test_general_chat_uses_history_and_falls_back_without_model() -> None:
 
     assert result.answer == "记得，你叫小林。"
     assert chain.payloads == [{"query": "我叫什么？", "history": "USER: 我叫小林"}]
+
+
+# ---------------------------------------------------------------------------
+# chunks_to_documents
+# ---------------------------------------------------------------------------
+
+
+def test_chunks_to_documents_empty() -> None:
+    assert chunks_to_documents(()) == []
+
+
+def test_chunks_to_documents_includes_metadata() -> None:
+    c = _chunk(content="测试", merchant_id="m99", score=0.95)
+    docs = chunks_to_documents((c,))
+    assert len(docs) == 1
+    assert docs[0].page_content == "测试"
+    assert docs[0].metadata["merchant_name"] == "测试商家"
+    assert docs[0].metadata["avg_price_cent"] == 8000
+    assert docs[0].metadata["source_location"] == "reviews/test/1"
+    assert docs[0].metadata["score"] == 0.95
+    assert docs[0].metadata["merchant_id"] == "m99"
+
+
+def test_chunks_to_documents_skips_missing_merchant_id() -> None:
+    c = RetrievedChunk(
+        chunk_id="minimal",
+        content="仅内容",
+        score=0.5,
+        source_location="x",
+        metadata={},
+    )
+    docs = chunks_to_documents((c,))
+    assert "merchant_name" not in docs[0].metadata
+    assert "merchant_id" not in docs[0].metadata
+
+
+# ---------------------------------------------------------------------------
+# _safe_int / _safe_float
+# ---------------------------------------------------------------------------
+
+
+def test_safe_int_valid() -> None:
+    assert _safe_int(42) == 42
+    assert _safe_int("100") == 100
+    assert _safe_int(None) is None
+
+
+def test_safe_int_invalid() -> None:
+    assert _safe_int("abc") is None
+    assert _safe_int([1, 2, 3]) is None
+
+
+def test_safe_float_invalid() -> None:
+    assert _safe_float("not-a-number") is None
+    assert _safe_float(object()) is None
+    assert _safe_float(None) is None
+
+
+# ---------------------------------------------------------------------------
+# _bounded_history
+# ---------------------------------------------------------------------------
+
+
+def test_bounded_history_empty_returns_placeholder() -> None:
+    assert _bounded_history("") == "（无历史对话）"
+    assert _bounded_history("   ") == "（无历史对话）"
+
+
+def test_bounded_history_preserves_short_content() -> None:
+    result = _bounded_history("USER: 推荐海鲜\nASSISTANT: 为您推荐海味坊")
+    assert "海味坊" in result
+
+
+# ---------------------------------------------------------------------------
+# chunks_to_context — price unit edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_chunks_to_context_price_cent_to_yuan() -> None:
+    c = _chunk(content="实惠", merchant_name="平价店", price_cent=1500)
+    result = chunks_to_context((c,))
+    assert "人均(元): 15" in result
+
+
+def test_chunks_to_context_price_cent_zero() -> None:
+    # 0 is falsy — "0 or fallback" short-circuits, so 0 is silently skipped
+    c = _chunk(content="免费", merchant_name="零元店", price_cent=0)
+    result = chunks_to_context((c,))
+    assert "人均(元)" not in result
+
+
+def test_chunks_to_context_price_cent_non_numeric_skipped() -> None:
+    c = RetrievedChunk(
+        chunk_id="c2",
+        content="描述",
+        score=0.8,
+        source_location="x",
+        merchant_id="m2",
+        metadata={
+            "merchant_name": "测试",
+            "avg_price_cent": "N/A",
+            "category": "其他",
+            "rating": 4.0,
+        },
+    )
+    result = chunks_to_context((c,))
+    assert "人均(元)" not in result
+
+
+def test_chunks_to_context_uses_price_cent_fallback() -> None:
+    c = RetrievedChunk(
+        chunk_id="c1",
+        content="内容",
+        score=0.8,
+        source_location="x",
+        merchant_id="m1",
+        metadata={"merchant_name": "测试", "price_cent": 2500, "category": "其他", "rating": 4.0},
+    )
+    result = chunks_to_context((c,))
+    assert "人均(元): 25" in result
+
+
+def test_chunks_to_context_skips_empty_string_values() -> None:
+    c = RetrievedChunk(
+        chunk_id="c1",
+        content="内容",
+        score=0.8,
+        source_location="x",
+        merchant_id="m1",
+        metadata={
+            "merchant_name": "测试",
+            "category": "",
+            "rating": "",
+            "distance_meter": "",
+            "avg_price_cent": 5000,
+        },
+    )
+    result = chunks_to_context((c,))
+    assert "分类:" not in result
+    assert "评分:" not in result
+    assert "距离(米):" not in result
+
+
+# ---------------------------------------------------------------------------
+# stream_generate — no-chunks / no-api-key paths (no LangChain needed)
+# ---------------------------------------------------------------------------
+
+
+def _stream_collect(gen, query: str, chunks, history: str = ""):
+    results: list[tuple[str, RAGGeneration | None]] = []
+    for token, result in gen.stream_generate(query, chunks, history):
+        results.append((token, result))
+    return results
+
+
+def test_stream_generate_no_chunks() -> None:
+    gen = _FakeGenerator()
+    results = _stream_collect(gen, "查询", ())
+    assert len(results) == 1
+    _, final = results[0]
+    assert final is not None
+    assert final.answer == NO_EVIDENCE_ANSWER
+    assert final.fallback_reason == "no_evidence"
+
+
+def test_stream_generate_no_api_key() -> None:
+    gen = _FakeGenerator(has_api_key=False)
+    c = _chunk(content="好吃")
+    results = _stream_collect(gen, "查询", (c,))
+    assert len(results) == 1
+    _, final = results[0]
+    assert final is not None
+    assert final.fallback_reason == "no_api_key"
+    assert len(final.sources) == 1
+
+
+def test_stream_generate_general_no_api_key() -> None:
+    gen = _FakeGenerator(has_api_key=False)
+    results: list[tuple[str, RAGGeneration | None]] = []
+    for token, result in gen.stream_generate_general("你好"):
+        results.append((token, result))
+    assert len(results) == 1
+    _, final = results[0]
+    assert final is not None
+    assert final.fallback_reason == "no_api_key"
+    assert final.sources == ()

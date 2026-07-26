@@ -119,3 +119,51 @@ def test_contract_rejects_duplicate_review_keys() -> None:
 def test_contract_rejects_invalid_values(field: str, value: object, message: str) -> None:
     with pytest.raises(MerchantReviewImportError, match=message):
         parse_merchant_review_rows(TENANT_ID, (record(2, **{field: value}),))
+
+
+# ---------------------------------------------------------------------------
+# Additional parsing error paths (previously uncovered)
+# ---------------------------------------------------------------------------
+
+
+def test_contract_rejects_empty_records() -> None:
+    with pytest.raises(MerchantReviewImportError, match="没有可导入的数据行"):
+        parse_merchant_review_rows(TENANT_ID, ())
+
+
+def test_contract_rejects_non_dict_row_data() -> None:
+    doc = DocumentRecord(
+        content="test",
+        metadata={"row_data": "not-a-dict"},
+        source_key="test.csv#row=1",
+        content_hash="a" * 64,
+        clean_status=CleanStatus.CLEANED,
+    )
+    with pytest.raises(MerchantReviewImportError, match="不是结构化行"):
+        parse_merchant_review_rows(TENANT_ID, (doc,))
+
+
+def test_contract_rejects_text_too_long() -> None:
+    with pytest.raises(MerchantReviewImportError, match="merchant_name"):
+        parse_merchant_review_rows(TENANT_ID, (record(2, merchant_name="x" * 201),))
+
+
+def test_contract_rejects_non_numeric_decimal() -> None:
+    with pytest.raises(MerchantReviewImportError, match="必须是数字"):
+        parse_merchant_review_rows(TENANT_ID, (record(2, longitude="abc"),))
+
+
+def test_optional_int_returns_none_for_blank() -> None:
+    rows = parse_merchant_review_rows(TENANT_ID, (record(2, avg_price_cent=""),))
+    assert rows[0].avg_price_cent is None
+
+
+def test_contract_rejects_too_many_tags() -> None:
+    with pytest.raises(MerchantReviewImportError, match="tags"):
+        many_tags = ",".join(str(i) for i in range(21))
+        parse_merchant_review_rows(TENANT_ID, (record(2, tags=many_tags),))
+
+
+def test_contract_rejects_tag_too_long() -> None:
+    with pytest.raises(MerchantReviewImportError, match="tags"):
+        parse_merchant_review_rows(TENANT_ID, (record(2, tags="x" * 65),))

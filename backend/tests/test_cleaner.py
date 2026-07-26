@@ -143,3 +143,138 @@ def test_row_template_reports_missing_fields_and_non_structured_records() -> Non
 def test_invalid_cleaning_configuration_fails_early(step: dict[str, object]) -> None:
     with pytest.raises(CleaningConfigError):
         ConfigurableCleaner([step])
+
+
+# ---------------------------------------------------------------------------
+# Additional config validation error paths
+# ---------------------------------------------------------------------------
+
+
+def test_registry_rejects_blank_function_name() -> None:
+    registry = CleaningFunctionRegistry()
+    with pytest.raises(CleaningConfigError, match="must not be blank"):
+        registry.register("  ", lambda v, o: v)
+
+
+def test_registry_rejects_duplicate_function_name() -> None:
+    registry = CleaningFunctionRegistry()
+    registry.register("my_func", lambda v, o: v)
+    with pytest.raises(CleaningConfigError, match="already registered"):
+        registry.register("my_func", lambda v, o: v)
+
+
+def test_configurable_cleaner_rejects_negative_max_error_samples() -> None:
+    with pytest.raises(CleaningConfigError, match="greater than or equal to zero"):
+        ConfigurableCleaner([], max_error_samples=-1)
+
+
+def test_regex_step_rejects_blank_column() -> None:
+    with pytest.raises(CleaningConfigError, match="non-blank string"):
+        ConfigurableCleaner([{"type": "regex", "column": "", "pattern": ".*"}])
+
+
+def test_regex_step_rejects_non_string_pattern() -> None:
+    with pytest.raises(CleaningConfigError, match="must be a string"):
+        ConfigurableCleaner([{"type": "regex", "column": "content", "pattern": 42}])
+
+
+def test_fillna_step_rejects_empty_values_mapping() -> None:
+    with pytest.raises(CleaningConfigError, match="non-empty mapping"):
+        ConfigurableCleaner([{"type": "fillna", "values": {}}])
+
+
+def test_custom_step_rejects_blank_name() -> None:
+    with pytest.raises(CleaningConfigError, match="non-blank string"):
+        ConfigurableCleaner([{"type": "custom", "name": "  ", "column": "content"}])
+
+
+def test_custom_step_rejects_blank_column() -> None:
+    with pytest.raises(CleaningConfigError, match="non-blank string"):
+        ConfigurableCleaner([{"type": "custom", "name": "func", "column": ""}])
+
+
+def test_custom_step_rejects_non_mapping_options() -> None:
+    registry = CleaningFunctionRegistry()
+    registry.register("func", lambda v, o: v)
+    cleaner = ConfigurableCleaner(
+        [{"type": "custom", "name": "func", "column": "content", "options": "bad"}],
+        custom_functions=registry,
+    )
+    with pytest.raises(CleaningConfigError, match="must be a mapping"):
+        cleaner.clean(records("content\n很好\n"))
+
+
+def test_columns_rejects_invalid_type() -> None:
+    from app.etl.cleaner import _columns
+
+    with pytest.raises(CleaningConfigError, match="non-empty string list"):
+        _columns({"subset": 123})
+
+
+# ---------------------------------------------------------------------------
+# _value / _with_value edge cases (previously uncovered)
+# ---------------------------------------------------------------------------
+
+
+def test_value_reads_source_key_from_record() -> None:
+    from app.etl.cleaner import _value
+
+    record = next(TextLoader().load(BytesIO(b"plain"), source_key="my-key.txt"))
+    assert _value(record, "source_key") == "my-key.txt"
+
+
+def test_value_reads_metadata_fallback() -> None:
+    from app.etl.cleaner import _value
+
+    record = next(TextLoader().load(BytesIO(b"plain"), source_key="key.txt"))
+    assert _value(record, "non_existent") is None
+
+
+def test_with_value_rejects_source_key_change() -> None:
+    from app.etl.cleaner import _with_value
+
+    record = next(TextLoader().load(BytesIO(b"plain"), source_key="key.txt"))
+    with pytest.raises(CleaningConfigError, match="source_key cannot be changed"):
+        _with_value(record, "source_key", "new-value")
+
+
+def test_with_value_sets_metadata_column() -> None:
+    from app.etl.cleaner import _with_value
+
+    record = next(TextLoader().load(BytesIO(b"plain"), source_key="key.txt"))
+    result = _with_value(record, "custom_meta", "meta-value")
+    assert result.metadata["custom_meta"] == "meta-value"
+
+
+def test_fillna_step_with_subset_requires_value() -> None:
+    with pytest.raises(CleaningConfigError, match="requires value or values"):
+        ConfigurableCleaner([{"type": "fillna", "subset": ["content"]}])
+
+
+def test_fillna_step_rejects_non_string_key_in_values() -> None:
+    cleaner = ConfigurableCleaner([{"type": "fillna", "values": {123: "x"}}])
+    with pytest.raises(CleaningConfigError, match="keys must be strings"):
+        cleaner.clean(records("content\n很好\n"))
+
+
+def test_regex_step_rejects_non_string_replace_with() -> None:
+    with pytest.raises(CleaningConfigError, match="replace_with must be a string"):
+        ConfigurableCleaner(
+            [{"type": "regex", "column": "content", "pattern": ".*", "replace_with": 42}]
+        ).clean(records("content\n很好\n"))
+
+
+def test_columns_accepts_single_string() -> None:
+    from app.etl.cleaner import _columns
+
+    result = _columns({"column": "content"})
+    assert result == ("content",)
+
+
+def test_fillna_step_with_subset_and_value_passes_validation() -> None:
+    cleaner = ConfigurableCleaner(
+        [{"type": "fillna", "subset": ["city"], "value": "未知"}],
+        text_template="{content}",
+    )
+    result = cleaner.clean(records("content,city\n很好,\n"))
+    assert result[0].metadata.get("row_data", {}).get("city") == "未知"

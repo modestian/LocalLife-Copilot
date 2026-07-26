@@ -133,3 +133,66 @@ def test_semantic_splitter_rejects_invalid_encoder_output() -> None:
     splitter = SemanticSplitter(encoder=lambda sentences: [])
     with pytest.raises(SplitterConfigError, match="one vector per sentence"):
         splitter.split([record("第一句。第二句。")], document_version_id=VERSION_ID)
+
+
+# ---------------------------------------------------------------------------
+# Additional splitter error / boundary paths (previously uncovered)
+# ---------------------------------------------------------------------------
+
+
+def test_recursive_splitter_rejects_separators_without_empty_fallback() -> None:
+    with pytest.raises(SplitterConfigError, match="empty hard-split fallback"):
+        RecursiveSplitter(separators=["\n", "。"])
+
+
+def test_hashing_sentence_encoder_rejects_non_positive_dimensions() -> None:
+    from app.etl.splitters import HashingSentenceEncoder
+
+    with pytest.raises(SplitterConfigError, match="greater than zero"):
+        HashingSentenceEncoder(dimensions=0)
+
+
+def test_cosine_similarity_rejects_mismatched_dimensions() -> None:
+    from app.etl.splitters import _cosine_similarity
+
+    with pytest.raises(SplitterConfigError, match="equal dimensions"):
+        _cosine_similarity([1.0], [1.0, 2.0])
+
+
+def test_cosine_similarity_rejects_empty_vectors() -> None:
+    from app.etl.splitters import _cosine_similarity
+
+    with pytest.raises(SplitterConfigError, match="non-empty"):
+        _cosine_similarity([], [])
+
+
+def test_cosine_similarity_returns_zero_for_zero_norm() -> None:
+    from app.etl.splitters import _cosine_similarity
+
+    assert _cosine_similarity([0.0, 0.0], [1.0, 2.0]) == 0.0
+
+
+def test_semantic_splitter_rejects_invalid_similarity_threshold() -> None:
+    with pytest.raises(SplitterConfigError, match="similarity_threshold"):
+        SemanticSplitter(similarity_threshold=1.5)
+
+
+def test_semantic_splitter_returns_empty_for_empty_sentences() -> None:
+    splitter = SemanticSplitter()
+    chunks = splitter.split([record("   ", source_key="empty")], document_version_id=VERSION_ID)
+    assert chunks == []
+
+
+def test_recursive_splitter_handles_unit_larger_than_chunk_size() -> None:
+    """Cover _split_recursive branch where a single unit exceeds chunk_size."""
+    # Use custom separators: first try "。" then fall back to hard-split
+    splitter = RecursiveSplitter(
+        chunk_size=5,
+        chunk_overlap=0,
+        separators=["。", ""],
+    )
+    long_word = "abcdefghij"  # 10 chars, no "。" in it
+    chunks = splitter.split([record(long_word, source_key="long")], document_version_id=VERSION_ID)
+    assert len(chunks) >= 2
+    reconstructed = "".join(chunk.content for chunk in chunks)
+    assert reconstructed == long_word
