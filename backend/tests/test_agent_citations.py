@@ -11,7 +11,7 @@ from app.agents.generation import (
     GroundedRAGGenerator,
 )
 from app.agents.persistence import GroundedPersistenceError, GroundedResponsePersister
-from app.agents.types import RetrievedChunk, SourceCitation
+from app.agents.types import ChatConstraints, ChatError, RetrievedChunk, SourceCitation
 
 
 class StaticModel:
@@ -196,3 +196,95 @@ async def test_non_uuid_source_is_rejected_before_repository_write() -> None:
     with pytest.raises(GroundedPersistenceError):
         await persister.persist(uuid4(), uuid4(), generation)
     assert repository.payload is None
+
+
+# ---------------------------------------------------------------------------
+# types.py __post_init__ validation edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_chat_constraints_rejects_non_positive_distance() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        ChatConstraints(distance_meter_lte=0)
+
+
+def test_chat_constraints_rejects_negative_budget() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        ChatConstraints(budget_cent_per_person_lte=-1)
+
+
+def test_chat_constraints_rejects_negative_party_size() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        ChatConstraints(party_size=-1)
+
+
+def test_retrieved_chunk_rejects_blank_chunk_id() -> None:
+    with pytest.raises(ValueError, match="must not be blank"):
+        RetrievedChunk(chunk_id="  ", content="ok", score=0.5, source_location="x")
+
+
+def test_retrieved_chunk_rejects_non_finite_score() -> None:
+    with pytest.raises(ValueError, match="must be finite"):
+        RetrievedChunk(chunk_id="c1", content="ok", score=float("inf"), source_location="x")
+
+
+def test_source_citation_rejects_negative_rank() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        SourceCitation(chunk_id="c1", rank_no=0, source_location="x", content_snapshot="ok")
+
+
+def test_source_citation_rejects_blank_chunk_id() -> None:
+    with pytest.raises(ValueError, match="must not be blank"):
+        SourceCitation(chunk_id="", rank_no=1, source_location="x", content_snapshot="ok")
+
+
+def test_source_citation_rejects_blank_content_snapshot() -> None:
+    with pytest.raises(ValueError, match="must not be blank"):
+        SourceCitation(chunk_id="c1", rank_no=1, source_location="x", content_snapshot="  ")
+
+
+def test_source_citation_rejects_blank_evidence_id() -> None:
+    with pytest.raises(ValueError, match="must not be blank"):
+        SourceCitation(
+            chunk_id="c1", rank_no=1, source_location="x", content_snapshot="ok", evidence_id="  "
+        )
+
+
+def test_chat_error_rejects_blank_code() -> None:
+    with pytest.raises(ValueError, match="must not be blank"):
+        ChatError(code="", message="error")
+
+
+# ---------------------------------------------------------------------------
+# persistence.py — GroundedPersistenceError paths (previously uncovered)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_persist_rejects_fallback_with_sources() -> None:
+    repository = CapturingRepository()
+    persister = GroundedResponsePersister(repository)  # type: ignore[arg-type]
+    valid_id = str(uuid4())
+    generation = GroundedGeneration(
+        answer=NO_EVIDENCE_ANSWER,
+        structured=None,
+        sources=(SourceCitation(valid_id, 1, "loc", "snap"),),
+        model_version=None,
+        fallback_reason="no_evidence",
+    )
+    with pytest.raises(GroundedPersistenceError, match="fallback"):
+        await persister.persist(uuid4(), uuid4(), generation)
+
+
+@pytest.mark.asyncio
+async def test_persist_rejects_non_fallback_without_sources() -> None:
+    repository = CapturingRepository()
+    persister = GroundedResponsePersister(repository)  # type: ignore[arg-type]
+    generation = GroundedGeneration(
+        answer="valid answer",
+        structured=None,
+        sources=(),
+        model_version="model-v1",
+    )
+    with pytest.raises(GroundedPersistenceError, match="grounded"):
+        await persister.persist(uuid4(), uuid4(), generation)

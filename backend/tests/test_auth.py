@@ -339,3 +339,85 @@ def test_login_rate_limit_blocks_repeated_failures_and_resets_after_success(
     assert blocked.status_code == 429
     assert blocked.json()["code"] == "AUTH_RATE_LIMITED"
     assert 1 <= int(blocked.headers["Retry-After"]) <= 60
+
+
+# ---------------------------------------------------------------------------
+# PasswordService boundaries
+# ---------------------------------------------------------------------------
+
+
+def test_password_service_rejects_empty_password(password_service: PasswordService) -> None:
+    with pytest.raises(ValueError, match="must not be empty"):
+        password_service.hash("")
+
+
+def test_verify_dummy_does_not_raise() -> None:
+    service = PasswordService()
+    service.verify_dummy("dummy-input")
+
+
+def test_needs_rehash_false_for_valid_hash() -> None:
+    service = PasswordService()
+    h = service.hash("test-password")
+    assert service.needs_rehash(h) is False
+
+
+def test_needs_rehash_true_for_invalid_hash() -> None:
+    service = PasswordService()
+    assert service.needs_rehash("not-an-argon2-hash") is True
+
+
+# ---------------------------------------------------------------------------
+# AccessTokenService validation
+# ---------------------------------------------------------------------------
+
+
+def test_access_token_service_rejects_short_secret() -> None:
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        AccessTokenService(
+            secret_key="short",
+            issuer="i",
+            audience="a",
+            ttl=timedelta(minutes=30),
+        )
+
+
+def test_access_token_service_rejects_zero_ttl() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        AccessTokenService(
+            secret_key="test-secret-key-with-at-least-32-bytes",
+            issuer="i",
+            audience="a",
+            ttl=timedelta(0),
+        )
+
+
+def test_access_token_service_rejects_negative_ttl() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        AccessTokenService(
+            secret_key="test-secret-key-with-at-least-32-bytes",
+            issuer="i",
+            audience="a",
+            ttl=timedelta(minutes=-1),
+        )
+
+
+# ---------------------------------------------------------------------------
+# _aware_utc
+# ---------------------------------------------------------------------------
+
+
+def test_aware_utc_with_naive_datetime() -> None:
+    from app.core.security import _aware_utc
+
+    naive = datetime(2026, 1, 1, 12, 0, 0)
+    result = _aware_utc(naive)
+    assert result.tzinfo == UTC
+    assert result.hour == 12
+
+
+def test_aware_utc_with_none_defaults_to_now() -> None:
+    from app.core.security import _aware_utc
+
+    result = _aware_utc(None)
+    assert result.tzinfo == UTC

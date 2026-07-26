@@ -97,3 +97,48 @@ def test_settings_reject_invalid_login_rate_limit_attempts(value: int) -> None:
 def test_settings_reject_invalid_login_rate_limit_window(value: int) -> None:
     with pytest.raises(ValidationError, match="login_rate_limit_window_seconds"):
         Settings(login_rate_limit_window_seconds=value)
+
+
+# ---------------------------------------------------------------------------
+# Additional config validator error paths (previously uncovered)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("value", [15, 1025])
+def test_settings_reject_invalid_request_id_max_length(value: int) -> None:
+    with pytest.raises(ValidationError, match="request_id_max_length"):
+        Settings(request_id_max_length=value)
+
+
+def test_settings_reject_invalid_log_level() -> None:
+    with pytest.raises(ValidationError, match="log_level"):
+        Settings(log_level="TRACE")
+
+
+@pytest.mark.parametrize("value", [0, 1441])
+def test_settings_reject_invalid_access_token_ttl(value: int) -> None:
+    with pytest.raises(ValidationError, match="access_token_ttl_minutes"):
+        Settings(access_token_ttl_minutes=value)
+
+
+@pytest.mark.parametrize("value", [0, 91])
+def test_settings_reject_invalid_refresh_token_ttl(value: int) -> None:
+    with pytest.raises(ValidationError, match="refresh_token_ttl_days"):
+        Settings(refresh_token_ttl_days=value)
+
+
+def test_settings_reject_invalid_opensearch_index() -> None:
+    with pytest.raises(ValidationError, match="opensearch_index"):
+        Settings(opensearch_index="Invalid Index!")
+
+
+@pytest.mark.parametrize("value", [-0.1, 1.1])
+def test_settings_reject_invalid_search_minimum_score(value: float) -> None:
+    with pytest.raises(ValidationError, match="search_minimum_score"):
+        Settings(search_minimum_score=value)
+
+
+@pytest.mark.parametrize("field", ["jwt_issuer", "jwt_audience"])
+def test_settings_reject_empty_jwt_identity(field: str) -> None:
+    with pytest.raises(ValidationError, match="JWT"):
+        Settings(**{field: "  "})

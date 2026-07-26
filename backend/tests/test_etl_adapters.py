@@ -4,7 +4,7 @@ from uuid import UUID
 
 import pytest
 
-from app.etl.adapters import LocalSourceStorage, OpenSearchProjection
+from app.etl.adapters import LocalSourceStorage, OpenSearchProjection, _geo_location, _is_coordinate
 from app.etl.embeddings import BatchedEmbedder
 from app.etl.lifecycle import LifecycleError, projection_id
 from app.etl.models import ChunkRecord
@@ -165,3 +165,126 @@ def test_haversine_distance_computes_correctly() -> None:
     # Beijing → Shanghai ≈ 1068 km
     d2 = _haversine_distance(116.407, 39.904, 121.474, 31.23)
     assert 1_000_000 < d2 < 1_100_000
+
+
+# ---------------------------------------------------------------------------
+# _geo_location
+# ---------------------------------------------------------------------------
+
+
+def test_geo_location_dict_valid() -> None:
+    assert _geo_location({"lat": 31.23, "lon": 121.47}) == {"lat": 31.23, "lon": 121.47}
+
+
+def test_geo_location_dict_invalid_lat() -> None:
+    assert _geo_location({"lat": 200, "lon": 121.47}) is None
+
+
+def test_geo_location_dict_invalid_lon() -> None:
+    assert _geo_location({"lat": 31.23, "lon": 200}) is None
+
+
+def test_geo_location_list_valid() -> None:
+    assert _geo_location([121.47, 31.23]) == [121.47, 31.23]
+
+
+def test_geo_location_list_wrong_length() -> None:
+    assert _geo_location([121.47]) is None
+
+
+def test_geo_location_list_out_of_range() -> None:
+    assert _geo_location([200, 200]) is None
+
+
+def test_geo_location_string_valid() -> None:
+    assert _geo_location("31.23, 121.47") == "31.23,121.47"
+
+
+def test_geo_location_string_invalid_format() -> None:
+    assert _geo_location("not,coord") is None
+
+
+def test_geo_location_string_out_of_range() -> None:
+    assert _geo_location("200, 200") is None
+
+
+def test_geo_location_unsupported_types() -> None:
+    assert _geo_location(None) is None
+    assert _geo_location(42) is None
+    assert _geo_location(True) is None
+
+
+# ---------------------------------------------------------------------------
+# _is_coordinate
+# ---------------------------------------------------------------------------
+
+
+def test_is_coordinate_accepts_boundary() -> None:
+    assert _is_coordinate(-90, -90, 90) is True
+    assert _is_coordinate(90, -90, 90) is True
+    assert _is_coordinate(-180, -180, 180) is True
+    assert _is_coordinate(180, -180, 180) is True
+    assert _is_coordinate(0, 0, 100) is True
+
+
+def test_is_coordinate_rejects_non_numeric() -> None:
+    assert _is_coordinate(True, 0, 100) is False  # bool is int subclass
+    assert _is_coordinate("30", 0, 100) is False
+    assert _is_coordinate(None, 0, 100) is False
+
+
+# ---------------------------------------------------------------------------
+# OpenSearchProjection — batch size validation
+# ---------------------------------------------------------------------------
+
+
+def test_opensearch_projection_rejects_zero_batch_size() -> None:
+    embedder = BatchedEmbedder(FakeEmbeddingProvider(), dimension=3, batch_size=2)
+    with pytest.raises(ValueError, match="greater than zero"):
+        OpenSearchProjection(FakeOpenSearch(), "idx", embedder, bulk_batch_size=0)
+
+
+def test_opensearch_projection_rejects_negative_batch_size() -> None:
+    embedder = BatchedEmbedder(FakeEmbeddingProvider(), dimension=3, batch_size=2)
+    with pytest.raises(ValueError, match="greater than zero"):
+        OpenSearchProjection(FakeOpenSearch(), "idx", embedder, bulk_batch_size=-5)
+
+
+# ---------------------------------------------------------------------------
+# LocalSourceStorage additional edge cases (previously uncovered)
+# ---------------------------------------------------------------------------
+
+
+def test_local_source_storage_normalizes_windows_file_uri(tmp_path: Path) -> None:
+    source = tmp_path / "sample.txt"
+    source.write_bytes(b"windows-path")
+    drive = source.drive
+    if drive:
+        # Simulate file:///C:/... which has leading / before drive letter
+        posix_path = source.as_posix()
+        uri = f"file:///{posix_path}"
+        with LocalSourceStorage(tmp_path).open(uri) as stream:
+            assert stream.read() == b"windows-path"
+
+
+def test_local_source_storage_rejects_missing_file(tmp_path: Path) -> None:
+    with pytest.raises(LifecycleError) as captured:
+        LocalSourceStorage(tmp_path).open("nonexistent.txt")
+    assert captured.value.code == "SOURCE_NOT_FOUND"
+
+
+def test_opensearch_projection_upsert_empty_chunks_skips_bulk(monkeypatch) -> None:
+    client = FakeOpenSearch()
+    bulk_called = False
+
+    def fake_bulk(*_args, **_kwargs):
+        nonlocal bulk_called
+        bulk_called = True
+
+    monkeypatch.setattr("app.etl.adapters.bulk", fake_bulk)
+    embedder = BatchedEmbedder(FakeEmbeddingProvider(), dimension=3, batch_size=2)
+    projection = OpenSearchProjection(client, "idx", embedder, bulk_batch_size=2)
+
+    projection.upsert(VERSION_ID, [])
+
+    assert not bulk_called

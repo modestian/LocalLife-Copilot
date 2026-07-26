@@ -162,3 +162,49 @@ def test_batched_embedder_rejects_invalid_vector_values(value: object) -> None:
         BatchedEmbedder(InvalidProvider(), dimension=3, batch_size=1).embed(["a"])
 
     assert captured.value.code == "EMBEDDING_VECTOR_INVALID"
+
+
+# ---------------------------------------------------------------------------
+# Constructor validation
+# ---------------------------------------------------------------------------
+
+
+def test_http_embedding_provider_rejects_non_positive_timeout() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        HttpEmbeddingProvider("http://g", model="m", timeout_seconds=0)
+
+
+def test_http_embedding_provider_rejects_non_positive_max_attempts() -> None:
+    with pytest.raises(ValueError, match="must be positive"):
+        HttpEmbeddingProvider("http://g", model="m", timeout_seconds=30, max_attempts=0)
+
+
+def test_http_embedding_provider_rejects_negative_retry_delay() -> None:
+    with pytest.raises(ValueError, match="must not be negative"):
+        HttpEmbeddingProvider("http://g", model="m", timeout_seconds=30, retry_delay_seconds=-1)
+
+
+def test_batched_embedder_rejects_non_positive_dimension() -> None:
+    with pytest.raises(ValueError, match="must be greater than zero"):
+        BatchedEmbedder(RecordingProvider(), dimension=0, batch_size=2)
+
+
+def test_batched_embedder_rejects_non_positive_batch_size() -> None:
+    with pytest.raises(ValueError, match="must be greater than zero"):
+        BatchedEmbedder(RecordingProvider(), dimension=3, batch_size=0)
+
+
+def test_http_embedding_provider_handles_invalid_response_body(monkeypatch) -> None:
+    from contextlib import contextmanager
+
+    @contextmanager
+    def bad_response(_request, *, timeout):
+        yield BytesIO(b"{}")
+
+    monkeypatch.setattr("app.etl.embeddings.urlopen", bad_response)
+    provider = HttpEmbeddingProvider("http://g", model="m", timeout_seconds=30, max_attempts=1)
+
+    with pytest.raises(EmbeddingError) as captured:
+        provider.embed(["a"])
+
+    assert captured.value.code == "EMBEDDING_RESPONSE_INVALID"
