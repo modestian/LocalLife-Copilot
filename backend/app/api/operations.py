@@ -449,7 +449,8 @@ async def submit_user_review(
     principal: CurrentPrincipal,
 ) -> dict[str, Any]:
     # Any authenticated user can submit a review (no resource grant required)
-    # Sensitive word check
+    # Sensitive word check: matched content is stored but auto-rejected
+    review_status = "PENDING"
     safety_service = getattr(request.app.state, "content_safety_service", None)
     if safety_service is not None:
         check_result = await safety_service.check(
@@ -459,7 +460,7 @@ async def submit_user_review(
             request_id=get_request_id(request),
         )
         if not check_result.allowed:
-            raise AppError(422, "SENSITIVE_CONTENT_REJECTED", "评论包含受限内容，已拒绝提交")
+            review_status = "REJECTED"
     try:
         review = await _repository(request).create_user_review(
             merchant_id=merchant_id,
@@ -467,6 +468,7 @@ async def submit_user_review(
             content=body.content,
             rating=body.rating,
             author_name=principal.display_name,
+            status=review_status,
         )
     except LookupError as exc:
         raise AppError(404, "NOT_FOUND", "商家不存在") from exc
@@ -479,7 +481,11 @@ async def submit_user_review(
             "rating": float(review.rating) if review.rating is not None else None,
             "created_at": review.created_at.isoformat(),
         },
-        message="评论已提交，等待审核",
+        message=(
+            "评论包含违禁内容，已自动审核不通过"
+            if review.status == "REJECTED"
+            else "评论已提交，等待审核"
+        ),
     )
 
 

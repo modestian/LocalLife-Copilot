@@ -816,6 +816,7 @@ class OperationsRepository:
         content: str,
         rating: float,
         author_name: str | None = None,
+        status: str = "PENDING",
     ) -> Review:
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         async with self._session_factory() as session, session.begin():
@@ -844,7 +845,7 @@ class OperationsRepository:
                 reviewed_at=utc_now(),
                 source_type="USER_SUBMITTED",
                 source_review_id=None,
-                status="PENDING",
+                status=status,
             )
             session.add(review)
             await session.flush()
@@ -1019,6 +1020,7 @@ class OperationsRepository:
         tone: str,
         source: str,
         created_by: UUID,
+        status: str = "PENDING",
     ) -> MerchantReply:
         async with self._session_factory() as session, session.begin():
             canonical_id = await self._canonical_review_id(session, review_id)
@@ -1029,6 +1031,7 @@ class OperationsRepository:
                 content=content,
                 tone=tone,
                 source=source,
+                status=status,
                 created_by=created_by,
             )
             session.add(reply)

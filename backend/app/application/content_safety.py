@@ -61,6 +61,8 @@ class SensitiveRuleRepository(Protocol):
 
     async def list_rules(self, *, enabled_only: bool = False) -> list[SensitiveRuleRecord]: ...
 
+    async def disable_rule(self, *, rule_id: UUID) -> SensitiveRuleRecord | None: ...
+
     async def append_rejection_audit(
         self,
         *,
@@ -104,6 +106,9 @@ class ContentSafetyService:
 
     async def list_rules(self, *, enabled_only: bool = False) -> list[SensitiveRuleRecord]:
         return await self._repository.list_rules(enabled_only=enabled_only)
+
+    async def disable_rule(self, *, rule_id: UUID) -> SensitiveRuleRecord | None:
+        return await self._repository.disable_rule(rule_id=rule_id)
 
     async def check(
         self,

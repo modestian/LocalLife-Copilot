@@ -15,6 +15,7 @@ import type {
   OperationTask,
   PromptCreatePayload,
   SensitiveWordPayload,
+  SensitiveWordRule,
 } from '@/types/operations'
 
 import { requestData } from './client'
@@ -103,16 +104,23 @@ export const moderationApi = {
     })
   },
 
-  listSensitiveWords(params: JsonObject = {}): Promise<JsonObject> {
+  listSensitiveWords(params: { enabled_only?: boolean } = {}): Promise<{ items: SensitiveWordRule[] }> {
     return requestData({ method: 'GET', url: '/api/v1/sensitive-words', params })
   },
 
-  createSensitiveWord(payload: SensitiveWordPayload): Promise<JsonObject> {
+  createSensitiveWord(payload: SensitiveWordPayload): Promise<SensitiveWordRule> {
     return requestData({
       method: 'POST',
       url: '/api/v1/sensitive-words',
       data: payload,
       headers: idempotencyHeaders(),
+    })
+  },
+
+  deleteSensitiveWord(ruleId: string): Promise<SensitiveWordRule> {
+    return requestData({
+      method: 'DELETE',
+      url: `/api/v1/sensitive-words/${encoded(ruleId)}`,
     })
   },
 }

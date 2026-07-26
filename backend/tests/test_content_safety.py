@@ -66,6 +66,14 @@ class InMemoryContentSafetyRepository:
     async def list_rules(self, *, enabled_only: bool = False) -> list[SensitiveRuleRecord]:
         return [rule for rule in self.rules if rule.enabled or not enabled_only]
 
+    async def disable_rule(self, *, rule_id: UUID) -> SensitiveRuleRecord | None:
+        for index, rule in enumerate(self.rules):
+            if rule.id == rule_id:
+                disabled = replace(rule, enabled=False)
+                self.rules[index] = disabled
+                return disabled
+        return None
+
     async def append_rejection_audit(self, **values: object) -> None:
         self.audits.append(values)
 
@@ -241,6 +249,43 @@ def test_admin_can_create_and_list_versioned_sensitive_rules(
 def test_non_admin_cannot_manage_sensitive_rules(safety_service: ContentSafetyService) -> None:
     with _client(safety_service, principal=_principal(admin=False)) as client:
         response = client.post("/api/v1/sensitive-words", json={"word": "受限词"})
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "FORBIDDEN"
+
+
+def test_admin_can_delete_sensitive_rule_and_it_stops_matching(
+    safety_service: ContentSafetyService,
+) -> None:
+    with _client(safety_service) as client:
+        created = client.post("/api/v1/sensitive-words", json={"word": "受限词"})
+        rule_id = created.json()["data"]["id"]
+        deleted = client.delete(f"/api/v1/sensitive-words/{rule_id}")
+        listed = client.get("/api/v1/sensitive-words", params={"enabled_only": True})
+        check = client.post(
+            "/api/v1/content-safety/check",
+            json={"content": "包含受限词的内容", "direction": "INPUT"},
+        )
+
+    assert deleted.status_code == 200
+    assert deleted.json()["data"]["enabled"] is False
+    assert listed.json()["data"]["items"] == []
+    assert check.status_code == 200
+
+
+def test_delete_missing_sensitive_rule_returns_404(
+    safety_service: ContentSafetyService,
+) -> None:
+    with _client(safety_service) as client:
+        response = client.delete(f"/api/v1/sensitive-words/{uuid7()}")
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "SENSITIVE_RULE_NOT_FOUND"
+
+
+def test_non_admin_cannot_delete_sensitive_rule(safety_service: ContentSafetyService) -> None:
+    with _client(safety_service, principal=_principal(admin=False)) as client:
+        response = client.delete(f"/api/v1/sensitive-words/{uuid7()}")
 
     assert response.status_code == 403
     assert response.json()["code"] == "FORBIDDEN"

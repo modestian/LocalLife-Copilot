@@ -15,8 +15,9 @@ from app.api.dependencies.authorization import (
 )
 from app.application.analytics import AnalyticsService
 from app.application.authorization import ResourceType
+from app.application.content_safety import ContentDirection
 from app.application.reply_generator import ReplyGenerator
-from app.core.api import success_response
+from app.core.api import get_request_id, success_response
 from app.core.errors import AppError
 
 merchant_read_dependency = require_resource_access(
@@ -475,6 +476,19 @@ async def submit_reply(
 
     merchant_id = await repo.resolve_merchant_id(review_uuid) or str(review_uuid)
 
+    # Same sensitive-word rules as user reviews: matched replies are auto-rejected
+    reply_status = "PENDING"
+    safety_service = getattr(request.app.state, "content_safety_service", None)
+    if safety_service is not None:
+        check_result = await safety_service.check(
+            content=body.content,
+            direction=ContentDirection.INPUT,
+            actor_id=principal.user_id,
+            request_id=get_request_id(request),
+        )
+        if not check_result.allowed:
+            reply_status = "REJECTED"
+
     reply = await repo.create_reply(
         review_id=review_uuid,
         merchant_id=merchant_id,
@@ -482,6 +496,7 @@ async def submit_reply(
         tone=body.tone,
         source=body.source,
         created_by=principal.user_id,
+        status=reply_status,
     )
 
     return success_response(
@@ -497,7 +512,11 @@ async def submit_reply(
             "created_at": reply.created_at.isoformat(),
             "updated_at": reply.updated_at.isoformat(),
         },
-        message="回复已提交，等待审核",
+        message=(
+            "回复包含违禁内容，已自动审核不通过"
+            if reply.status == "REJECTED"
+            else "回复已提交，等待审核"
+        ),
     )
 
 

@@ -82,8 +82,18 @@ export interface ModerationDecisionPayload {
 export interface SensitiveWordPayload {
   word: string
   scope?: 'INPUT' | 'OUTPUT' | 'BOTH'
-  match_type?: 'CONTAINS' | 'EXACT' | 'REGEX'
+  match_type?: 'CONTAINS' | 'EXACT'
   severity?: 'LOW' | 'MEDIUM' | 'HIGH'
+}
+
+export interface SensitiveWordRule {
+  id: string
+  word: string
+  scope: 'INPUT' | 'OUTPUT' | 'BOTH'
+  match_type: 'CONTAINS' | 'EXACT'
+  severity: 'LOW' | 'MEDIUM' | 'HIGH'
+  version_no: number
+  enabled: boolean
 }
 
 export interface PromptCreatePayload {

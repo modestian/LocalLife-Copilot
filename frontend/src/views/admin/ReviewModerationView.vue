@@ -4,9 +4,10 @@ import { onMounted, ref } from 'vue'
 import { getUserFacingError } from '@/api/errors'
 import { reviewsApi, type AdminReplyItem, type AdminReviewItem } from '@/api/reviews'
 import ProductTopBar from '@/components/ProductTopBar.vue'
+import SensitiveWordManager from '@/components/SensitiveWordManager.vue'
 
 type StatusFilter = 'PENDING' | 'PUBLISHED' | 'REJECTED'
-type ModerationTarget = 'REVIEW' | 'REPLY'
+type ModerationTarget = 'REVIEW' | 'REPLY' | 'SENSITIVE'
 
 const moderationTarget = ref<ModerationTarget>('REVIEW')
 const statusFilter = ref<StatusFilter>('PENDING')
@@ -26,6 +27,7 @@ onMounted(() => {
 })
 
 async function loadItems(): Promise<void> {
+  if (moderationTarget.value === 'SENSITIVE') return
   loading.value = true
   errorMessage.value = ''
   try {
@@ -135,7 +137,9 @@ function formatDate(iso: string | null): string {
     <p class="intro">
       {{ moderationTarget === 'REVIEW'
         ? '审核用户提交的商家评论，通过后评论将公开展示。'
-        : '审核商家对用户点评的回复，通过后回复将对用户展示。' }}
+        : moderationTarget === 'REPLY'
+          ? '审核商家对用户点评的回复，通过后回复将对用户展示。'
+          : '维护违禁词规则，命中规则的评论会在提交时被直接拒绝。' }}
     </p>
 
     <div class="moderation-toolbar target-toolbar">
@@ -151,223 +155,233 @@ function formatDate(iso: string | null): string {
       >
         商家回复
       </button>
-    </div>
-
-    <div class="moderation-toolbar">
       <button
-        :class="['filter-btn', { active: statusFilter === 'PENDING' }]"
-        @click="switchStatus('PENDING')"
+        :class="['filter-btn', { active: moderationTarget === 'SENSITIVE' }]"
+        @click="switchTarget('SENSITIVE')"
       >
-        待审核
-      </button>
-      <button
-        :class="['filter-btn', { active: statusFilter === 'PUBLISHED' }]"
-        @click="switchStatus('PUBLISHED')"
-      >
-        已通过
-      </button>
-      <button
-        :class="['filter-btn', { active: statusFilter === 'REJECTED' }]"
-        @click="switchStatus('REJECTED')"
-      >
-        已拒绝
+        违禁词管理
       </button>
     </div>
 
-    <p
-      v-if="notice"
-      class="notice"
-    >
-      {{ notice }}
-    </p>
-    <p
-      v-if="errorMessage"
-      class="error"
-    >
-      {{ errorMessage }}
-    </p>
+    <SensitiveWordManager v-if="moderationTarget === 'SENSITIVE'" />
 
-    <div
-      v-if="loading"
-      class="loading"
-    >
-      加载中...
-    </div>
-
-    <div
-      v-else-if="(moderationTarget === 'REVIEW' ? reviews.length : replies.length) === 0"
-      class="empty"
-    >
-      暂无{{ statusLabel(statusFilter) }}的{{ moderationTarget === 'REVIEW' ? '评论' : '商家回复' }}
-    </div>
-
-    <div
-      v-else-if="moderationTarget === 'REVIEW'"
-      class="review-list"
-    >
-      <div
-        v-for="review in reviews"
-        :key="review.id"
-        class="review-card"
-      >
-        <div class="review-header">
-          <span class="review-author">{{ review.author ?? '匿名用户' }}</span>
-          <el-tag
-            :type="statusType(review.status)"
-            size="small"
-          >
-            {{ statusLabel(review.status) }}
-          </el-tag>
-        </div>
-        <div class="review-rating">
-          <el-rate
-            :model-value="review.rating ?? 0"
-            disabled
-          />
-        </div>
-        <p class="review-content">
-          {{ review.content }}
-        </p>
-        <div class="review-meta">
-          <span>来源: {{ review.source_type }}</span>
-          <span>时间: {{ formatDate(review.created_at) }}</span>
-        </div>
-
-        <!-- Moderation actions -->
-        <div
-          v-if="review.status === 'PENDING'"
-          class="review-actions"
+    <template v-else>
+      <div class="moderation-toolbar">
+        <button
+          :class="['filter-btn', { active: statusFilter === 'PENDING' }]"
+          @click="switchStatus('PENDING')"
         >
-          <template v-if="moderatingId === review.id">
-            <div class="moderate-form">
-              <el-input
-                v-model="moderateReason"
-                placeholder="拒绝理由（留空则默认“不符合社区规范”）"
-                :maxlength="1000"
-                show-word-limit
-              />
-              <div class="moderate-buttons">
-                <el-button
-                  type="success"
-                  size="small"
-                  @click="submitModerate('APPROVE')"
-                >
-                  通过
-                </el-button>
-                <el-button
-                  type="danger"
-                  size="small"
-                  @click="submitModerate('REJECT')"
-                >
-                  拒绝
-                </el-button>
-                <el-button
-                  size="small"
-                  @click="cancelModerate"
-                >
-                  取消
-                </el-button>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <el-button
-              type="primary"
+          待审核
+        </button>
+        <button
+          :class="['filter-btn', { active: statusFilter === 'PUBLISHED' }]"
+          @click="switchStatus('PUBLISHED')"
+        >
+          已通过
+        </button>
+        <button
+          :class="['filter-btn', { active: statusFilter === 'REJECTED' }]"
+          @click="switchStatus('REJECTED')"
+        >
+          已拒绝
+        </button>
+      </div>
+
+      <p
+        v-if="notice"
+        class="notice"
+      >
+        {{ notice }}
+      </p>
+      <p
+        v-if="errorMessage"
+        class="error"
+      >
+        {{ errorMessage }}
+      </p>
+
+      <div
+        v-if="loading"
+        class="loading"
+      >
+        加载中...
+      </div>
+
+      <div
+        v-else-if="(moderationTarget === 'REVIEW' ? reviews.length : replies.length) === 0"
+        class="empty"
+      >
+        暂无{{ statusLabel(statusFilter) }}的{{ moderationTarget === 'REVIEW' ? '评论' : '商家回复' }}
+      </div>
+
+      <div
+        v-else-if="moderationTarget === 'REVIEW'"
+        class="review-list"
+      >
+        <div
+          v-for="review in reviews"
+          :key="review.id"
+          class="review-card"
+        >
+          <div class="review-header">
+            <span class="review-author">{{ review.author ?? '匿名用户' }}</span>
+            <el-tag
+              :type="statusType(review.status)"
               size="small"
-              @click="startModerate(review.id)"
             >
-              审核
-            </el-button>
-          </template>
+              {{ statusLabel(review.status) }}
+            </el-tag>
+          </div>
+          <div class="review-rating">
+            <el-rate
+              :model-value="review.rating ?? 0"
+              disabled
+            />
+          </div>
+          <p class="review-content">
+            {{ review.content }}
+          </p>
+          <div class="review-meta">
+            <span>来源: {{ review.source_type }}</span>
+            <span>时间: {{ formatDate(review.created_at) }}</span>
+          </div>
+
+          <!-- Moderation actions -->
+          <div
+            v-if="review.status === 'PENDING'"
+            class="review-actions"
+          >
+            <template v-if="moderatingId === review.id">
+              <div class="moderate-form">
+                <el-input
+                  v-model="moderateReason"
+                  placeholder="拒绝理由（留空则默认“不符合社区规范”）"
+                  :maxlength="1000"
+                  show-word-limit
+                />
+                <div class="moderate-buttons">
+                  <el-button
+                    type="success"
+                    size="small"
+                    @click="submitModerate('APPROVE')"
+                  >
+                    通过
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    size="small"
+                    @click="submitModerate('REJECT')"
+                  >
+                    拒绝
+                  </el-button>
+                  <el-button
+                    size="small"
+                    @click="cancelModerate"
+                  >
+                    取消
+                  </el-button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <el-button
+                type="primary"
+                size="small"
+                @click="startModerate(review.id)"
+              >
+                审核
+              </el-button>
+            </template>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div
-      v-else
-      class="review-list"
-    >
       <div
-        v-for="reply in replies"
-        :key="reply.id"
-        class="review-card"
+        v-else
+        class="review-list"
       >
-        <div class="review-header">
-          <span class="review-author">商家回复</span>
-          <el-tag
-            :type="statusType(reply.status)"
-            size="small"
-          >
-            {{ statusLabel(reply.status) }}
-          </el-tag>
-        </div>
-        <p class="review-content">
-          {{ reply.content }}
-        </p>
-        <div class="review-meta">
-          <span>语气: {{ toneLabel(reply.tone) }}</span>
-          <span>来源: {{ reply.source === 'SUGGESTION' ? 'AI建议' : '手动输入' }}</span>
-          <span>时间: {{ formatDate(reply.created_at) }}</span>
-        </div>
-
-        <!-- Moderation actions -->
         <div
-          v-if="reply.status === 'PENDING'"
-          class="review-actions"
+          v-for="reply in replies"
+          :key="reply.id"
+          class="review-card"
         >
-          <template v-if="moderatingId === reply.id">
-            <div class="moderate-form">
-              <el-input
-                v-model="moderateReason"
-                placeholder="拒绝理由（留空则默认“不符合社区规范”）"
-                :maxlength="1000"
-                show-word-limit
-              />
-              <div class="moderate-buttons">
-                <el-button
-                  type="success"
-                  size="small"
-                  @click="submitModerate('APPROVE')"
-                >
-                  通过
-                </el-button>
-                <el-button
-                  type="danger"
-                  size="small"
-                  @click="submitModerate('REJECT')"
-                >
-                  拒绝
-                </el-button>
-                <el-button
-                  size="small"
-                  @click="cancelModerate"
-                >
-                  取消
-                </el-button>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <el-button
-              type="primary"
+          <div class="review-header">
+            <span class="review-author">商家回复</span>
+            <el-tag
+              :type="statusType(reply.status)"
               size="small"
-              @click="startModerate(reply.id)"
             >
-              审核
-            </el-button>
-          </template>
+              {{ statusLabel(reply.status) }}
+            </el-tag>
+          </div>
+          <p class="review-content">
+            {{ reply.content }}
+          </p>
+          <div class="review-meta">
+            <span>语气: {{ toneLabel(reply.tone) }}</span>
+            <span>来源: {{ reply.source === 'SUGGESTION' ? 'AI建议' : '手动输入' }}</span>
+            <span>时间: {{ formatDate(reply.created_at) }}</span>
+          </div>
+
+          <!-- Moderation actions -->
+          <div
+            v-if="reply.status === 'PENDING'"
+            class="review-actions"
+          >
+            <template v-if="moderatingId === reply.id">
+              <div class="moderate-form">
+                <el-input
+                  v-model="moderateReason"
+                  placeholder="拒绝理由（留空则默认“不符合社区规范”）"
+                  :maxlength="1000"
+                  show-word-limit
+                />
+                <div class="moderate-buttons">
+                  <el-button
+                    type="success"
+                    size="small"
+                    @click="submitModerate('APPROVE')"
+                  >
+                    通过
+                  </el-button>
+                  <el-button
+                    type="danger"
+                    size="small"
+                    @click="submitModerate('REJECT')"
+                  >
+                    拒绝
+                  </el-button>
+                  <el-button
+                    size="small"
+                    @click="cancelModerate"
+                  >
+                    取消
+                  </el-button>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <el-button
+                type="primary"
+                size="small"
+                @click="startModerate(reply.id)"
+              >
+                审核
+              </el-button>
+            </template>
+          </div>
         </div>
       </div>
-    </div>
 
-    <el-pagination
-      v-if="total > 10"
-      :current-page="page"
-      :page-size="10"
-      :total="total"
-      layout="prev, pager, next"
-      @current-change="onPageChange"
-    />
+      <el-pagination
+        v-if="total > 10"
+        :current-page="page"
+        :page-size="10"
+        :total="total"
+        layout="prev, pager, next"
+        @current-change="onPageChange"
+      />
+    </template>
   </main>
 </template>
 
