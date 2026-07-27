@@ -1,0 +1,30 @@
+{
+  "generated_at_utc": "2026-07-26T04:57:44.973428+00:00",
+  "groups": [
+    "DELIVERY"
+  ],
+  "commands_total": 1,
+  "commands_passed": 1,
+  "commands_failed": 0,
+  "overall_status": "PASS",
+  "results": [
+    {
+      "group": "DELIVERY",
+      "name": "Test-delivery consistency",
+      "cwd": "D:\\LocalLife-Copilot",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "docs/测试用例文档/test_code/test_delivery_consistency.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T04:57:43.277853+00:00",
+      "finished_at_utc": "2026-07-26T04:57:44.973354+00:00",
+      "duration_seconds": 1.696,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "01-delivery-test-delivery-consistency.log"
+    }
+  ]
+}

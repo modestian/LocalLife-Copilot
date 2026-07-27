@@ -1,0 +1,70 @@
+{
+  "generated_at_utc": "2026-07-26T04:46:54.616047+00:00",
+  "groups": [
+    "E2E",
+    "SMOKE"
+  ],
+  "commands_total": 3,
+  "commands_passed": 3,
+  "commands_failed": 0,
+  "overall_status": "PASS",
+  "results": [
+    {
+      "group": "E2E",
+      "name": "E2E-01 deterministic seed evidence",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_seed_demo_data.py",
+        "tests/test_seed_merchant_data.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T04:46:00.622212+00:00",
+      "finished_at_utc": "2026-07-26T04:46:05.066015+00:00",
+      "duration_seconds": 4.444,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "01-e2e-e2e-01-deterministic-seed-evidence.log"
+    },
+    {
+      "group": "E2E",
+      "name": "E2E-01 core role flows",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "run",
+        "test:e2e",
+        "--",
+        "--config",
+        "../docs/测试用例文档/test_code/playwright.delivery.config.ts",
+        "st-702-core-flows.spec.ts"
+      ],
+      "started_at_utc": "2026-07-26T04:46:05.066179+00:00",
+      "finished_at_utc": "2026-07-26T04:46:49.660304+00:00",
+      "duration_seconds": 44.594,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "02-e2e-e2e-01-core-role-flows.log"
+    },
+    {
+      "group": "SMOKE",
+      "name": "Release-candidate black-box smoke",
+      "cwd": "D:\\LocalLife-Copilot",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "docs/测试用例文档/test_code/test_release_candidate_smoke.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T04:46:49.660573+00:00",
+      "finished_at_utc": "2026-07-26T04:46:54.615980+00:00",
+      "duration_seconds": 4.955,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "03-smoke-release-candidate-black-box-smoke.log"
+    }
+  ]
+}

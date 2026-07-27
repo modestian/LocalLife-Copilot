@@ -1,0 +1,54 @@
+﻿{
+    "generated_at_utc":  "2026-07-26T04:53:32.3703921Z",
+    "overall_status":  "PASS",
+    "checks_total":  5,
+    "checks_passed":  5,
+    "checks_failed":  0,
+    "results":  [
+                    {
+                        "name":  "Backend full pytest suite",
+                        "status":  "PASS",
+                        "exit_code":  0,
+                        "started_at_utc":  "2026-07-26T03:49:10.0683376Z",
+                        "finished_at_utc":  "2026-07-26T03:50:04.5440908Z",
+                        "duration_seconds":  54.476,
+                        "log":  "01-backend-full.log"
+                    },
+                    {
+                        "name":  "Frontend full Vitest suite",
+                        "status":  "PASS",
+                        "exit_code":  0,
+                        "started_at_utc":  "2026-07-26T03:50:04.5575318Z",
+                        "finished_at_utc":  "2026-07-26T03:50:17.1923477Z",
+                        "duration_seconds":  12.635,
+                        "log":  "02-frontend-full.log"
+                    },
+                    {
+                        "name":  "Frontend lint",
+                        "status":  "PASS",
+                        "exit_code":  0,
+                        "started_at_utc":  "2026-07-26T03:50:17.1936086Z",
+                        "finished_at_utc":  "2026-07-26T03:50:21.9218163Z",
+                        "duration_seconds":  4.728,
+                        "log":  "03-frontend-lint.log"
+                    },
+                    {
+                        "name":  "Frontend production build",
+                        "status":  "PASS",
+                        "exit_code":  0,
+                        "started_at_utc":  "2026-07-26T03:50:21.9228249Z",
+                        "finished_at_utc":  "2026-07-26T03:50:37.5501032Z",
+                        "duration_seconds":  15.627,
+                        "log":  "04-frontend-build.log"
+                    },
+                    {
+                        "name":  "MySQL and Redis integration tests",
+                        "status":  "PASS",
+                        "exit_code":  0,
+                        "started_at_utc":  "2026-07-26T04:53:08.8423440Z",
+                        "finished_at_utc":  "2026-07-26T04:53:31.1409397Z",
+                        "duration_seconds":  22.299,
+                        "log":  "05-mysql-redis-integration.log"
+                    }
+                ]
+}

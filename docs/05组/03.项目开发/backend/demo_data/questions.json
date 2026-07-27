@@ -1,0 +1,25 @@
+{
+  "suite": "st-702-demo-questions-v1",
+  "description": "Deterministic RAG questions for the ST-702 acceptance demonstration.",
+  "questions": [
+    {
+      "id": "q-001",
+      "question": "清河面馆适合两个人午餐吗？",
+      "expected_document_id": "70200000-0000-4000-8000-000000000040",
+      "expected_terms": ["双人", "午餐", "排队"]
+    },
+    {
+      "id": "q-002",
+      "question": "书香咖啡馆周末是否适合安静办公？",
+      "expected_document_id": "70200000-0000-4000-8000-000000000041",
+      "expected_terms": ["插座", "安静", "周末"]
+    },
+    {
+      "id": "q-003",
+      "question": "附近有提供火星料理的店吗？",
+      "expected_document_id": null,
+      "expected_terms": [],
+      "expected_fallback": true
+    }
+  ]
+}

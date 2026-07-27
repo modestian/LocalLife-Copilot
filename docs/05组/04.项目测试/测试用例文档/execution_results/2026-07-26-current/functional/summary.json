@@ -1,0 +1,462 @@
+{
+  "generated_at_utc": "2026-07-26T03:41:51.370288+00:00",
+  "groups": [
+    "AUTH",
+    "KB",
+    "GOV",
+    "SEARCH",
+    "RAG",
+    "WS",
+    "MERCHANT",
+    "MODEL",
+    "UI",
+    "ADMIN",
+    "OPS",
+    "DELIVERY"
+  ],
+  "commands_total": 22,
+  "commands_passed": 22,
+  "commands_failed": 0,
+  "overall_status": "PASS",
+  "results": [
+    {
+      "group": "AUTH",
+      "name": "AUTH-01~06 backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_auth.py",
+        "tests/test_authorization.py",
+        "tests/test_login_rate_limit.py",
+        "tests/test_websocket_tokens.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:38:54.769422+00:00",
+      "finished_at_utc": "2026-07-26T03:39:08.856140+00:00",
+      "duration_seconds": 14.087,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "01-auth-auth-01-06-backend.log"
+    },
+    {
+      "group": "AUTH",
+      "name": "AUTH frontend routing/store",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/router/auth-routing.test.ts",
+        "src/stores/auth.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:39:08.856308+00:00",
+      "finished_at_utc": "2026-07-26T03:39:11.883227+00:00",
+      "duration_seconds": 3.027,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "02-auth-auth-frontend-routing-store.log"
+    },
+    {
+      "group": "KB",
+      "name": "KB-01~07 backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_knowledge_service.py",
+        "tests/test_file_loaders.py",
+        "tests/test_ingestion_acceptance.py",
+        "tests/test_security_upload.py",
+        "tests/test_task_state_machine.py",
+        "tests/test_task_repositories.py",
+        "tests/test_search_indexes.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:39:11.883386+00:00",
+      "finished_at_utc": "2026-07-26T03:39:15.883952+00:00",
+      "duration_seconds": 4.001,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "03-kb-kb-01-07-backend.log"
+    },
+    {
+      "group": "KB",
+      "name": "KB frontend",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/components/DocumentUploadPanel.test.ts",
+        "src/components/KnowledgeDocumentWorkspace.test.ts",
+        "src/views/admin/KnowledgeBaseDetailView.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:39:15.884114+00:00",
+      "finished_at_utc": "2026-07-26T03:39:20.171563+00:00",
+      "duration_seconds": 4.287,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "04-kb-kb-frontend.log"
+    },
+    {
+      "group": "GOV",
+      "name": "GOV-01 configuration, logging, and audit governance",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_config.py",
+        "tests/test_observability.py",
+        "tests/test_governance_versions.py",
+        "tests/test_governance_safety.py",
+        "tests/test_governance_api.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:39:20.171692+00:00",
+      "finished_at_utc": "2026-07-26T03:39:31.561273+00:00",
+      "duration_seconds": 11.39,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "05-gov-gov-01-configuration--logging--and-audit-governance.log"
+    },
+    {
+      "group": "SEARCH",
+      "name": "SEARCH-01~02 backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_search_api.py",
+        "tests/test_search_pipeline.py",
+        "tests/test_search_scope.py",
+        "tests/test_search_ranking.py",
+        "tests/test_search_retrieval.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:39:31.561426+00:00",
+      "finished_at_utc": "2026-07-26T03:39:42.832193+00:00",
+      "duration_seconds": 11.271,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "06-search-search-01-02-backend.log"
+    },
+    {
+      "group": "SEARCH",
+      "name": "SEARCH frontend",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/api/search.test.ts",
+        "src/components/RetrievalDebugPanel.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:39:42.832316+00:00",
+      "finished_at_utc": "2026-07-26T03:39:46.176364+00:00",
+      "duration_seconds": 3.344,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "07-search-search-frontend.log"
+    },
+    {
+      "group": "RAG",
+      "name": "RAG-01~04 backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_agent_runtime.py",
+        "tests/test_agent_citations.py",
+        "tests/test_conversation_memory.py",
+        "tests/test_chat_knowledge.py",
+        "tests/test_recommendation_generator.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:39:46.176481+00:00",
+      "finished_at_utc": "2026-07-26T03:39:56.287861+00:00",
+      "duration_seconds": 10.111,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "08-rag-rag-01-04-backend.log"
+    },
+    {
+      "group": "RAG",
+      "name": "RAG frontend",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/components/ConversationWorkspace.test.ts",
+        "src/components/WebSocketChatPanel.test.ts",
+        "src/components/RecommendationResults.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:39:56.287999+00:00",
+      "finished_at_utc": "2026-07-26T03:40:00.316066+00:00",
+      "duration_seconds": 4.028,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "09-rag-rag-frontend.log"
+    },
+    {
+      "group": "WS",
+      "name": "WS-01~02 backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_websocket_tokens.py",
+        "tests/test_websocket_chat.py",
+        "tests/test_websocket_recommendations.py",
+        "tests/test_openai_compat.py",
+        "tests/test_chat_transports_integration.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:40:00.316197+00:00",
+      "finished_at_utc": "2026-07-26T03:40:15.661362+00:00",
+      "duration_seconds": 15.345,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "10-ws-ws-01-02-backend.log"
+    },
+    {
+      "group": "WS",
+      "name": "WS frontend",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/composables/useWebSocketChat.test.ts",
+        "src/components/WebSocketChatPanel.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:40:15.661489+00:00",
+      "finished_at_utc": "2026-07-26T03:40:19.622310+00:00",
+      "duration_seconds": 3.961,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "11-ws-ws-frontend.log"
+    },
+    {
+      "group": "MERCHANT",
+      "name": "MERCHANT backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_analytics.py",
+        "tests/test_user_reviews.py",
+        "tests/test_reply_generator.py",
+        "tests/test_recommendation_generator.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:40:19.622408+00:00",
+      "finished_at_utc": "2026-07-26T03:40:37.601457+00:00",
+      "duration_seconds": 17.979,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "12-merchant-merchant-backend.log"
+    },
+    {
+      "group": "MERCHANT",
+      "name": "MERCHANT frontend",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/components/MerchantAnalyticsDashboard.test.ts",
+        "src/components/MerchantInsightWorkbench.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:40:37.601586+00:00",
+      "finished_at_utc": "2026-07-26T03:40:40.978188+00:00",
+      "duration_seconds": 3.377,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "13-merchant-merchant-frontend.log"
+    },
+    {
+      "group": "MODEL",
+      "name": "MODEL backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_feedback_service.py",
+        "tests/test_feedback_pii_quality.py",
+        "tests/test_dataset_builder.py",
+        "tests/test_train_lora.py",
+        "tests/test_governance.py",
+        "tests/test_governance_api.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:40:40.978295+00:00",
+      "finished_at_utc": "2026-07-26T03:40:59.043287+00:00",
+      "duration_seconds": 18.065,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "14-model-model-backend.log"
+    },
+    {
+      "group": "MODEL",
+      "name": "MODEL frontend",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/components/MessageFeedbackControl.test.ts",
+        "src/components/ModelLifecycleWorkbench.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:40:59.043439+00:00",
+      "finished_at_utc": "2026-07-26T03:41:02.928025+00:00",
+      "duration_seconds": 3.885,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "15-model-model-frontend.log"
+    },
+    {
+      "group": "UI",
+      "name": "UI unit/component",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/router/guest-routing.test.ts",
+        "src/utils/safe-markdown.test.ts",
+        "src/responsive-layout.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:41:02.928126+00:00",
+      "finished_at_utc": "2026-07-26T03:41:24.760612+00:00",
+      "duration_seconds": 21.832,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "16-ui-ui-unit-component.log"
+    },
+    {
+      "group": "UI",
+      "name": "UI Playwright",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "run",
+        "test:e2e",
+        "--",
+        "--config",
+        "../docs/测试用例文档/test_code/playwright.delivery.config.ts",
+        "responsive-user-workspace.spec.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:41:24.760723+00:00",
+      "finished_at_utc": "2026-07-26T03:41:33.006781+00:00",
+      "duration_seconds": 8.246,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "17-ui-ui-playwright.log"
+    },
+    {
+      "group": "ADMIN",
+      "name": "ADMIN-01 knowledge-base and task management UI",
+      "cwd": "D:\\LocalLife-Copilot\\frontend",
+      "command": [
+        "C:\\Users\\HONOR\\Documents\\Codex\\tools\\node-v22.23.1-win-x64\\npm.CMD",
+        "test",
+        "--",
+        "src/views/admin/KnowledgeBaseListView.test.ts",
+        "src/views/admin/KnowledgeBaseDetailView.test.ts",
+        "src/components/DocumentUploadPanel.test.ts",
+        "src/components/KnowledgeDocumentWorkspace.test.ts",
+        "src/components/TaskProgressCard.test.ts",
+        "src/api/knowledge-bases.test.ts",
+        "src/api/documents.test.ts",
+        "src/api/tasks.test.ts"
+      ],
+      "started_at_utc": "2026-07-26T03:41:33.007009+00:00",
+      "finished_at_utc": "2026-07-26T03:41:38.115523+00:00",
+      "duration_seconds": 5.109,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "18-admin-admin-01-knowledge-base-and-task-management-ui.log"
+    },
+    {
+      "group": "OPS",
+      "name": "Compose model",
+      "cwd": "D:\\LocalLife-Copilot",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.EXE",
+        "compose",
+        "config",
+        "--quiet"
+      ],
+      "started_at_utc": "2026-07-26T03:41:38.115610+00:00",
+      "finished_at_utc": "2026-07-26T03:41:38.402648+00:00",
+      "duration_seconds": 0.287,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "19-ops-compose-model.log"
+    },
+    {
+      "group": "OPS",
+      "name": "Compose policy",
+      "cwd": "D:\\LocalLife-Copilot",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "scripts/verify_compose.py"
+      ],
+      "started_at_utc": "2026-07-26T03:41:38.402731+00:00",
+      "finished_at_utc": "2026-07-26T03:41:38.572851+00:00",
+      "duration_seconds": 0.17,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "20-ops-compose-policy.log"
+    },
+    {
+      "group": "OPS",
+      "name": "OPS backend",
+      "cwd": "D:\\LocalLife-Copilot\\backend",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "tests/test_health.py",
+        "tests/test_observability.py",
+        "tests/test_storage_recovery.py",
+        "tests/test_performance_gate.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:41:38.572957+00:00",
+      "finished_at_utc": "2026-07-26T03:41:49.788132+00:00",
+      "duration_seconds": 11.215,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "21-ops-ops-backend.log"
+    },
+    {
+      "group": "DELIVERY",
+      "name": "Test-delivery consistency",
+      "cwd": "D:\\LocalLife-Copilot",
+      "command": [
+        "C:\\Users\\HONOR\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+        "-m",
+        "pytest",
+        "docs/测试用例文档/test_code/test_delivery_consistency.py",
+        "-q"
+      ],
+      "started_at_utc": "2026-07-26T03:41:49.788253+00:00",
+      "finished_at_utc": "2026-07-26T03:41:51.370240+00:00",
+      "duration_seconds": 1.582,
+      "exit_code": 0,
+      "status": "PASS",
+      "log": "22-delivery-test-delivery-consistency.log"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+﻿{
+  "task_id": "TK-703-04",
+  "generated_at": "2026-07-26T04:50:57.707393+00:00",
+  "operation": "redis-fallback",
+  "target": "conversation:memory:v1:019f9cc2-1a16-7eac-ab24-c25500c4fc70",
+  "consistent": true,
+  "conversation_id": "019f9cc2-1a16-7eac-ab24-c25500c4fc70",
+  "mysql_message_count": 1,
+  "restored_message_count": 1,
+  "cache_repopulated": true
+}

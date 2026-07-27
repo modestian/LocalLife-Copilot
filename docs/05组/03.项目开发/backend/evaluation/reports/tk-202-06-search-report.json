@@ -1,0 +1,458 @@
+{
+  "task_id": "TK-202-06",
+  "generated_at": "2026-07-19T04:59:14.498408+00:00",
+  "dataset_version": "tk-202-06-v1",
+  "dataset_sha256": "1bcd4548e44982e737eee51c559069e2a9d4c6c6e1f05143e5ce15b52f39a2c6",
+  "index": "local-life-search-eval-v1",
+  "embedding_model": "local-deterministic-v1",
+  "fusion": {
+    "method": "weighted",
+    "bm25_weight": 0.4,
+    "vector_weight": 0.6
+  },
+  "case_count": 20,
+  "latency_sample_count": 100,
+  "warmups": 1,
+  "repeats": 5,
+  "metrics": {
+    "recall_at_5": 0.95,
+    "mrr_at_10": 0.95,
+    "p95_ms": 18.490700000256766,
+    "mean_ms": 14.273247999954037
+  },
+  "thresholds": {
+    "recall_at_5": 0.8,
+    "mrr_at_10": 0.65,
+    "p95_ms": 300.0
+  },
+  "passed": {
+    "recall_at_5": true,
+    "mrr_at_10": true,
+    "p95_ms": true
+  },
+  "overall_passed": true,
+  "cases": [
+    {
+      "id": "q01",
+      "query": "安静适合四个人讨论还有插座的咖啡馆",
+      "relevant_merchant_ids": [
+        "eval-m01"
+      ],
+      "returned_merchant_ids": [
+        "eval-m01",
+        "eval-m03",
+        "eval-m08",
+        "eval-m07",
+        "eval-m12",
+        "eval-m04",
+        "eval-m06",
+        "eval-m10",
+        "eval-m09",
+        "eval-m05"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q02",
+      "query": "人均六十元以内的小组讨论咖啡店",
+      "relevant_merchant_ids": [
+        "eval-m01"
+      ],
+      "returned_merchant_ids": [
+        "eval-m01",
+        "eval-m04",
+        "eval-m05",
+        "eval-m12",
+        "eval-m06",
+        "eval-m02",
+        "eval-m03",
+        "eval-m10",
+        "eval-m09",
+        "eval-m07"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q03",
+      "query": "想吃水煮鱼和辣子鸡的川菜馆",
+      "relevant_merchant_ids": [
+        "eval-m02"
+      ],
+      "returned_merchant_ids": [
+        "eval-m02",
+        "eval-m07",
+        "eval-m12",
+        "eval-m06",
+        "eval-m11",
+        "eval-m01",
+        "eval-m10",
+        "eval-m09",
+        "eval-m03",
+        "eval-m08"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q04",
+      "query": "八个人聚餐有包间的麻辣川菜",
+      "relevant_merchant_ids": [
+        "eval-m02"
+      ],
+      "returned_merchant_ids": [
+        "eval-m02",
+        "eval-m07",
+        "eval-m09",
+        "eval-m06",
+        "eval-m10",
+        "eval-m01",
+        "eval-m08",
+        "eval-m11",
+        "eval-m03",
+        "eval-m04"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q05",
+      "query": "低糖蛋糕鲜果茶适合拍照",
+      "relevant_merchant_ids": [
+        "eval-m03"
+      ],
+      "returned_merchant_ids": [
+        "eval-m03",
+        "eval-m11",
+        "eval-m01",
+        "eval-m08",
+        "eval-m12",
+        "eval-m06",
+        "eval-m02",
+        "eval-m09",
+        "eval-m10",
+        "eval-m04"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q06",
+      "query": "凌晨还能吃鸳鸯锅的夜宵火锅",
+      "relevant_merchant_ids": [
+        "eval-m04"
+      ],
+      "returned_merchant_ids": [
+        "eval-m04",
+        "eval-m06",
+        "eval-m09",
+        "eval-m11",
+        "eval-m01",
+        "eval-m02",
+        "eval-m05",
+        "eval-m10",
+        "eval-m03",
+        "eval-m12"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q07",
+      "query": "纯素无蛋奶甜点和菌菇汤",
+      "relevant_merchant_ids": [
+        "eval-m05"
+      ],
+      "returned_merchant_ids": [
+        "eval-m05",
+        "eval-m03",
+        "eval-m01",
+        "eval-m12",
+        "eval-m08",
+        "eval-m07",
+        "eval-m10",
+        "eval-m11",
+        "eval-m06",
+        "eval-m09"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q08",
+      "query": "带小孩吃饭需要儿童座椅和绘本区",
+      "relevant_merchant_ids": [
+        "eval-m06"
+      ],
+      "returned_merchant_ids": [
+        "eval-m06",
+        "eval-m02",
+        "eval-m12",
+        "eval-m09",
+        "eval-m11",
+        "eval-m07",
+        "eval-m01",
+        "eval-m04",
+        "eval-m10",
+        "eval-m05"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q09",
+      "query": "早上六点营业出餐快的牛肉面",
+      "relevant_merchant_ids": [
+        "eval-m07"
+      ],
+      "returned_merchant_ids": [
+        "eval-m07",
+        "eval-m09",
+        "eval-m01",
+        "eval-m02",
+        "eval-m04",
+        "eval-m03",
+        "eval-m10",
+        "eval-m11",
+        "eval-m08",
+        "eval-m12"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q10",
+      "query": "情侣纪念日靠窗双人位西餐",
+      "relevant_merchant_ids": [
+        "eval-m08"
+      ],
+      "returned_merchant_ids": [
+        "eval-m08",
+        "eval-m06",
+        "eval-m12",
+        "eval-m04",
+        "eval-m11",
+        "eval-m01",
+        "eval-m10",
+        "eval-m07",
+        "eval-m05",
+        "eval-m02"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q11",
+      "query": "十个人吃早茶虾饺叉烧包",
+      "relevant_merchant_ids": [
+        "eval-m09"
+      ],
+      "returned_merchant_ids": [
+        "eval-m09",
+        "eval-m05",
+        "eval-m03",
+        "eval-m10",
+        "eval-m12",
+        "eval-m11",
+        "eval-m08",
+        "eval-m06",
+        "eval-m07",
+        "eval-m01"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q12",
+      "query": "露台烧烤羊肉串和精酿啤酒",
+      "relevant_merchant_ids": [
+        "eval-m10"
+      ],
+      "returned_merchant_ids": [
+        "eval-m01",
+        "eval-m10",
+        "eval-m06",
+        "eval-m04",
+        "eval-m05",
+        "eval-m09",
+        "eval-m07",
+        "eval-m02",
+        "eval-m12",
+        "eval-m08"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 0.5
+    },
+    {
+      "id": "q13",
+      "query": "安静独立茶室适合商务会谈",
+      "relevant_merchant_ids": [
+        "eval-m11"
+      ],
+      "returned_merchant_ids": [
+        "eval-m07",
+        "eval-m11",
+        "eval-m03",
+        "eval-m05",
+        "eval-m01",
+        "eval-m08",
+        "eval-m04",
+        "eval-m02",
+        "eval-m10",
+        "eval-m06"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 0.5
+    },
+    {
+      "id": "q14",
+      "query": "早晨七点买现烤可颂全麦面包",
+      "relevant_merchant_ids": [
+        "eval-m12"
+      ],
+      "returned_merchant_ids": [
+        "eval-m12",
+        "eval-m04",
+        "eval-m06",
+        "eval-m11",
+        "eval-m07",
+        "eval-m10",
+        "eval-m03",
+        "eval-m02",
+        "eval-m09",
+        "eval-m08"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q15",
+      "query": "预算三十元左右的早餐",
+      "relevant_merchant_ids": [
+        "eval-m07",
+        "eval-m12"
+      ],
+      "returned_merchant_ids": [
+        "eval-m12",
+        "eval-m11",
+        "eval-m09",
+        "eval-m06",
+        "eval-m04",
+        "eval-m07",
+        "eval-m03",
+        "eval-m01",
+        "eval-m10",
+        "eval-m05"
+      ],
+      "recall_at_5": 0.5,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q16",
+      "query": "适合朋友夜间聚会的地方",
+      "relevant_merchant_ids": [
+        "eval-m04",
+        "eval-m10"
+      ],
+      "returned_merchant_ids": [
+        "eval-m10",
+        "eval-m11",
+        "eval-m06",
+        "eval-m12",
+        "eval-m09",
+        "eval-m02",
+        "eval-m08",
+        "eval-m04",
+        "eval-m03",
+        "eval-m05"
+      ],
+      "recall_at_5": 0.5,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q17",
+      "query": "环境清雅的人均七十元素食套餐",
+      "relevant_merchant_ids": [
+        "eval-m05"
+      ],
+      "returned_merchant_ids": [
+        "eval-m05",
+        "eval-m06",
+        "eval-m09",
+        "eval-m11",
+        "eval-m01",
+        "eval-m04",
+        "eval-m12",
+        "eval-m03",
+        "eval-m07",
+        "eval-m02"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q18",
+      "query": "有十人圆桌的粤式点心店",
+      "relevant_merchant_ids": [
+        "eval-m09"
+      ],
+      "returned_merchant_ids": [
+        "eval-m09",
+        "eval-m01",
+        "eval-m08",
+        "eval-m02",
+        "eval-m10",
+        "eval-m12",
+        "eval-m04",
+        "eval-m05",
+        "eval-m11",
+        "eval-m03"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q19",
+      "query": "人均四十元左右可以外带的早餐烘焙",
+      "relevant_merchant_ids": [
+        "eval-m12"
+      ],
+      "returned_merchant_ids": [
+        "eval-m12",
+        "eval-m02",
+        "eval-m11",
+        "eval-m09",
+        "eval-m08",
+        "eval-m03",
+        "eval-m07",
+        "eval-m10",
+        "eval-m01",
+        "eval-m05"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    },
+    {
+      "id": "q20",
+      "query": "有儿童餐且口味不辣的亲子聚餐",
+      "relevant_merchant_ids": [
+        "eval-m06"
+      ],
+      "returned_merchant_ids": [
+        "eval-m06",
+        "eval-m12",
+        "eval-m09",
+        "eval-m05",
+        "eval-m01",
+        "eval-m03",
+        "eval-m02",
+        "eval-m08",
+        "eval-m11",
+        "eval-m07"
+      ],
+      "recall_at_5": 1.0,
+      "reciprocal_rank_at_10": 1.0
+    }
+  ]
+}

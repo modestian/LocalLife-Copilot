@@ -1,0 +1,474 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="136" failures="0" errors="0" time="6.2964926">
+    <testsuite name="src/responsive-layout.test.ts" timestamp="2026-07-26T03:50:17.000Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.0070994">
+        <testcase classname="src/responsive-layout.test.ts" name="responsive layout contract &gt; uses a two-column login layout at desktop width" time="0.0029117">
+        </testcase>
+        <testcase classname="src/responsive-layout.test.ts" name="responsive layout contract &gt; collapses the login layout at tablet and mobile widths" time="0.0010364">
+        </testcase>
+        <testcase classname="src/responsive-layout.test.ts" name="responsive layout contract &gt; keeps primary content and navigation within narrow phone widths" time="0.0007959">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/client.test.ts" timestamp="2026-07-26T03:50:17.001Z" hostname="DESKTOP-2EMAC6N" tests="4" failures="0" errors="0" skipped="0" time="0.0383564">
+        <testcase classname="src/api/client.test.ts" name="apiClient authentication &gt; persists token expiry timestamps" time="0.0038604">
+        </testcase>
+        <testcase classname="src/api/client.test.ts" name="apiClient authentication &gt; shares one proactive refresh across concurrent requests" time="0.0110591">
+        </testcase>
+        <testcase classname="src/api/client.test.ts" name="apiClient authentication &gt; clears authentication when proactive refresh fails" time="0.0149829">
+        </testcase>
+        <testcase classname="src/api/client.test.ts" name="apiClient authentication &gt; requests re-login when a protected request returns 401 without a refresh token" time="0.0044459">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/conversations.test.ts" timestamp="2026-07-26T03:50:17.003Z" hostname="DESKTOP-2EMAC6N" tests="1" failures="0" errors="0" skipped="0" time="0.0086593">
+        <testcase classname="src/api/conversations.test.ts" name="conversation API &gt; uses DELETE so the server can logically delete a conversation" time="0.0062035">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/documented-clients.test.ts" timestamp="2026-07-26T03:50:17.004Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.0081448">
+        <testcase classname="src/api/documented-clients.test.ts" name="clients added for documented API coverage &gt; covers knowledge-base and document lifecycle routes" time="0.0043037">
+        </testcase>
+        <testcase classname="src/api/documented-clients.test.ts" name="clients added for documented API coverage &gt; covers conversation management and model governance routes" time="0.0017703">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/documents.test.ts" timestamp="2026-07-26T03:50:17.005Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.0154227">
+        <testcase classname="src/api/documents.test.ts" name="document API &gt; uploads all files with the documented multipart fields" time="0.0092772">
+        </testcase>
+        <testcase classname="src/api/documents.test.ts" name="document API &gt; uses the selected immutable version for preview and rollback" time="0.0016585">
+        </testcase>
+        <testcase classname="src/api/documents.test.ts" name="document API &gt; uses DELETE so the server can apply logical deletion" time="0.0021869">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/feedback.test.ts" timestamp="2026-07-26T03:50:17.006Z" hostname="DESKTOP-2EMAC6N" tests="1" failures="0" errors="0" skipped="0" time="0.0111391">
+        <testcase classname="src/api/feedback.test.ts" name="feedback API &gt; posts the documented feedback payload with an idempotency key" time="0.0089101">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/identity-management.test.ts" timestamp="2026-07-26T03:50:17.007Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.0112932">
+        <testcase classname="src/api/identity-management.test.ts" name="identity management API &gt; uses the documented account lifecycle routes" time="0.0064356">
+        </testcase>
+        <testcase classname="src/api/identity-management.test.ts" name="identity management API &gt; supports role permission replacement" time="0.0024339">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/knowledge-bases.test.ts" timestamp="2026-07-26T03:50:17.007Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.0120862">
+        <testcase classname="src/api/knowledge-bases.test.ts" name="knowledge base API &gt; sends list filters using the documented contract" time="0.0063374">
+        </testcase>
+        <testcase classname="src/api/knowledge-bases.test.ts" name="knowledge base API &gt; normalizes sparse backend list items so the page can render safely" time="0.0022869">
+        </testcase>
+        <testcase classname="src/api/knowledge-bases.test.ts" name="knowledge base API &gt; uses PATCH for editable knowledge base fields" time="0.0009842">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/merchant-analytics.test.ts" timestamp="2026-07-26T03:50:17.008Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.0109772">
+        <testcase classname="src/api/merchant-analytics.test.ts" name="merchant analytics API &gt; requests the sentiment trend with documented granularity and time filters" time="0.0069596">
+        </testcase>
+        <testcase classname="src/api/merchant-analytics.test.ts" name="merchant analytics API &gt; requests negative attribution and review drill-down resources" time="0.0016641">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/merchant-insights.test.ts" timestamp="2026-07-26T03:50:17.009Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.014136">
+        <testcase classname="src/api/merchant-insights.test.ts" name="merchant insights API &gt; posts the documented merchant comparison payload" time="0.0071718">
+        </testcase>
+        <testcase classname="src/api/merchant-insights.test.ts" name="merchant insights API &gt; posts editable-reply and evidence-backed business-suggestion requests" time="0.0017647">
+        </testcase>
+        <testcase classname="src/api/merchant-insights.test.ts" name="merchant insights API &gt; posts reply-submit and retrieves existing replies" time="0.0009841">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/merchants.test.ts" timestamp="2026-07-26T03:50:17.010Z" hostname="DESKTOP-2EMAC6N" tests="1" failures="0" errors="0" skipped="0" time="0.0094672">
+        <testcase classname="src/api/merchants.test.ts" name="merchant directory API &gt; loads the merchant name used by the scoped merchant switcher" time="0.0070358">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/model-lifecycle.test.ts" timestamp="2026-07-26T03:50:17.011Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.011942">
+        <testcase classname="src/api/model-lifecycle.test.ts" name="model lifecycle API &gt; uses documented fine-tuning paths with idempotency keys" time="0.0061474">
+        </testcase>
+        <testcase classname="src/api/model-lifecycle.test.ts" name="model lifecycle API &gt; loads models and posts deployment metadata to the documented model endpoint" time="0.0033994">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/operations.test.ts" timestamp="2026-07-26T03:50:17.011Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.0131861">
+        <testcase classname="src/api/operations.test.ts" name="documented operational API clients &gt; uses the documented data-source and merchant routes" time="0.007419">
+        </testcase>
+        <testcase classname="src/api/operations.test.ts" name="documented operational API clients &gt; covers moderation, governance, audit, chat-log, and overview routes" time="0.003292">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/search.test.ts" timestamp="2026-07-26T03:50:17.012Z" hostname="DESKTOP-2EMAC6N" tests="1" failures="0" errors="0" skipped="0" time="0.0091826">
+        <testcase classname="src/api/search.test.ts" name="search API &gt; posts the documented hybrid-search contract" time="0.006252">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/api/tasks.test.ts" timestamp="2026-07-26T03:50:17.013Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.0089154">
+        <testcase classname="src/api/tasks.test.ts" name="task API &gt; loads the documented task status resource" time="0.0054698">
+        </testcase>
+        <testcase classname="src/api/tasks.test.ts" name="task API &gt; posts cancel and retry commands to the same task" time="0.0012485">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ConversationWorkspace.test.ts" timestamp="2026-07-26T03:50:17.013Z" hostname="DESKTOP-2EMAC6N" tests="12" failures="0" errors="0" skipped="0" time="1.0790493">
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; keeps all persistent conversation controls unavailable to guests" time="0.0698084">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; starts a scene conversation with composite exploration conditions" time="0.2219056">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; sends a standalone greeting without implicit exploration conditions" time="0.0511978">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; does not force a recommendation after a scene prompt is replaced by a general question" time="0.0733184">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; uses exploration conditions only for the merchant query that requested them" time="0.1481044">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; restores an existing conversation and sends a multi-turn follow-up" time="0.1010923">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; loads messages when a server conversation is selected" time="0.0646333">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; confirms and deletes the active conversation before resetting the workspace" time="0.0649391">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; keeps the conversation when deletion is cancelled or fails" time="0.0577659">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; keeps the failed answer visible with an actionable retry state" time="0.0429934">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; can send again after starting a new conversation during streaming" time="0.0627632">
+        </testcase>
+        <testcase classname="src/components/ConversationWorkspace.test.ts" name="ConversationWorkspace &gt; renders streamed recommendations and opens their highlighted citation snapshots" time="0.1171486">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/DocumentUploadPanel.test.ts" timestamp="2026-07-26T03:50:17.016Z" hostname="DESKTOP-2EMAC6N" tests="4" failures="0" errors="0" skipped="0" time="0.2323254">
+        <testcase classname="src/components/DocumentUploadPanel.test.ts" name="DocumentUploadPanel &gt; submits validated files and documented upload options as one batch" time="0.1510315">
+        </testcase>
+        <testcase classname="src/components/DocumentUploadPanel.test.ts" name="DocumentUploadPanel &gt; blocks unsupported and MIME-mismatched files before calling the API" time="0.0282572">
+        </testcase>
+        <testcase classname="src/components/DocumentUploadPanel.test.ts" name="DocumentUploadPanel &gt; keeps the selected files and shows the server error when upload is rejected" time="0.0380586">
+        </testcase>
+        <testcase classname="src/components/DocumentUploadPanel.test.ts" name="DocumentUploadPanel &gt; disables file selection and submission without management permission" time="0.011892">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/KnowledgeDocumentWorkspace.test.ts" timestamp="2026-07-26T03:50:17.017Z" hostname="DESKTOP-2EMAC6N" tests="4" failures="0" errors="0" skipped="0" time="0.6371698">
+        <testcase classname="src/components/KnowledgeDocumentWorkspace.test.ts" name="KnowledgeDocumentWorkspace &gt; opens original and Chunk previews for the selected immutable version" time="0.2493784">
+        </testcase>
+        <testcase classname="src/components/KnowledgeDocumentWorkspace.test.ts" name="KnowledgeDocumentWorkspace &gt; requires confirmation before submitting a rollback task" time="0.1398318">
+        </testcase>
+        <testcase classname="src/components/KnowledgeDocumentWorkspace.test.ts" name="KnowledgeDocumentWorkspace &gt; does not submit rollback when the administrator cancels confirmation" time="0.1097229">
+        </testcase>
+        <testcase classname="src/components/KnowledgeDocumentWorkspace.test.ts" name="KnowledgeDocumentWorkspace &gt; keeps the selected version visible and reports a rejected rollback" time="0.1355244">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/MerchantAnalyticsDashboard.test.ts" timestamp="2026-07-26T03:50:17.018Z" hostname="DESKTOP-2EMAC6N" tests="7" failures="0" errors="0" skipped="0" time="0.4748183">
+        <testcase classname="src/components/MerchantAnalyticsDashboard.test.ts" name="MerchantAnalyticsDashboard &gt; renders sentiment, trend, aspect and attribution data with sample counts" time="0.1278811">
+        </testcase>
+        <testcase classname="src/components/MerchantAnalyticsDashboard.test.ts" name="MerchantAnalyticsDashboard &gt; converts an inclusive date form into the backend exclusive end date" time="0.0984544">
+        </testcase>
+        <testcase classname="src/components/MerchantAnalyticsDashboard.test.ts" name="MerchantAnalyticsDashboard &gt; drills a negative attribution down through the review API" time="0.0968631">
+        </testcase>
+        <testcase classname="src/components/MerchantAnalyticsDashboard.test.ts" name="MerchantAnalyticsDashboard &gt; filters aspect drill-down from the review aspect labels" time="0.0487783">
+        </testcase>
+        <testcase classname="src/components/MerchantAnalyticsDashboard.test.ts" name="MerchantAnalyticsDashboard &gt; shows a clear empty state when the selected window has no analysis sample" time="0.0358311">
+        </testcase>
+        <testcase classname="src/components/MerchantAnalyticsDashboard.test.ts" name="MerchantAnalyticsDashboard &gt; keeps aspect and negative-reason charts in explicit empty states when their data is absent" time="0.0503491">
+        </testcase>
+        <testcase classname="src/components/MerchantAnalyticsDashboard.test.ts" name="MerchantAnalyticsDashboard &gt; shows a non-retryable permission state when the analytics API rejects access" time="0.0125899">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/MerchantInsightWorkbench.test.ts" timestamp="2026-07-26T03:50:17.020Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.2905058">
+        <testcase classname="src/components/MerchantInsightWorkbench.test.ts" name="MerchantInsightWorkbench &gt; uses a two-to-four merchant comparison and renders the backend aggregates" time="0.1892919">
+            <system-err>
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/components/MerchantInsightWorkbench.test.ts" name="MerchantInsightWorkbench &gt; generates an editable reply draft and exposes a submit button" time="0.0568805">
+            <system-err>
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/components/MerchantInsightWorkbench.test.ts" name="MerchantInsightWorkbench &gt; displays business suggestions with expandable review evidence" time="0.0409916">
+            <system-err>
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+[Vue warn]: Failed to resolve component: el-tag
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;MerchantInsightWorkbench merchantId=&quot;merchant-self&quot; ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/MessageFeedbackControl.test.ts" timestamp="2026-07-26T03:50:17.022Z" hostname="DESKTOP-2EMAC6N" tests="4" failures="0" errors="0" skipped="0" time="0.2174264">
+        <testcase classname="src/components/MessageFeedbackControl.test.ts" name="MessageFeedbackControl &gt; submits a positive rating and shows the submitted state" time="0.0781731">
+        </testcase>
+        <testcase classname="src/components/MessageFeedbackControl.test.ts" name="MessageFeedbackControl &gt; requires a reason or correction before submitting negative feedback" time="0.0348759">
+        </testcase>
+        <testcase classname="src/components/MessageFeedbackControl.test.ts" name="MessageFeedbackControl &gt; submits selected reasons and a trimmed correction for negative feedback" time="0.0678023">
+        </testcase>
+        <testcase classname="src/components/MessageFeedbackControl.test.ts" name="MessageFeedbackControl &gt; keeps the form available and exposes a retryable error when submission fails" time="0.0338626">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ModelLifecycleWorkbench.test.ts" timestamp="2026-07-26T03:50:17.024Z" hostname="DESKTOP-2EMAC6N" tests="6" failures="0" errors="0" skipped="0" time="0.506813">
+        <testcase classname="src/components/ModelLifecycleWorkbench.test.ts" name="ModelLifecycleWorkbench &gt; requires a READY immutable dataset before creating the documented LoRA job" time="0.165005">
+        </testcase>
+        <testcase classname="src/components/ModelLifecycleWorkbench.test.ts" name="ModelLifecycleWorkbench &gt; only enables deployment for an approved model after explicit confirmation" time="0.0915519">
+        </testcase>
+        <testcase classname="src/components/ModelLifecycleWorkbench.test.ts" name="ModelLifecycleWorkbench &gt; submits human approval through the model status endpoint with a mandatory reason" time="0.0937838">
+        </testcase>
+        <testcase classname="src/components/ModelLifecycleWorkbench.test.ts" name="ModelLifecycleWorkbench &gt; rolls back through the documented endpoint and refreshes deployments and audit receipt" time="0.0583374">
+        </testcase>
+        <testcase classname="src/components/ModelLifecycleWorkbench.test.ts" name="ModelLifecycleWorkbench &gt; keeps deployment disabled for a model that has not passed the APPROVED state" time="0.0392326">
+        </testcase>
+        <testcase classname="src/components/ModelLifecycleWorkbench.test.ts" name="ModelLifecycleWorkbench &gt; renders the model-card empty state after an empty model-list response" time="0.0550103">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/ProductTopBar.test.ts" timestamp="2026-07-26T03:50:17.026Z" hostname="DESKTOP-2EMAC6N" tests="4" failures="0" errors="0" skipped="0" time="0.1493108">
+        <testcase classname="src/components/ProductTopBar.test.ts" name="ProductTopBar role navigation &gt; shows only discovery for unauthenticated users" time="0.0915444">
+        </testcase>
+        <testcase classname="src/components/ProductTopBar.test.ts" name="ProductTopBar role navigation &gt; shows discovery and review link for USER" time="0.0283989">
+            <system-err>
+[Vue Router warn]: No match found for location with path &quot;/app/reviews&quot;
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/components/ProductTopBar.test.ts" name="ProductTopBar role navigation &gt; shows only the merchant workspace to merchants" time="0.016127">
+        </testcase>
+        <testcase classname="src/components/ProductTopBar.test.ts" name="ProductTopBar role navigation &gt; shows only the management workspace to platform administrators" time="0.0106998">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/RecommendationResults.test.ts" timestamp="2026-07-26T03:50:17.027Z" hostname="DESKTOP-2EMAC6N" tests="6" failures="0" errors="0" skipped="0" time="0.246653">
+        <testcase classname="src/components/RecommendationResults.test.ts" name="RecommendationResults &gt; renders recommendation facts, freshness and the AI boundary" time="0.0484709">
+        </testcase>
+        <testcase classname="src/components/RecommendationResults.test.ts" name="RecommendationResults &gt; opens the source snapshot and highlights the supporting fragment" time="0.129026">
+        </testcase>
+        <testcase classname="src/components/RecommendationResults.test.ts" name="RecommendationResults &gt; shows an explicit stale-data warning" time="0.0107776">
+        </testcase>
+        <testcase classname="src/components/RecommendationResults.test.ts" name="RecommendationResults &gt; hides unsafe or unresolved source links and keeps the saved snapshot" time="0.0251308">
+        </testcase>
+        <testcase classname="src/components/RecommendationResults.test.ts" name="RecommendationResults &gt; does not render the obsolete internal chunk route as a source link" time="0.0157368">
+        </testcase>
+        <testcase classname="src/components/RecommendationResults.test.ts" name="RecommendationResults &gt; hides recommendation cards and emits a refinement from fallback state" time="0.0138445">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/RetrievalDebugPanel.test.ts" timestamp="2026-07-26T03:50:17.028Z" hostname="DESKTOP-2EMAC6N" tests="4" failures="0" errors="0" skipped="0" time="0.308347">
+        <testcase classname="src/components/RetrievalDebugPanel.test.ts" name="RetrievalDebugPanel &gt; converts visible filters into the documented search request" time="0.1763642">
+        </testcase>
+        <testcase classname="src/components/RetrievalDebugPanel.test.ts" name="RetrievalDebugPanel &gt; shows BM25, vector and fusion scores and opens the citation preview" time="0.063083">
+        </testcase>
+        <testcase classname="src/components/RetrievalDebugPanel.test.ts" name="RetrievalDebugPanel &gt; rejects weights that do not add up to one before calling the API" time="0.0342969">
+        </testcase>
+        <testcase classname="src/components/RetrievalDebugPanel.test.ts" name="RetrievalDebugPanel &gt; rejects unsafe source links in the citation preview" time="0.0317707">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/StatusCard.test.ts" timestamp="2026-07-26T03:50:17.029Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.0547945">
+        <testcase classname="src/components/StatusCard.test.ts" name="StatusCard &gt; renders the checking state" time="0.0371756">
+        </testcase>
+        <testcase classname="src/components/StatusCard.test.ts" name="StatusCard &gt; renders the ready state" time="0.0094083">
+        </testcase>
+        <testcase classname="src/components/StatusCard.test.ts" name="StatusCard &gt; renders the unavailable state" time="0.0058337">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/TaskProgressCard.test.ts" timestamp="2026-07-26T03:50:17.030Z" hostname="DESKTOP-2EMAC6N" tests="6" failures="0" errors="0" skipped="0" time="0.2582308">
+        <testcase classname="src/components/TaskProgressCard.test.ts" name="TaskProgressCard &gt; shows aggregate progress, current stage and every uploaded file" time="0.1185944">
+        </testcase>
+        <testcase classname="src/components/TaskProgressCard.test.ts" name="TaskProgressCard &gt; disables cancellation after the task enters a non-interruptible stage" time="0.0237938">
+        </testcase>
+        <testcase classname="src/components/TaskProgressCard.test.ts" name="TaskProgressCard &gt; shows failure details and submits an allowed retry" time="0.0473238">
+        </testcase>
+        <testcase classname="src/components/TaskProgressCard.test.ts" name="TaskProgressCard &gt; sends cancellation only while the server marks the task cancellable" time="0.025587">
+        </testcase>
+        <testcase classname="src/components/TaskProgressCard.test.ts" name="TaskProgressCard &gt; shows file-level failure details and disables retry after the attempt limit" time="0.0220838">
+        </testcase>
+        <testcase classname="src/components/TaskProgressCard.test.ts" name="TaskProgressCard &gt; keeps failure details visible when retry submission is rejected" time="0.0179452">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/components/WebSocketChatPanel.test.ts" timestamp="2026-07-26T03:50:17.032Z" hostname="DESKTOP-2EMAC6N" tests="1" failures="0" errors="0" skipped="0" time="0.0573019">
+        <testcase classname="src/components/WebSocketChatPanel.test.ts" name="WebSocketChatPanel read-only mode &gt; does not render conversation write controls for guests" time="0.054669">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/composables/useWebSocketChat.test.ts" timestamp="2026-07-26T03:50:17.032Z" hostname="DESKTOP-2EMAC6N" tests="4" failures="0" errors="0" skipped="0" time="0.3835194">
+        <testcase classname="src/composables/useWebSocketChat.test.ts" name="useWebSocketChat &gt; keeps Markdown deltas ordered and replies to heartbeat pings" time="0.1153718">
+        </testcase>
+        <testcase classname="src/composables/useWebSocketChat.test.ts" name="useWebSocketChat &gt; sends a cancellation event and preserves received content" time="0.0663201">
+        </testcase>
+        <testcase classname="src/composables/useWebSocketChat.test.ts" name="useWebSocketChat &gt; reconnects after heartbeat timeout with the same request id" time="0.1230418">
+        </testcase>
+        <testcase classname="src/composables/useWebSocketChat.test.ts" name="useWebSocketChat &gt; exposes server errors for an actionable retry state" time="0.0765254">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/router/auth-routing.test.ts" timestamp="2026-07-26T03:50:17.033Z" hostname="DESKTOP-2EMAC6N" tests="8" failures="0" errors="0" skipped="0" time="0.0114058">
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; routes USER to user-home" time="0.0026954">
+        </testcase>
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; routes MERCHANT_ADMIN to merchant-uid" time="0.0006512">
+        </testcase>
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; routes KB_ADMIN to admin-home" time="0.0002717">
+        </testcase>
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; routes PLATFORM_ADMIN to admin-home" time="0.000211">
+        </testcase>
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; keeps user, merchant, and admin workspaces mutually exclusive" time="0.0010646">
+        </testcase>
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; treats unrecognized non-privileged roles as user workspace roles" time="0.0005121">
+        </testcase>
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; only accepts local absolute redirect paths" time="0.0003946">
+        </testcase>
+        <testcase classname="src/router/auth-routing.test.ts" name="role routing &gt; builds a login route for guest operations without allowing external redirects" time="0.002281">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/router/guest-routing.test.ts" timestamp="2026-07-26T03:50:17.035Z" hostname="DESKTOP-2EMAC6N" tests="7" failures="0" errors="0" skipped="0" time="0.4606126">
+        <testcase classname="src/router/guest-routing.test.ts" name="guest read-only routing &gt; allows a guest to browse only the discovery workspace" time="0.4196692">
+        </testcase>
+        <testcase classname="src/router/guest-routing.test.ts" name="guest read-only routing &gt; requires authentication before exposing merchant analytics" time="0.0081363">
+        </testcase>
+        <testcase classname="src/router/guest-routing.test.ts" name="guest read-only routing &gt; requires authentication before exposing model management operations" time="0.0079236">
+        </testcase>
+        <testcase classname="src/router/guest-routing.test.ts" name="guest read-only routing &gt; requires authentication before exposing management route /admin" time="0.007194">
+        </testcase>
+        <testcase classname="src/router/guest-routing.test.ts" name="guest read-only routing &gt; requires authentication before exposing management route /admin/knowledge-bases" time="0.0062955">
+        </testcase>
+        <testcase classname="src/router/guest-routing.test.ts" name="guest read-only routing &gt; requires authentication before exposing management route /admin/knowledge-bases/kb-private" time="0.0046316">
+        </testcase>
+        <testcase classname="src/router/guest-routing.test.ts" name="guest read-only routing &gt; requires authentication before exposing management route /admin/identity" time="0.0036905">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/stores/auth.test.ts" timestamp="2026-07-26T03:50:17.037Z" hostname="DESKTOP-2EMAC6N" tests="8" failures="0" errors="0" skipped="0" time="0.0335542">
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; restores an existing token session when the store is created" time="0.008698">
+        </testcase>
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; loads the current user after login" time="0.0084754">
+        </testcase>
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; restores a persisted session by loading users/me" time="0.0022575">
+        </testcase>
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; keeps Pinia synchronized when refresh rotates the stored tokens" time="0.0015747">
+        </testcase>
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; clears local authentication when users/me rejects the refreshed token" time="0.0042101">
+        </testcase>
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; preserves tokens and allows retry after a transient users/me failure" time="0.0021876">
+        </testcase>
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; clears local state even when the logout request fails" time="0.0023184">
+        </testcase>
+        <testcase classname="src/stores/auth.test.ts" name="auth store &gt; clears the session without calling logout when no refresh token exists" time="0.0010896">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/utils/document-upload.test.ts" timestamp="2026-07-26T03:50:17.039Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.0148402">
+        <testcase classname="src/utils/document-upload.test.ts" name="document upload validation &gt; accepts every ETL-supported extension with a matching MIME" time="0.0055372">
+        </testcase>
+        <testcase classname="src/utils/document-upload.test.ts" name="document upload validation &gt; reports unsupported formats, mismatched MIME, empty and duplicate files" time="0.004996">
+        </testcase>
+        <testcase classname="src/utils/document-upload.test.ts" name="document upload validation &gt; enforces file size and batch count limits" time="0.0017509">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/utils/knowledge-base-permissions.test.ts" timestamp="2026-07-26T03:50:17.040Z" hostname="DESKTOP-2EMAC6N" tests="3" failures="0" errors="0" skipped="0" time="0.0074508">
+        <testcase classname="src/utils/knowledge-base-permissions.test.ts" name="knowledge base update permission &gt; keeps guests read-only" time="0.0032691">
+        </testcase>
+        <testcase classname="src/utils/knowledge-base-permissions.test.ts" name="knowledge base update permission &gt; requires both role permission and resource scope" time="0.0011906">
+        </testcase>
+        <testcase classname="src/utils/knowledge-base-permissions.test.ts" name="knowledge base update permission &gt; allows platform administrators to manage all knowledge bases" time="0.0004138">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/utils/safe-markdown.test.ts" timestamp="2026-07-26T03:50:17.043Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.0082059">
+        <testcase classname="src/utils/safe-markdown.test.ts" name="renderSafeMarkdown &gt; renders supported Markdown while escaping raw HTML" time="0.0041683">
+        </testcase>
+        <testcase classname="src/utils/safe-markdown.test.ts" name="renderSafeMarkdown &gt; adds safe external-link attributes and rejects script URLs" time="0.0013674">
+        </testcase>
+    </testsuite>
+    <testsuite name="src/views/LoginView.test.ts" timestamp="2026-07-26T03:50:17.044Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.2794804">
+        <testcase classname="src/views/LoginView.test.ts" name="LoginView &gt; submits credentials and returns to the requested route" time="0.2410674">
+            <system-err>
+[Vue warn]: Failed to resolve component: el-alert
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;LoginView ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+            </system-err>
+        </testcase>
+        <testcase classname="src/views/LoginView.test.ts" name="LoginView &gt; shows the API error and releases the loading state after a failed login" time="0.0357359">
+            <system-err>
+[Vue warn]: Failed to resolve component: el-alert
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement. 
+  at &lt;LoginView ref=&quot;VTU_COMPONENT&quot; &gt; 
+  at &lt;VTUROOT&gt;
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/views/admin/KnowledgeBaseDetailView.test.ts" timestamp="2026-07-26T03:50:17.046Z" hostname="DESKTOP-2EMAC6N" tests="1" failures="0" errors="0" skipped="0" time="0.1681986">
+        <testcase classname="src/views/admin/KnowledgeBaseDetailView.test.ts" name="KnowledgeBaseDetailView &gt; shows statistics but no edit controls to a guest" time="0.1653696">
+            <system-err>
+[Vue Router warn]: No match found for location with path &quot;/app&quot;
+
+            </system-err>
+        </testcase>
+    </testsuite>
+    <testsuite name="src/views/admin/KnowledgeBaseListView.test.ts" timestamp="2026-07-26T03:50:17.046Z" hostname="DESKTOP-2EMAC6N" tests="2" failures="0" errors="0" skipped="0" time="0.2264711">
+        <testcase classname="src/views/admin/KnowledgeBaseListView.test.ts" name="KnowledgeBaseListView &gt; uses the platform administrator department as the default tenant context" time="0.1259747">
+        </testcase>
+        <testcase classname="src/views/admin/KnowledgeBaseListView.test.ts" name="KnowledgeBaseListView &gt; renders normalized items when optional presentation fields are unavailable" time="0.0979348">
+        </testcase>
+    </testsuite>
+</testsuites>

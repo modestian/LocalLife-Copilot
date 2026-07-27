@@ -1,0 +1,14 @@
+﻿{
+  "task_id": "TK-703-04",
+  "generated_at": "2026-07-26T04:50:55.601299+00:00",
+  "operation": "reconcile",
+  "target": "local-life-chunks-rebuild-20260726t045018z",
+  "consistent": true,
+  "mysql_count": 1111,
+  "opensearch_count": 1111,
+  "missing_projection_ids": [],
+  "duplicate_logical_ids": {},
+  "orphan_projection_ids": [],
+  "drifted_projection_ids": [],
+  "noncanonical_mysql_ids": {}
+}

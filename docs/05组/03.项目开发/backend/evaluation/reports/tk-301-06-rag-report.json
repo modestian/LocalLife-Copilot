@@ -1,0 +1,396 @@
+{
+  "task_id": "TK-301-06",
+  "generated_at": "2026-07-21T08:18:22.921169+00:00",
+  "dataset_version": "tk-301-06-v1",
+  "dataset_sha256": "1353615078d2a36011216698e8502db6d83f0c6cabaa06f97783a8bea07e75fc",
+  "case_count": 20,
+  "category_counts": {
+    "citation": 5,
+    "hallucination": 5,
+    "multi_turn": 5,
+    "no_result": 5
+  },
+  "metrics": {
+    "multi_turn_context_accuracy": 1.0,
+    "citation_correctness": 1.0,
+    "hallucination_rejection_rate": 1.0,
+    "fallback_accuracy": 1.0
+  },
+  "thresholds": {
+    "multi_turn_context_accuracy": 0.9,
+    "citation_correctness": 0.95,
+    "hallucination_rejection_rate": 0.9,
+    "fallback_accuracy": 0.9
+  },
+  "passed": {
+    "multi_turn_context_accuracy": true,
+    "citation_correctness": true,
+    "hallucination_rejection_rate": true,
+    "fallback_accuracy": true
+  },
+  "overall_passed": true,
+  "cases": [
+    {
+      "id": "mt-01",
+      "category": "multi_turn",
+      "passed": true,
+      "expected_constraints": {
+        "distance_meter_lte": 1000,
+        "budget_cent_per_person_lte": 10000,
+        "cuisines": [
+          "日本料理"
+        ],
+        "atmospheres": [
+          "安静"
+        ],
+        "scenes": [],
+        "party_size": 2,
+        "open_now": null
+      },
+      "actual_constraints": {
+        "distance_meter_lte": 1000,
+        "budget_cent_per_person_lte": 10000,
+        "cuisines": [
+          "日本料理"
+        ],
+        "atmospheres": [
+          "安静"
+        ],
+        "scenes": [],
+        "party_size": 2,
+        "open_now": null
+      },
+      "expected_routes": [
+        "ask_question",
+        "hybrid_retrieve"
+      ],
+      "actual_routes": [
+        "ask_question",
+        "hybrid_retrieve"
+      ]
+    },
+    {
+      "id": "mt-02",
+      "category": "multi_turn",
+      "passed": true,
+      "expected_constraints": {
+        "distance_meter_lte": 1500,
+        "budget_cent_per_person_lte": 20000,
+        "cuisines": [
+          "西餐"
+        ],
+        "atmospheres": [
+          "浪漫"
+        ],
+        "scenes": [
+          "约会"
+        ],
+        "party_size": 2,
+        "open_now": true
+      },
+      "actual_constraints": {
+        "distance_meter_lte": 1500,
+        "budget_cent_per_person_lte": 20000,
+        "cuisines": [
+          "西餐"
+        ],
+        "atmospheres": [
+          "浪漫"
+        ],
+        "scenes": [
+          "约会"
+        ],
+        "party_size": 2,
+        "open_now": true
+      },
+      "expected_routes": [
+        "ask_question",
+        "hybrid_retrieve"
+      ],
+      "actual_routes": [
+        "ask_question",
+        "hybrid_retrieve"
+      ]
+    },
+    {
+      "id": "mt-03",
+      "category": "multi_turn",
+      "passed": true,
+      "expected_constraints": {
+        "distance_meter_lte": 2000,
+        "budget_cent_per_person_lte": 8000,
+        "cuisines": [
+          "川菜"
+        ],
+        "atmospheres": [],
+        "scenes": [
+          "聚会"
+        ],
+        "party_size": 4,
+        "open_now": null
+      },
+      "actual_constraints": {
+        "distance_meter_lte": 2000,
+        "budget_cent_per_person_lte": 8000,
+        "cuisines": [
+          "川菜"
+        ],
+        "atmospheres": [],
+        "scenes": [
+          "聚会"
+        ],
+        "party_size": 4,
+        "open_now": null
+      },
+      "expected_routes": [
+        "ask_question",
+        "hybrid_retrieve",
+        "hybrid_retrieve"
+      ],
+      "actual_routes": [
+        "ask_question",
+        "hybrid_retrieve",
+        "hybrid_retrieve"
+      ]
+    },
+    {
+      "id": "mt-04",
+      "category": "multi_turn",
+      "passed": true,
+      "expected_constraints": {
+        "distance_meter_lte": null,
+        "budget_cent_per_person_lte": 6000,
+        "cuisines": [
+          "咖啡"
+        ],
+        "atmospheres": [],
+        "scenes": [
+          "下午茶"
+        ],
+        "party_size": 3,
+        "open_now": null
+      },
+      "actual_constraints": {
+        "distance_meter_lte": null,
+        "budget_cent_per_person_lte": 6000,
+        "cuisines": [
+          "咖啡"
+        ],
+        "atmospheres": [],
+        "scenes": [
+          "下午茶"
+        ],
+        "party_size": 3,
+        "open_now": null
+      },
+      "expected_routes": [
+        "ask_question",
+        "ask_question",
+        "hybrid_retrieve"
+      ],
+      "actual_routes": [
+        "ask_question",
+        "ask_question",
+        "hybrid_retrieve"
+      ]
+    },
+    {
+      "id": "mt-05",
+      "category": "multi_turn",
+      "passed": true,
+      "expected_constraints": {
+        "distance_meter_lte": null,
+        "budget_cent_per_person_lte": 5000,
+        "cuisines": [
+          "素食"
+        ],
+        "atmospheres": [],
+        "scenes": [
+          "独食"
+        ],
+        "party_size": 1,
+        "open_now": true
+      },
+      "actual_constraints": {
+        "distance_meter_lte": null,
+        "budget_cent_per_person_lte": 5000,
+        "cuisines": [
+          "素食"
+        ],
+        "atmospheres": [],
+        "scenes": [
+          "独食"
+        ],
+        "party_size": 1,
+        "open_now": true
+      },
+      "expected_routes": [
+        "ask_question",
+        "hybrid_retrieve"
+      ],
+      "actual_routes": [
+        "ask_question",
+        "hybrid_retrieve"
+      ]
+    },
+    {
+      "id": "ct-01",
+      "category": "citation",
+      "passed": true,
+      "expected_fallback_reason": null,
+      "actual_fallback_reason": null,
+      "expected_source_ids": [
+        "E1"
+      ],
+      "actual_source_ids": [
+        "E1"
+      ]
+    },
+    {
+      "id": "ct-02",
+      "category": "citation",
+      "passed": true,
+      "expected_fallback_reason": null,
+      "actual_fallback_reason": null,
+      "expected_source_ids": [
+        "E1",
+        "E2"
+      ],
+      "actual_source_ids": [
+        "E1",
+        "E2"
+      ]
+    },
+    {
+      "id": "ct-03",
+      "category": "citation",
+      "passed": true,
+      "expected_fallback_reason": null,
+      "actual_fallback_reason": null,
+      "expected_source_ids": [
+        "E1"
+      ],
+      "actual_source_ids": [
+        "E1"
+      ]
+    },
+    {
+      "id": "ct-04",
+      "category": "citation",
+      "passed": true,
+      "expected_fallback_reason": null,
+      "actual_fallback_reason": null,
+      "expected_source_ids": [
+        "E1"
+      ],
+      "actual_source_ids": [
+        "E1"
+      ]
+    },
+    {
+      "id": "ct-05",
+      "category": "citation",
+      "passed": true,
+      "expected_fallback_reason": null,
+      "actual_fallback_reason": null,
+      "expected_source_ids": [
+        "E1",
+        "E2"
+      ],
+      "actual_source_ids": [
+        "E1",
+        "E2"
+      ]
+    },
+    {
+      "id": "hl-01",
+      "category": "hallucination",
+      "passed": true,
+      "expected_fallback_reason": "unsupported_citations",
+      "actual_fallback_reason": "unsupported_citations",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "hl-02",
+      "category": "hallucination",
+      "passed": true,
+      "expected_fallback_reason": "invalid_model_output",
+      "actual_fallback_reason": "invalid_model_output",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "hl-03",
+      "category": "hallucination",
+      "passed": true,
+      "expected_fallback_reason": "invalid_model_output",
+      "actual_fallback_reason": "invalid_model_output",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "hl-04",
+      "category": "hallucination",
+      "passed": true,
+      "expected_fallback_reason": "unsupported_citations",
+      "actual_fallback_reason": "unsupported_citations",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "hl-05",
+      "category": "hallucination",
+      "passed": true,
+      "expected_fallback_reason": "unsupported_citations",
+      "actual_fallback_reason": "unsupported_citations",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "nr-01",
+      "category": "no_result",
+      "passed": true,
+      "expected_fallback_reason": "no_evidence",
+      "actual_fallback_reason": "no_evidence",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "nr-02",
+      "category": "no_result",
+      "passed": true,
+      "expected_fallback_reason": "no_evidence",
+      "actual_fallback_reason": "no_evidence",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "nr-03",
+      "category": "no_result",
+      "passed": true,
+      "expected_fallback_reason": "insufficient_evidence",
+      "actual_fallback_reason": "insufficient_evidence",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "nr-04",
+      "category": "no_result",
+      "passed": true,
+      "expected_fallback_reason": "no_evidence",
+      "actual_fallback_reason": "no_evidence",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    },
+    {
+      "id": "nr-05",
+      "category": "no_result",
+      "passed": true,
+      "expected_fallback_reason": "insufficient_evidence",
+      "actual_fallback_reason": "insufficient_evidence",
+      "expected_source_ids": [],
+      "actual_source_ids": []
+    }
+  ]
+}

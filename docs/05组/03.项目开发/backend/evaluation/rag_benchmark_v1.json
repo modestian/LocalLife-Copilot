@@ -1,0 +1,107 @@
+{
+  "schema_version": 1,
+  "dataset_version": "tk-301-06-v1",
+  "description": "TK-301-06 固定评测集；全部商家和内容均为虚构，不含真实用户数据。",
+  "annotation_policy": {
+    "multi_turn": "逐轮保留已明确约束，并在预算和人数齐全后进入检索。",
+    "citation": "回答引用编号、定位和快照必须与实际支持证据完全一致。",
+    "hallucination": "未知来源、虚构商家或证据不支持的事实必须被拦截。",
+    "no_result": "没有达到数量或分数门槛的证据时必须兜底，且不得调用模型补全。"
+  },
+  "cases": [
+    {
+      "id": "mt-01", "category": "multi_turn",
+      "turns": ["推荐附近安静的日料", "两个人，人均 100 元以内"],
+      "expected_routes": ["ask_question", "hybrid_retrieve"],
+      "expected_constraints": {"distance_meter_lte":1000,"budget_cent_per_person_lte":10000,"cuisines":["日本料理"],"atmospheres":["安静"],"scenes":[],"party_size":2,"open_now":null}
+    },
+    {
+      "id": "mt-02", "category": "multi_turn",
+      "turns": ["想找 1.5 公里内浪漫的西餐厅，适合约会", "2 位，人均 200 元，现在营业"],
+      "expected_routes": ["ask_question", "hybrid_retrieve"],
+      "expected_constraints": {"distance_meter_lte":1500,"budget_cent_per_person_lte":20000,"cuisines":["西餐"],"atmospheres":["浪漫"],"scenes":["约会"],"party_size":2,"open_now":true}
+    },
+    {
+      "id": "mt-03", "category": "multi_turn",
+      "turns": ["推荐四个人聚会吃川菜", "预算每人 80 元以内", "最好 2 公里内"],
+      "expected_routes": ["ask_question", "hybrid_retrieve", "hybrid_retrieve"],
+      "expected_constraints": {"distance_meter_lte":2000,"budget_cent_per_person_lte":8000,"cuisines":["川菜"],"atmospheres":[],"scenes":["聚会"],"party_size":4,"open_now":null}
+    },
+    {
+      "id": "mt-04", "category": "multi_turn",
+      "turns": ["找个适合下午茶的咖啡店", "三个人", "人均 60 元以下"],
+      "expected_routes": ["ask_question", "ask_question", "hybrid_retrieve"],
+      "expected_constraints": {"distance_meter_lte":null,"budget_cent_per_person_lte":6000,"cuisines":["咖啡"],"atmospheres":[],"scenes":["下午茶"],"party_size":3,"open_now":null}
+    },
+    {
+      "id": "mt-05", "category": "multi_turn",
+      "turns": ["推荐一个人吃素食，要现在营业", "人均 50 元以内"],
+      "expected_routes": ["ask_question", "hybrid_retrieve"],
+      "expected_constraints": {"distance_meter_lte":null,"budget_cent_per_person_lte":5000,"cuisines":["素食"],"atmospheres":[],"scenes":["独食"],"party_size":1,"open_now":true}
+    },
+
+    {
+      "id":"ct-01","category":"citation","query":"这家店环境怎么样","expected_source_ids":["E1"],
+      "chunks":[{"chunk_id":"c-ct-01","content":"青禾咖啡馆环境安静并配有插座。","score":0.94,"source_location":"reviews/qinghe/1","merchant_id":"m-qinghe","data_updated_at":"2026-07-20T08:00:00Z","metadata":{"merchant_name":"青禾咖啡馆"}}],
+      "model_output":{"response_type":"grounded_answer","answer":"青禾咖啡馆环境安静并配有插座 [E1]。","recommendations":[],"review_summary":null,"source_ids":["E1"]}
+    },
+    {
+      "id":"ct-02","category":"citation","query":"这两条资料分别说了什么","expected_source_ids":["E1","E2"],
+      "chunks":[
+        {"chunk_id":"c-ct-02a","content":"云岚川菜馆设有八人包间。","score":0.92,"source_location":"merchant/yunlan/rooms","merchant_id":"m-yunlan","data_updated_at":"2026-07-19T08:00:00Z"},
+        {"chunk_id":"c-ct-02b","content":"云岚川菜馆人均消费八十八元。","score":0.90,"source_location":"merchant/yunlan/price","merchant_id":"m-yunlan","data_updated_at":"2026-07-19T08:00:00Z"}
+      ],
+      "model_output":{"response_type":"grounded_answer","answer":"云岚川菜馆设有八人包间 [E1]。人均消费八十八元 [E2]。","recommendations":[],"review_summary":null,"source_ids":["E1","E2"]}
+    },
+    {
+      "id":"ct-03","category":"citation","query":"推荐一家适合夜宵的火锅店","expected_source_ids":["E1"],
+      "chunks":[{"chunk_id":"c-ct-03","content":"星河火锅店营业到凌晨两点，适合夜宵，人均九十九元。","score":0.93,"source_location":"merchant/xinghe/profile","merchant_id":"m-xinghe","data_updated_at":"2026-07-18T08:00:00Z","metadata":{"merchant_name":"星河火锅店","category":"火锅","price_cent":9900}}],
+      "model_output":{"response_type":"recommendation","answer":"","recommendations":[{"merchant_id":"m-xinghe","name":"星河火锅店","category":"火锅","reason":"营业到凌晨两点，适合夜宵","distance_meter":null,"avg_price_cent":9900,"rating":null,"business_status":null,"data_updated_at":"2026-07-18T08:00:00Z","source_ids":["E1"],"tags":["夜宵"]}],"review_summary":null,"source_ids":[]}
+    },
+    {
+      "id":"ct-04","category":"citation","query":"总结竹里素食餐厅的评价亮点","expected_source_ids":["E1"],
+      "chunks":[{"chunk_id":"c-ct-04","content":"顾客称赞竹里素食餐厅环境清雅，菌菇汤鲜美。","score":0.91,"source_location":"reviews/zhuli/positive","merchant_id":"m-zhuli","data_updated_at":"2026-07-17T08:00:00Z","metadata":{"merchant_name":"竹里素食餐厅"}}],
+      "model_output":{"response_type":"review_summary","answer":"","recommendations":[],"review_summary":{"merchant_id":"m-zhuli","merchant_name":"竹里素食餐厅","highlights":[{"text":"环境清雅，菌菇汤鲜美","tags":["环境","菜品"],"source_ids":["E1"]}],"drawbacks":[],"recent_changes":[],"tags":["清雅","菌菇汤"],"data_updated_at":"2026-07-17T08:00:00Z"},"source_ids":[]}
+    },
+    {
+      "id":"ct-05","category":"citation","query":"早晨有哪些选择","expected_source_ids":["E1","E2"],
+      "chunks":[
+        {"chunk_id":"c-ct-05a","content":"巷口面馆早上六点开始营业。","score":0.90,"source_location":"merchant/xiangkou/hours","merchant_id":"m-xiangkou","data_updated_at":"2026-07-16T08:00:00Z"},
+        {"chunk_id":"c-ct-05b","content":"北辰烘焙坊七点开始营业并供应现烤可颂。","score":0.89,"source_location":"merchant/beichen/hours","merchant_id":"m-beichen","data_updated_at":"2026-07-16T08:00:00Z"}
+      ],
+      "model_output":{"response_type":"grounded_answer","answer":"巷口面馆早上六点开始营业 [E1]。北辰烘焙坊七点供应现烤可颂 [E2]。","recommendations":[],"review_summary":null,"source_ids":["E1","E2"]}
+    },
+
+    {
+      "id":"hl-01","category":"hallucination","query":"这家店有什么荣誉","expected_fallback_reason":"unsupported_citations",
+      "chunks":[{"chunk_id":"c-hl-01","content":"青禾咖啡馆环境安静。","score":0.9,"source_location":"reviews/qinghe/2","merchant_id":"m-qinghe"}],
+      "model_output":{"response_type":"grounded_answer","answer":"该店获得米其林三星 [E1]。","recommendations":[],"review_summary":null,"source_ids":["E1"]}
+    },
+    {
+      "id":"hl-02","category":"hallucination","query":"资料中说了什么","expected_fallback_reason":"invalid_model_output",
+      "chunks":[{"chunk_id":"c-hl-02","content":"清波茶馆设有独立茶室。","score":0.9,"source_location":"merchant/qingbo/room","merchant_id":"m-qingbo"}],
+      "model_output":{"response_type":"grounded_answer","answer":"清波茶馆设有独立茶室 [E99]。","recommendations":[],"review_summary":null,"source_ids":["E99"]}
+    },
+    {
+      "id":"hl-03","category":"hallucination","query":"推荐一家茶馆","expected_fallback_reason":"invalid_model_output",
+      "chunks":[{"chunk_id":"c-hl-03","content":"清波茶馆设有独立茶室。","score":0.9,"source_location":"merchant/qingbo/profile","merchant_id":"m-qingbo","data_updated_at":"2026-07-15T08:00:00Z","metadata":{"merchant_name":"清波茶馆","category":"茶馆"}}],
+      "model_output":{"response_type":"recommendation","answer":"","recommendations":[{"merchant_id":"m-invented","name":"不存在茶馆","category":"茶馆","reason":"有独立茶室","distance_meter":null,"avg_price_cent":null,"rating":null,"business_status":null,"data_updated_at":"2026-07-15T08:00:00Z","source_ids":["E1"],"tags":[]}],"review_summary":null,"source_ids":[]}
+    },
+    {
+      "id":"hl-04","category":"hallucination","query":"推荐附近餐厅","expected_fallback_reason":"unsupported_citations",
+      "chunks":[{"chunk_id":"c-hl-04","content":"海风亲子餐厅提供儿童座椅。","score":0.9,"source_location":"merchant/haifeng/profile","merchant_id":"m-haifeng","data_updated_at":"2026-07-14T08:00:00Z","metadata":{"merchant_name":"海风亲子餐厅","category":"亲子餐厅"}}],
+      "model_output":{"response_type":"recommendation","answer":"","recommendations":[{"merchant_id":"m-haifeng","name":"海风亲子餐厅","category":"亲子餐厅","reason":"提供儿童座椅","distance_meter":null,"avg_price_cent":null,"rating":5.0,"business_status":null,"data_updated_at":"2026-07-14T08:00:00Z","source_ids":["E1"],"tags":["亲子"]}],"review_summary":null,"source_ids":[]}
+    },
+    {
+      "id":"hl-05","category":"hallucination","query":"资料说了什么","expected_fallback_reason":"unsupported_citations",
+      "chunks":[{"chunk_id":"c-hl-05","content":"木棉甜品店供应低糖蛋糕。","score":0.9,"source_location":"merchant/mumian/menu","merchant_id":"m-mumian"}],
+      "model_output":{"response_type":"grounded_answer","answer":"该店提供免费停车 [E1]。","recommendations":[],"review_summary":null,"source_ids":["E1"]}
+    },
+
+    {"id":"nr-01","category":"no_result","query":"推荐附近餐厅","chunks":[],"expected_fallback_reason":"no_evidence"},
+    {"id":"nr-02","category":"no_result","query":"推荐安静咖啡馆","citation_policy":{"min_evidence_score":0.8},"chunks":[{"chunk_id":"c-nr-02","content":"模糊且低相关的资料。","score":0.31,"source_location":"unknown/1"}],"expected_fallback_reason":"no_evidence"},
+    {"id":"nr-03","category":"no_result","query":"推荐适合聚会的餐厅","citation_policy":{"min_evidence_count":2},"chunks":[{"chunk_id":"c-nr-03","content":"仅有一条可用资料。","score":0.9,"source_location":"unknown/2"}],"expected_fallback_reason":"insufficient_evidence"},
+    {"id":"nr-04","category":"no_result","query":"找人均五十元以内的西餐","citation_policy":{"min_evidence_score":0.85,"min_evidence_count":2},"chunks":[{"chunk_id":"c-nr-04a","content":"第一条证据分数不足。","score":0.6,"source_location":"unknown/3"},{"chunk_id":"c-nr-04b","content":"第二条证据分数也不足。","score":0.7,"source_location":"unknown/4"}],"expected_fallback_reason":"no_evidence"},
+    {"id":"nr-05","category":"no_result","query":"推荐夜宵火锅","citation_policy":{"min_evidence_score":0.8,"min_evidence_count":2},"chunks":[{"chunk_id":"c-nr-05a","content":"一条合格资料。","score":0.9,"source_location":"unknown/5"},{"chunk_id":"c-nr-05b","content":"一条不合格资料。","score":0.5,"source_location":"unknown/6"}],"expected_fallback_reason":"insufficient_evidence"}
+  ]
+}

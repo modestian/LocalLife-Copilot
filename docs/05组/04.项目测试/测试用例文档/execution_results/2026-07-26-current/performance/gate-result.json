@@ -1,0 +1,39 @@
+{
+  "task_id": "TK-703-03",
+  "generated_at": "2026-07-26T04:49:56.678659+00:00",
+  "source_csv": "D:\\LocalLife-Copilot\\docs\\测试用例文档\\execution_results\\2026-07-26-current\\performance\\locust_stats.csv",
+  "minimum_requests_per_metric": 20,
+  "passed": true,
+  "results": [
+    {
+      "name": "API GET /api/v1/users/me",
+      "requests": 1342,
+      "failures": 0,
+      "p95_ms": 58.0,
+      "threshold_ms": 500.0,
+      "comparison": "<",
+      "passed": true,
+      "reason": "通过"
+    },
+    {
+      "name": "SEARCH POST /api/v1/search",
+      "requests": 1293,
+      "failures": 0,
+      "p95_ms": 180.0,
+      "threshold_ms": 300.0,
+      "comparison": "<",
+      "passed": true,
+      "reason": "通过"
+    },
+    {
+      "name": "TTFB POST /v1/chat/completions",
+      "requests": 1263,
+      "failures": 0,
+      "p95_ms": 99.0,
+      "threshold_ms": 2000.0,
+      "comparison": "≤",
+      "passed": true,
+      "reason": "通过"
+    }
+  ]
+}

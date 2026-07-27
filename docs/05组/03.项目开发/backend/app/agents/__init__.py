@@ -1,0 +1,164 @@
+"""Public contracts for the LangGraph-based chat orchestration."""
+
+from app.agents.adapters import HybridSearchRetrieverAdapter
+from app.agents.contracts import (
+    GraphNode,
+    ModelAdapter,
+    ModelInput,
+    ModelPrediction,
+    NodeContract,
+    RetrievalRequest,
+    RetrievalScope,
+    RetrieverAdapter,
+    StateUpdate,
+)
+from app.agents.generation import (
+    GENERATE_GROUNDED_CONTRACT,
+    NO_EVIDENCE_ANSWER,
+    PROMPT_POLICY_VERSION,
+    BusinessStatus,
+    CitationIssue,
+    CitationPolicy,
+    CitationVerification,
+    CitationVerifier,
+    GenerationMode,
+    GroundedGeneration,
+    GroundedOutput,
+    GroundedRAGGenerator,
+    RecommendationOutput,
+    ReviewSummaryItem,
+    ReviewSummaryOutput,
+    build_grounded_prompt,
+    infer_generation_mode,
+    render_grounded_output,
+)
+from app.agents.graph import ChatGraphNodes, build_chat_graph
+
+# langchain_rag is optional — depends on langchain-openai which is only
+# installed inside Docker (model-network stage).  Tests running outside
+# Docker may not have it.
+try:
+    from app.agents.langchain_rag import (  # noqa: F811
+        LangChainRAGAdapter,
+        RAGGeneration,
+        SimpleRAGGenerator,
+        chunks_to_citations,
+        chunks_to_context,
+        render_fallback,
+    )
+except ImportError:
+    LangChainRAGAdapter = None  # type: ignore[assignment]
+    RAGGeneration = None  # type: ignore[assignment]
+    SimpleRAGGenerator = None  # type: ignore[assignment]
+    chunks_to_citations = None  # type: ignore[assignment]
+    chunks_to_context = None  # type: ignore[assignment]
+    render_fallback = None  # type: ignore[assignment]
+
+from app.agents.local_model import ExtractiveModelAdapter
+from app.agents.memory import (
+    SUMMARY_SETTINGS_KEY,
+    ControlledConversationSummarizer,
+    ConversationHistoryAdapter,
+    ConversationMemoryService,
+    ConversationSummarizer,
+    MemoryWindow,
+)
+from app.agents.persistence import GroundedPersistenceError, GroundedResponsePersister
+from app.agents.routing import (
+    ASK_QUESTION_CONTRACT,
+    EXTRACT_CONSTRAINTS_CONTRACT,
+    ROUTE_INTENT_CONTRACT,
+    ClarificationDecision,
+    ClarificationPlanner,
+    ConstraintExtractor,
+    ConstraintOutput,
+    IntentOutput,
+    IntentRouter,
+    merge_constraints,
+    route_after_constraints,
+    route_after_intent,
+)
+from app.agents.runtime import ChatAgentRuntime, ChatRunContext, ChatRunResult
+from app.agents.state import ChatState, StateField, validate_state_update
+from app.agents.types import (
+    ChatConstraints,
+    ChatError,
+    ChatIntent,
+    RetrievedChunk,
+    SafetyDecision,
+    SafetyResult,
+    SourceCitation,
+)
+
+__all__ = [
+    "ChatAgentRuntime",
+    "ChatConstraints",
+    "ChatGraphNodes",
+    "ChatRunContext",
+    "ChatRunResult",
+    "ChatError",
+    "ChatIntent",
+    "ChatState",
+    "CitationIssue",
+    "CitationPolicy",
+    "CitationVerification",
+    "CitationVerifier",
+    "ControlledConversationSummarizer",
+    "ConversationHistoryAdapter",
+    "ConversationMemoryService",
+    "ConversationSummarizer",
+    "ClarificationDecision",
+    "ClarificationPlanner",
+    "ConstraintExtractor",
+    "ConstraintOutput",
+    "GraphNode",
+    "ExtractiveModelAdapter",
+    "GroundedGeneration",
+    "GroundedOutput",
+    "GroundedRAGGenerator",
+    "GroundedPersistenceError",
+    "GroundedResponsePersister",
+    "HybridSearchRetrieverAdapter",
+    "IntentOutput",
+    "IntentRouter",
+    "LangChainRAGAdapter",
+    "ModelAdapter",
+    "ModelInput",
+    "ModelPrediction",
+    "MemoryWindow",
+    "NodeContract",
+    "RAGGeneration",
+    "RetrievedChunk",
+    "RecommendationOutput",
+    "ReviewSummaryItem",
+    "ReviewSummaryOutput",
+    "RetrieverAdapter",
+    "RetrievalRequest",
+    "RetrievalScope",
+    "SafetyDecision",
+    "SafetyResult",
+    "SimpleRAGGenerator",
+    "SourceCitation",
+    "StateField",
+    "StateUpdate",
+    "BusinessStatus",
+    "GenerationMode",
+    "SUMMARY_SETTINGS_KEY",
+    "ASK_QUESTION_CONTRACT",
+    "EXTRACT_CONSTRAINTS_CONTRACT",
+    "ROUTE_INTENT_CONTRACT",
+    "GENERATE_GROUNDED_CONTRACT",
+    "NO_EVIDENCE_ANSWER",
+    "PROMPT_POLICY_VERSION",
+    "build_chat_graph",
+    "build_grounded_prompt",
+    "chunks_to_citations",
+    "chunks_to_context",
+    "render_fallback",
+    "infer_generation_mode",
+    "merge_constraints",
+    "route_after_constraints",
+    "route_after_intent",
+    "render_grounded_output",
+    "validate_state_update",
+]
